@@ -94,6 +94,41 @@ if ($identity !== null) {
 phone was unreachable, or the session timed out. Show `$exception->result->message()`,
 and offer to try again when `$exception->result->isWorthRetrying()`.
 
+### Two things SK asks of you, which no library can do for you
+
+**Name yourself recognisably.** The relying-party name appears in bold at the
+top of the dialog on the phone, and it is how the person tells your request
+apart from an attacker's. SK does not accept generic names such as "login" or
+"authentication": use your company name, your domain, or a brand the person
+associates with the site they are on. The display text goes underneath, and is
+the place for what is being signed, such as the document's name.
+
+**Do not reveal who has Mobile-ID.** An authentication for someone with no
+Mobile-ID still starts a session and only reports `NotMidClient` when polled,
+so treating that differently in the interface turns your login form into a way
+of mining who has Mobile-ID and who does not. SK's [secure implementation
+guide](https://github.com/SK-EID/MID/wiki/Secure-Implementation-Guide) asks you
+to show a verification code regardless and then fail the same way a timeout
+fails:
+
+```php
+try {
+    $session = $authenticator->start($identity);
+    $code = $session->verificationCode;
+} catch (CertificateNotFoundException) {
+    $code = VerificationCode::random();   // indistinguishable from a real one
+    $session = null;
+}
+
+echo "Verification code {$code}";
+
+// Later, for both cases: "No such account, or nobody answered in time."
+```
+
+The same goes for the other failures. `MobileIdResult::message()` is written
+for a person, but which of them you show is your decision, and the guide's
+advice is one message for anything that did not succeed.
+
 ### What is actually checked
 
 The verification code is the only thing standing between a person and
