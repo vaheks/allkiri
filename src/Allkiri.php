@@ -16,6 +16,10 @@ use Allkiri\Crypto\RandomNonceGenerator;
 use Allkiri\Crypto\Tsp\TspClient;
 use Allkiri\Http\CurlHttpClient;
 use Allkiri\Http\HttpClient;
+use Allkiri\MobileId\MobileIdAuthenticator;
+use Allkiri\MobileId\MobileIdClient;
+use Allkiri\MobileId\MobileIdConfiguration;
+use Allkiri\MobileId\MobileIdSigner;
 use Allkiri\Signing\SigningService;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\CompositeTrustStore;
@@ -145,6 +149,39 @@ final class Allkiri
         }
 
         return $this->validator;
+    }
+
+    /**
+     * The Mobile-ID REST client.
+     *
+     * The relying-party identifier and name come with an SK contract, so the
+     * configuration is passed in rather than derived from the environment;
+     * `MobileIdConfiguration::demo()` needs neither.
+     */
+    public function mobileIdClient(MobileIdConfiguration $configuration): MobileIdClient
+    {
+        // Status requests are long polls: the service holds them open for the
+        // poll timeout, so the HTTP client must be willing to wait longer than
+        // that. Only the shared client is reused; the default one is rebuilt
+        // with a timeout that fits.
+        $http = $this->http ?? new CurlHttpClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
+
+        return new MobileIdClient($configuration, $http, $this->logger);
+    }
+
+    public function mobileIdAuthenticator(MobileIdConfiguration $configuration): MobileIdAuthenticator
+    {
+        return new MobileIdAuthenticator(
+            $this->mobileIdClient($configuration),
+            $this->chainBuilder(),
+            nonceGenerator: $this->nonces,
+            clock: $this->clock,
+        );
+    }
+
+    public function mobileIdSigner(MobileIdConfiguration $configuration): MobileIdSigner
+    {
+        return new MobileIdSigner($this->mobileIdClient($configuration), $this->signingService());
     }
 
     public function reader(): AsicReader

@@ -7,6 +7,7 @@ namespace Allkiri\Signing;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\SignatureFile;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CryptoException;
 use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyType;
 use Allkiri\Crypto\SignatureAlgorithm;
@@ -153,16 +154,12 @@ final class SigningService
         if (!$key instanceof EC\PublicKey) {
             throw new InvalidSignatureValueException('The certificate has no elliptic-curve key for an ECDSA signature');
         }
-        $fieldBytes = EcdsaSignature::fieldBytes($key);
-        if (EcdsaSignature::looksLikeDer($signatureValue)) {
-            // OpenSSL and card middleware sometimes hand back DER; XML-DSig wants r‖s.
-            return EcdsaSignature::derToRaw($signatureValue, $fieldBytes);
+        // Mobile-ID, OpenSSL and card middleware hand back DER; XML-DSig wants r‖s.
+        try {
+            return EcdsaSignature::toRaw($signatureValue, $key);
+        } catch (CryptoException $exception) {
+            throw new InvalidSignatureValueException($exception->getMessage(), 0, $exception);
         }
-        if (\strlen($signatureValue) !== 2 * $fieldBytes) {
-            throw new InvalidSignatureValueException(\sprintf('An ECDSA signature on this curve must be %d bytes, got %d', 2 * $fieldBytes, \strlen($signatureValue)));
-        }
-
-        return $signatureValue;
     }
 
     private function builder(): SignatureBuilder

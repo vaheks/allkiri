@@ -72,6 +72,33 @@ final class EcdsaSignature
     }
 
     /**
+     * Whatever an eID means handed back → the raw r‖s form everything in this
+     * library verifies and embeds.
+     *
+     * Mobile-ID returns DER, Web eID returns raw, Smart-ID returns raw, and
+     * card middleware has been seen doing either, so the shape is detected
+     * rather than assumed.
+     *
+     * @throws CryptoException when the value is neither, or is the wrong size
+     *                         for the curve
+     */
+    public static function toRaw(string $signature, EC $key): string
+    {
+        if ($signature === '') {
+            throw new CryptoException('The ECDSA signature value is empty');
+        }
+        $fieldBytes = self::fieldBytes($key);
+        if (self::looksLikeDer($signature)) {
+            return self::derToRaw($signature, $fieldBytes);
+        }
+        if (\strlen($signature) !== 2 * $fieldBytes) {
+            throw new CryptoException(\sprintf('An ECDSA signature on this curve must be %d bytes, got %d', 2 * $fieldBytes, \strlen($signature)));
+        }
+
+        return $signature;
+    }
+
+    /**
      * True when the bytes have the shape of a DER SEQUENCE of two INTEGERs.
      * A raw r‖s value of the same length practically never satisfies this.
      */
