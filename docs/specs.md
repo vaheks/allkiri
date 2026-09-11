@@ -46,7 +46,18 @@ on 2023-11-01.
 | Test numbers and outcomes in DEMO | https://github.com/SK-EID/MID/wiki/Test-number-for-automated-testing-in-DEMO |
 | Base URLs | demo `https://tsp.demo.sk.ee/mid-api`, production `https://mid.sk.ee/mid-api` |
 | Demo relying party | UUID `00000000-0000-0000-0000-000000000000`, name `DEMO` |
+| Secure implementation guide | https://github.com/SK-EID/MID/wiki/Secure-Implementation-Guide |
+| Environment technical parameters | https://github.com/SK-EID/MID/wiki/Environment-technical-parameters |
 | Official PHP client (authentication only, reference) | https://github.com/SK-EID/mid-rest-php-client |
+
+Endpoints: `POST /certificate`, `POST /authentication`, `POST /signature`, and
+`GET /{authentication|signature}/session/{id}?timeoutMs=` for long polling
+(default 10 000 ms, larger values silently reduced to the service maximum).
+Hash types `SHA256`, `SHA384`, `SHA512`; languages `EST`, `ENG`, `RUS`, `LIT`.
+Display text: 100 characters in `GSM-7` with at most 5 from the extension
+table, or 50 in `UCS-2`; characters outside `GSM-7` are replaced with spaces
+rather than refused. The verification code is 6 bits from the start of the
+hash and 7 from its end, read as four decimal digits.
 
 ## Smart-ID
 
