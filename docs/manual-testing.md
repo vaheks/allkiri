@@ -47,10 +47,26 @@ Produce the containers with the integration suite or a short script, then:
 | 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | |
 | 8 | The same with a Smart-ID demo account | | |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
+| 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | | |
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
 made.
+
+Item 10 is the most informative of them, because it is the only one signed with
+a certificate DigiDoc4 already trusts in test mode, so a complaint there is
+about what allkiri produced and nothing else. Produce it with:
+
+```bash
+ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
+  vendor/bin/phpunit tests/Integration/MobileIdDemoTest.php \
+  --filter testAContainerSignedByADemoNumberIsAcceptedEverywhere
+```
+
+That writes `mobile-id-60001019906.asice` (ECDSA P-256) and
+`mobile-id-39901019992.asice` (RSA) into that directory. Both are already
+TOTAL-PASSED in SiVa, so DigiDoc4 should show them as valid signatures by
+"O'CONNEŽ-ŠUSLIK TESTNUMBER,MARY ÄNN".
 
 ## Signing in DigiDoc4 test mode
 
