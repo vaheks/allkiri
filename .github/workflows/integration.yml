@@ -24,7 +24,7 @@ jobs:
       ALLKIRI_SMARTID_RP_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
       ALLKIRI_SMARTID_RP_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: shivammathur/setup-php@v2
         with:
