@@ -48,13 +48,27 @@ change.
 | `ALLKIRI_TEST_P12` | a PKCS#12 whose CA is in the Estonian test trusted list; turns the SiVa gate into a full TOTAL-PASSED |
 | `ALLKIRI_TEST_P12_PASSWORD` | its password |
 
-Two tests skip with instructions until a certificate is available:
+### The test signing key and the demo OCSP service
 
-- Signing with our own test key needs `tests/fixtures/pki/signer-rsa.cert.pem`
-  uploaded at <https://demo.sk.ee/upload_cert/> with status "Good", so the demo
-  responder will answer for it.
-- The full SiVa gate needs `ALLKIRI_TEST_P12`. SK issues test certificates free
-  of charge; ask at <info@skidsolutions.eu>.
+`tests/fixtures/pki/signer-rsa.cert.pem` has been uploaded at
+<https://demo.sk.ee/upload_cert/>, so `http://demo.sk.ee/ocsp` answers for it
+and an LT signature can be completed with it. Re-upload it if the fixtures are
+ever regenerated.
+
+Two peculiarities of that service, both handled in the test rather than in the
+library (see [decisions.md](decisions.md)): the answer is signed by a shared
+responder that our test CA did not issue, so the responder has to be named
+explicitly as a trusted responder; and the test certificate's own AIA points at
+a URL that does not resolve, so the demo responder is configured for its issuer.
+
+### The last skipping test
+
+The full SiVa gate needs `ALLKIRI_TEST_P12`: a key whose CA is in the Estonian
+test trusted list, which turns SiVa's verdict from "the format is fine but the
+CA is unknown" into a clean TOTAL-PASSED. SK issues test certificates free of
+charge; ask at <info@skidsolutions.eu>. Phase 2 provides the same evidence for
+nothing, because Mobile-ID's demo numbers sign with certificates from a CA the
+test trusted list already names.
 
 ## Writing tests
 

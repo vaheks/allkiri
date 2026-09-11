@@ -9,11 +9,18 @@ use Allkiri\Clock\SystemClock;
 use Allkiri\Config\Environment;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\DataFile;
+use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\Ocsp\CertId;
+use Allkiri\Crypto\Ocsp\OcspRequest;
+use Allkiri\Crypto\Ocsp\OcspResponse;
 use Allkiri\Crypto\PrivateKey;
 use Allkiri\Http\CurlHttpClient;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Trust\ServiceType;
+use Allkiri\Trust\TrustAnchor;
 use Allkiri\Validation\Report\Indication;
 use Allkiri\Validation\Siva\SivaClient;
 use Allkiri\Validation\Siva\SivaReport;
@@ -30,24 +37,24 @@ use Allkiri\Validation\Siva\SivaReport;
 final class SivaValidationTest extends IntegrationTestCase
 {
     /**
-     * Anything SiVa says about the format rather than the trust chain.
+     * The only complaints SiVa may make about a container signed with our own
+     * test CA: it has no reason to trust that CA. Anything else means we
+     * produced something malformed, which is what this test is looking for.
      */
-    private const FORMAT_PROBLEMS = [
-        'hash', 'digest', 'not intact', 'reference', 'mimetype', 'manifest',
-        'DataObjectFormat', 'SignedProperties', 'canonical', 'malformed',
-        'signature is not', 'unsupported',
+    private const EXPECTED_TRUST_COMPLAINTS = [
+        'trust anchor',
+        'not trusted',
+        'is not qualified',
+        'QC',
+        'trusted list',
     ];
 
     public function testAContainerWeSignIsFormallyAcceptableToSiva(): void
     {
-        $environment = Environment::demo();
         $http = self::http(60);
+        $environment = $this->demoEnvironmentForOurTestKey($http);
         $allkiri = new Allkiri($environment, $http, new SystemClock());
 
-        // Our test signer's certificate is not in SK's demo OCSP database, so
-        // reach the real TSA but keep the OCSP answer from the demo responder
-        // by uploading the certificate first; when that has not been done, the
-        // signature cannot be completed and the test says so.
         $container = AsicContainer::create(DataFile::fromString('allkiri.txt', 'SiVa interop check ' . date(DATE_ATOM)));
         try {
             $result = $allkiri->signingService()->signWith($container, LocalKeySigner::fromKeyPair(TestPki::signerRsa()));
@@ -127,6 +134,49 @@ final class SivaValidationTest extends IntegrationTestCase
         self::assertSame($report->signatures[0]->claimedSigningTime, $ours->info->claimedSigningTime?->format('Y-m-d\TH:i:s\Z'));
     }
 
+    /**
+     * The demo environment adjusted so our own test key can be used with it.
+     *
+     * Two things have to be arranged, both peculiar to the demo upload service
+     * rather than to how signing normally works:
+     *
+     * 1. Our test certificate names a responder that does not exist
+     *    (`http://ocsp.allkiri.test/`), so the demo responder is configured for
+     *    its issuer instead. A real certificate names a real responder.
+     * 2. demo.sk.ee/ocsp answers for uploaded certificates with one shared
+     *    responder, which our test CA did not issue. RFC 6960 therefore does
+     *    not authorise it, and allkiri refuses it unless it is named as a
+     *    trusted responder. That is what a "Trusted Responder" is for, and the
+     *    certificate is taken from a probe response because SK rotates it.
+     */
+    private function demoEnvironmentForOurTestKey(CurlHttpClient $http): Environment
+    {
+        $environment = Environment::demo();
+        $issuer = TestPki::ca()->certificate;
+        $ocspUrl = (string) $environment->ocspDefaultUrl;
+
+        $request = OcspRequest::build(CertId::for(TestPki::signerRsa()->certificate, $issuer));
+        $response = $http->send(HttpRequest::post($ocspUrl, 'application/ocsp-request', $request->der));
+        if (!$response->isSuccess()) {
+            self::markTestSkipped(\sprintf('%s answered HTTP %d', $ocspUrl, $response->status));
+        }
+        $responders = OcspResponse::fromDer($response->body)->basic()?->certificates() ?? [];
+        if ($responders === []) {
+            self::markTestSkipped('The demo responder sent no certificate, so it cannot be named as a trusted responder');
+        }
+
+        return $environment
+            ->withOcspUrlOverrides([$issuer->subjectDn() => $ocspUrl])
+            ->withExtraTrustAnchors([
+                ...$environment->extraTrustAnchors,
+                TrustAnchor::manual($issuer, ServiceType::CaQc, 'allkiri test CA'),
+                ...array_map(
+                    static fn(Certificate $c): TrustAnchor => TrustAnchor::manual($c, ServiceType::OcspQc, (string) $c->commonName(), 'demo.sk.ee probe'),
+                    $responders,
+                ),
+            ]);
+    }
+
     private function siva(CurlHttpClient $http, Environment $environment): SivaClient
     {
         return new SivaClient($http, (string) $environment->sivaUrl);
@@ -135,13 +185,14 @@ final class SivaValidationTest extends IntegrationTestCase
     private function assertNoFormatProblems(SivaReport $report): void
     {
         foreach ($report->allErrors() as $error) {
-            foreach (self::FORMAT_PROBLEMS as $needle) {
-                self::assertStringNotContainsStringIgnoringCase(
-                    $needle,
-                    $error,
-                    'SiVa found something wrong with the format allkiri produced: ' . $error,
-                );
+            $expected = false;
+            foreach (self::EXPECTED_TRUST_COMPLAINTS as $needle) {
+                if (stripos($error, $needle) !== false) {
+                    $expected = true;
+                    break;
+                }
             }
+            self::assertTrue($expected, 'SiVa found something wrong with the format allkiri produced: ' . $error);
         }
     }
 }
