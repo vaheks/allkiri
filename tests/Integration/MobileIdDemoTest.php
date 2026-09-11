@@ -85,6 +85,31 @@ final class MobileIdDemoTest extends IntegrationTestCase
         $client->certificate(new MobileIdIdentity('+37200000266', '60001019939'));
     }
 
+    /**
+     * An authentication for someone with no Mobile-ID still starts a session
+     * and only reports NOT_MID_CLIENT when it is polled, which is why SK asks
+     * relying parties to show a verification code anyway and then fail the way
+     * a timeout fails: doing otherwise turns the login form into a way of
+     * finding out who has Mobile-ID.
+     */
+    public function testAnAuthenticationForSomeoneWithoutMobileIdStartsAnyway(): void
+    {
+        $configuration = $this->configuration();
+        $allkiri = $this->allkiri();
+        $authenticator = $allkiri->mobileIdAuthenticator($configuration);
+
+        $session = $authenticator->start(new MobileIdIdentity('+37200000266', '60001019939'));
+
+        self::assertMatchesRegularExpression('/^\d{4}$/', $session->verificationCode);
+
+        try {
+            $authenticator->poll($session);
+            self::fail('Expected NOT_MID_CLIENT');
+        } catch (MobileIdSessionException $exception) {
+            self::assertSame(MobileIdResult::NotMidClient, $exception->result);
+        }
+    }
+
     // --- authentication -----------------------------------------------------
 
     public function testAuthenticatingWithTheDemoNumberNamesThePerson(): void
@@ -132,16 +157,6 @@ final class MobileIdDemoTest extends IntegrationTestCase
         $allkiri = $this->allkiri();
         $client = $allkiri->mobileIdClient($configuration);
         $identity = new MobileIdIdentity($phone, $code);
-
-        // NOT_MID_CLIENT is decided before any session starts: the person has
-        // no certificate to sign with.
-        if ($expected === MobileIdResult::NotMidClient) {
-            $this->expectException(CertificateNotFoundException::class);
-            $client->certificate($identity);
-
-            return;
-        }
-
         $authenticator = $allkiri->mobileIdAuthenticator($configuration);
         $session = $authenticator->start($identity);
 

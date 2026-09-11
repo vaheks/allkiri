@@ -75,6 +75,23 @@ final class MobileIdValueObjectsTest extends TestCase
         self::assertMatchesRegularExpression('/^\d{4}$/', VerificationCode::forHash(random_bytes(32)));
     }
 
+    /**
+     * A code for a doomed session must be drawn from the same range as a real
+     * one, or it gives away that there was no account.
+     */
+    public function testARandomCodeCannotBeToldFromARealOne(): void
+    {
+        $seen = [];
+        for ($i = 0; $i < 200; ++$i) {
+            $code = VerificationCode::random();
+            self::assertMatchesRegularExpression('/^\d{4}$/', $code);
+            self::assertLessThanOrEqual(8191, (int) $code);
+            $seen[$code] = true;
+        }
+
+        self::assertGreaterThan(100, \count($seen), 'the codes should not repeat much');
+    }
+
     public function testVerificationCodeNeedsTwoBytes(): void
     {
         $this->expectException(InvalidArgumentException::class);

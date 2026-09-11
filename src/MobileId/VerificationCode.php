@@ -36,4 +36,20 @@ final class VerificationCode
 
         return \sprintf('%04d', ($first << 7) | $last);
     }
+
+    /**
+     * A code for a session that was never going to succeed.
+     *
+     * SK's secure implementation guide asks relying parties not to reveal that
+     * a person has no Mobile-ID, because that turns the login form into a way
+     * of mining who does. The advice is to show a verification code anyway and
+     * then fail the same way a timeout fails. This produces one drawn from the
+     * same range a real code is, so it cannot be told apart from one.
+     *
+     * @return string four digits, zero-padded
+     */
+    public static function random(): string
+    {
+        return \sprintf('%04d', random_int(0, 0x1FFF));
+    }
 }
