@@ -19,12 +19,16 @@ jobs:
     env:
       ALLKIRI_INTEGRATION: '1'
       # Public DEMO credentials by default; repository secrets override them.
-      ALLKIRI_MID_RP_UUID: ${{ secrets.ALLKIRI_MID_RP_UUID || '00000000-0000-0000-0000-000000000000' }}
-      ALLKIRI_MID_RP_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
-      ALLKIRI_SMARTID_RP_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
-      ALLKIRI_SMARTID_RP_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
-      # A PKCS#12 whose CA is in the Estonian test trusted list turns the SiVa
-      # gate from "nothing wrong with the format" into a full TOTAL-PASSED.
+      ALLKIRI_MID_UUID: ${{ secrets.ALLKIRI_MID_RP_UUID || '00000000-0000-0000-0000-000000000000' }}
+      ALLKIRI_MID_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
+      ALLKIRI_SMARTID_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
+      ALLKIRI_SMARTID_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
+      # A PKCS#12 whose CA is in the Estonian test trusted list turns the
+      # local-key SiVa gate into a full TOTAL-PASSED. Optional: the Mobile-ID
+      # demo numbers already reach TOTAL-PASSED without it.
+      # Read through env because the secrets context is not available in a
+      # step's `if`, and interpolating a secret into `run` would be injection.
+      ALLKIRI_TEST_P12_BASE64: ${{ secrets.ALLKIRI_TEST_P12 }}
       ALLKIRI_TEST_P12_PASSWORD: ${{ secrets.ALLKIRI_TEST_P12_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
@@ -40,9 +44,9 @@ jobs:
         run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Provide the test signing key, when one is configured
-        if: ${{ secrets.ALLKIRI_TEST_P12 != '' }}
+        if: env.ALLKIRI_TEST_P12_BASE64 != ''
         run: |
-          printf '%s' "${{ secrets.ALLKIRI_TEST_P12 }}" | base64 -d > "$RUNNER_TEMP/test.p12"
+          printf '%s' "$ALLKIRI_TEST_P12_BASE64" | base64 -d > "$RUNNER_TEMP/test.p12"
           echo "ALLKIRI_TEST_P12=$RUNNER_TEMP/test.p12" >> "$GITHUB_ENV"
 
       - name: Integration tests
