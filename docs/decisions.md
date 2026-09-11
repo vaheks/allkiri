@@ -95,6 +95,48 @@ cannot produce; such legacy signatures are reported as unsupported.
   `C=EE, CN=Test TSL` valid until 2028-11-12. The same XML-DSig verifier
   used for containers verifies it.
 
+## 2026-09-11 — the demo certificate upload service
+
+`https://demo.sk.ee/upload_cert/` accepts any X.509 certificate with an AKI
+extension and makes `http://demo.sk.ee/ocsp` answer for it. Two things about
+it are worth knowing before relying on it.
+
+**The answer is signed by a shared responder.** For an uploaded certificate the
+response comes from "DEMO of KLASS3-SK 2016 OCSP RESPONDER", which the uploaded
+certificate's own CA did not issue. RFC 6960 authorises a responder in three
+ways: it is the CA itself, it is a responder the CA issued carrying the
+OCSPSigning extended key usage, or the client trusts it explicitly. Only the
+third applies here, so allkiri refuses such a response unless the responder is
+named as a trusted responder. That is not a bug to work around; it is the only
+correct reading, and the integration test names the responder deliberately.
+
+**The certificate's own AIA still points wherever it points.** allkiri asks the
+responder a certificate names before falling back to any default, so a test
+certificate with a made-up AIA URL needs an override for its issuer.
+
+### What SiVa says about a container allkiri signs
+
+Signed with our own test CA against the demo timestamp and OCSP services,
+then sent to SiVa demo (2026-09-11):
+
+```
+SiVa: policy=POLv4 form=ASiC-E signatures=1 valid=0
+  indication=INDETERMINATE sub=NO_CERTIFICATE_CHAIN_FOUND format=XAdES_BASELINE_LT
+  signedBy=Allkiri test e-seal
+  ERROR: The certificate chain for signature is not trusted, it does not contain a trust anchor.
+  ERROR: Unable to build a certificate chain up to a trusted list!
+```
+
+Everything structural is accepted: the container is ASiC-E, the signature is
+recognised as XAdES_BASELINE_LT, and SiVa reads back the signer, the signing
+time, the timestamp time and the OCSP time we wrote. The only complaints are
+that it has no reason to trust a CA we invented, which no format change could
+fix.
+
+Worth noting for the validator: SiVa reaches `INDETERMINATE` with
+`NO_CERTIFICATE_CHAIN_FOUND`, which is exactly what allkiri reports for the
+same situation. The two agree on the mapping, not only on the outcome.
+
 ### Tooling
 
 - The shell transport truncates commands above roughly 8 KB, which surfaces
