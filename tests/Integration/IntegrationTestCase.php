@@ -31,4 +31,15 @@ abstract class IntegrationTestCase extends TestCase
 
         return \is_string($value) && $value !== '' ? $value : $default;
     }
+
+    /**
+     * An HTTP client that can reach HTTPS even where PHP has no CA bundle
+     * configured: set ALLKIRI_CA_BUNDLE to a PEM file of trusted authorities.
+     */
+    protected static function http(int $timeoutSeconds = 30): \Allkiri\Http\CurlHttpClient
+    {
+        $bundle = getenv('ALLKIRI_CA_BUNDLE');
+
+        return new \Allkiri\Http\CurlHttpClient($timeoutSeconds, caBundlePath: \is_string($bundle) && $bundle !== '' ? $bundle : null);
+    }
 }
