@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><TrustServiceStatusList xmlns="http://uri.etsi.org/02231/v2#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:tslx="http://uri.etsi.org/02231/v2/additionaltypes#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="ID0001" TSLTag="http://uri.etsi.org/19612/TSLTag">
+   <SchemeInformation>
+      <TSLVersionIdentifier>6</TSLVersionIdentifier>
+      <TSLSequenceNumber>7</TSLSequenceNumber>
+      <TSLType>http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUlistofthelists</TSLType>
+      <SchemeOperatorName>
+         <Name xml:lang="en">Information System Authority</Name>
+      </SchemeOperatorName>
+      <SchemeOperatorAddress>
+         <PostalAddresses>
+            <PostalAddress xml:lang="en">
+               <StreetAddress>139A Pärnu mnt</StreetAddress>
+               <Locality>Tallinn</Locality>
+               <StateOrProvince>Harjumaa</StateOrProvince>
+               <PostalCode>15169</PostalCode>
+               <CountryName>EE</CountryName>
+            </PostalAddress>
+         </PostalAddresses>
+         <ElectronicAddress>
+            <URI xml:lang="en">mailto:ria@ria.ee</URI>
+            <URI xml:lang="en">https://www.ria.ee</URI>
+         </ElectronicAddress>
+      </SchemeOperatorAddress>
+      <SchemeName>
+         <Name xml:lang="en">EE:Supervision/Accreditation Status List of test certification services</Name>
+      </SchemeName>
+      <SchemeInformationURI>
+         <URI xml:lang="en">https://open-eid.github.io/test-TL/</URI>
+      </SchemeInformationURI>
+      <StatusDeterminationApproach>http://uri.etsi.org/TrstSvc/TrustedList/StatusDetn/EUlistofthelists</StatusDeterminationApproach>
+      <SchemeTypeCommunityRules>
+         <URI xml:lang="en">http://uri.etsi.org/TrstSvc/TrustedList/schemerules/EUlistofthelists</URI>
+      </SchemeTypeCommunityRules>
+      <SchemeTerritory>EE</SchemeTerritory>
+      <PolicyOrLegalNotice>
+         <TSLLegalNotice xml:lang="en">The present TSL implementation of ponters to test TSL lists is not applicable to any legal frameworks</TSLLegalNotice>
+      </PolicyOrLegalNotice>
+      <HistoricalInformationPeriod>65535</HistoricalInformationPeriod>
+      <PointersToOtherTSL>
+         <OtherTSLPointer>
+            <ServiceDigitalIdentities>
+               <ServiceDigitalIdentity>
+                  <DigitalId>
+                     <X509Certificate>MIIEvDCCAqQCCQCL/COUVyiGjTANBgkqhkiG9w0BAQUFADAgMQswCQYDVQQGEwJFRTERMA8GA1UEAwwIVGVzdCBUU0wwHhcNMTgxMTE1MTI1MjU1WhcNMjgxMTEyMTI1MjU1WjAgMQswCQYDVQQGEwJFRTERMA8GA1UEAwwIVGVzdCBUU0wwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDfFK0fYeGrdngMZXZndDEpcl9pjGGNpbie3+ch5mDqObUe+OL45b4+SfPapriVRNBa+m5T1TuijP7Kb8sTNS9U3WQYvY8bEstPZnaEvdQSSVRf4j9eVg+RTJ8Y4jjZ02GbLwrpELD2Qs+ohCl8e64G29qutchv6nJqOdbL5U+d6DKyrzSpZyMRPA+UmB78KsBTs0o3wME7IA9J37YgtpUZifcC4LdgTWrX2eBICGPqi7GGKzdnI5LDhCJZnHwzva+6lBwa8fW5aXQG69uPTFmd/pNNF6+8f2FcYGljQiD6FYVKAUfYRBlw9ymKaIbNmyh9bs71ezPrI4ltOLjmZLZFRouSIaeExfzj2FkWERNG/iAuEIRolyyXjqjiQIuiEi8uo6sg1cPrD59EuWtTcMzTxuhVU8Ra37F6DrMEipqh84zQcnT0i/RNk4K723aB9uWwHJgJ5Y2/6cbta7ZkYsfQfjBC4nBRVyUlBCpEFYNePbKttYF5Cf5FraMlGzAY0W/MSIUxvRmlkjCzBod4LA+K/hQxEiw7Xa8OAZfw9l9lmSnia+fgRz3fLKxg3yklw6rA/2aISb83uVRvxgqKym3EeJ/+CsOQpwOblEBxWfQizah1Ct4NhsuKLmBbopxAXLqz25E+3BvvsM4nuwWVfoyvTVXYQ+k4V/hj2iS5buJ5twIDAQABMA0GCSqGSIb3DQEBBQUAA4ICAQAGTw5MJurTeeWy+jQikGfivrxt9lzqt+uSV8D6V1GBzBAl8m4SqSY0U8KM/gtqh9bhmQwm0qgx/mKcDKzCUKajXPKm/NbR+pjZD9Lcx4Iy0iqi9rsxSKECGM2dYAmm7GXnXvz9QUxZjteTgYoRP2s6GfosvTQiUEr/cIrYAU3wC0/94pRb9/FLVVon/aVdsh+Dqb4j7BhKLzXNCNjkv1Sv/YL1zpe/2SPxe0Bfymys97lcu1DB01e/MLfqQJThYOblMte/zGNZO24HcvROIkyoUtYy5/H4F5rsamSGMNdBfauTtYxz7lOT7qQoDNyGMN9bfjWnkVi/lV2CVooeiHIs7wLWEhYmU9DiAzcmODU9uMRRBlGOWK8UQg05exc518heICmudSbgSyQLGqzVoI4kybhmBA3w93KEXJSXlnU7hBzoYDP2d1g46Ay59UtvLycS1kxe0jVjxxRnh/f9aPbMwUYBzEC0naUzMeJtElHLHgW4HT6PLgFImgLLFh8dnYJUzn35wz10g3YBA61YUJuODpapKHixn/2X/t/8Vf1vqr/VwiwUglNQj+P78Fdb3T56JsYRG1bdf6nz5dvv4qtLoG+OjPI/tiLjh2ktqaMjeVmlQFchy/C5Lr48d9IGmo+x2ECYSWVvwzxI7PIbYBI4oaPjh2zKIrz/AlY2RmqMMA==</X509Certificate>
+                  </DigitalId>
+               </ServiceDigitalIdentity>
+            </ServiceDigitalIdentities>
+            <TSLLocation>https://open-eid.github.io/test-TL/EE_T.xml</TSLLocation>
+            <AdditionalInformation>
+               <OtherInformation>
+                  <TSLType>http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUgeneric</TSLType>
+               </OtherInformation>
+               <OtherInformation>
+                  <SchemeOperatorName>
+                     <Name xml:lang="en">SK Test Authority</Name>
+                  </SchemeOperatorName>
+               </OtherInformation>
+               <OtherInformation>
+                  <SchemeTypeCommunityRules>
+                     <URI xml:lang="en">http://uri.etsi.org/TrstSvc/TrustedList/schemerules/EUcommon</URI>
+                  </SchemeTypeCommunityRules>
+               </OtherInformation>
+               <OtherInformation>
+                  <SchemeTerritory>EE_T</SchemeTerritory>
+               </OtherInformation>
+               <OtherInformation>
+                  <tslx:MimeType>application/vnd.etsi.tsl+xml</tslx:MimeType>
+               </OtherInformation>
+            </AdditionalInformation>
+         </OtherTSLPointer>
+      </PointersToOtherTSL>
+      <ListIssueDateTime>2025-06-17T11:17:33Z</ListIssueDateTime>
+      <NextUpdate>
+         <dateTime>2027-08-21T23:00:00Z</dateTime>
+      </NextUpdate>
+      <DistributionPoints>
+         <URI>https://open-eid.github.io/test-TL/tl-mp-test-EE.xml</URI>
+      </DistributionPoints>
+   </SchemeInformation>
+<ds:Signature Id="S0"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI="#ID0001"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>Oor0sQCjQQWjT9MfwboG+6QkJrZD3NGDqC3nKGIWbpE=</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>14QSBObSY+xlceiCcG7FU39fNjyReyR8KujTlz1KCyI=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>feNhZLAmlwWB1XAAU4Xwb5Z1R4+Vx3QCo0m5zCS0Z7ofJYMe9JOxkmvdmKQkdAvyGA+5+oG3W+pI
+fkC5X3tyoAPPvyUxwGHATOQtx6rb7kI5/2S/r1rM1fyku/oCHaFkUMGI+CM9llKN8pcbHvHCXu02
+mE97qsR+xejjBBHBFFpYDtpGY800d3OnccqLZWgrIGn2WCOlHMjdirbf3MYd40QF8kNJFhVhrSZr
+u0KgJP1PRWLi1ulBl9uMitZfHS2EyEiz55BZBHlbXKPuGjRBM+EWz/OTiPWSKJiCSE5HBp2nhEBT
+sMYAgjLbjBVEUZTV8LG+skVbxEQbZfRi44B3RhCgNvRbBNORi+TSv05GdnSMSk7K/7Rx+FTztvlt
+DschqsNFQuuvyRaKghmwgvavmaOpUFUwCJeDf8M5KTOaPb6fDPa7jIQb1LojlyBROPHdxBYqFkS/
+9NBSeeBXSEc2Yo7hC6It3aN0MGCNEOMZrWk3O3SVVyswQth5ivTcXDM6VGYdWedynMv3XKrhNXPC
+F8h6KwQJti9HnNTMqUX3BV9JUU7Hu5FNe7jK5BRaIpRPnhDVZLudNfiMfXOS/jD42qgkdPcVC9IV
+Ceivi5zCXibsc+5yZE6Zc09F1mT0vaLXxY/boAZJ6s70dniY3GqOnllvOXae1n+tFpCpsiFYMCA=</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIEvDCCAqQCCQCL/COUVyiGjTANBgkqhkiG9w0BAQUFADAgMQswCQYDVQQGEwJFRTERMA8GA1UE
+AwwIVGVzdCBUU0wwHhcNMTgxMTE1MTI1MjU1WhcNMjgxMTEyMTI1MjU1WjAgMQswCQYDVQQGEwJF
+RTERMA8GA1UEAwwIVGVzdCBUU0wwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDfFK0f
+YeGrdngMZXZndDEpcl9pjGGNpbie3+ch5mDqObUe+OL45b4+SfPapriVRNBa+m5T1TuijP7Kb8sT
+NS9U3WQYvY8bEstPZnaEvdQSSVRf4j9eVg+RTJ8Y4jjZ02GbLwrpELD2Qs+ohCl8e64G29qutchv
+6nJqOdbL5U+d6DKyrzSpZyMRPA+UmB78KsBTs0o3wME7IA9J37YgtpUZifcC4LdgTWrX2eBICGPq
+i7GGKzdnI5LDhCJZnHwzva+6lBwa8fW5aXQG69uPTFmd/pNNF6+8f2FcYGljQiD6FYVKAUfYRBlw
+9ymKaIbNmyh9bs71ezPrI4ltOLjmZLZFRouSIaeExfzj2FkWERNG/iAuEIRolyyXjqjiQIuiEi8u
+o6sg1cPrD59EuWtTcMzTxuhVU8Ra37F6DrMEipqh84zQcnT0i/RNk4K723aB9uWwHJgJ5Y2/6cbt
+a7ZkYsfQfjBC4nBRVyUlBCpEFYNePbKttYF5Cf5FraMlGzAY0W/MSIUxvRmlkjCzBod4LA+K/hQx
+Eiw7Xa8OAZfw9l9lmSnia+fgRz3fLKxg3yklw6rA/2aISb83uVRvxgqKym3EeJ/+CsOQpwOblEBx
+WfQizah1Ct4NhsuKLmBbopxAXLqz25E+3BvvsM4nuwWVfoyvTVXYQ+k4V/hj2iS5buJ5twIDAQAB
+MA0GCSqGSIb3DQEBBQUAA4ICAQAGTw5MJurTeeWy+jQikGfivrxt9lzqt+uSV8D6V1GBzBAl8m4S
+qSY0U8KM/gtqh9bhmQwm0qgx/mKcDKzCUKajXPKm/NbR+pjZD9Lcx4Iy0iqi9rsxSKECGM2dYAmm
+7GXnXvz9QUxZjteTgYoRP2s6GfosvTQiUEr/cIrYAU3wC0/94pRb9/FLVVon/aVdsh+Dqb4j7BhK
+LzXNCNjkv1Sv/YL1zpe/2SPxe0Bfymys97lcu1DB01e/MLfqQJThYOblMte/zGNZO24HcvROIkyo
+UtYy5/H4F5rsamSGMNdBfauTtYxz7lOT7qQoDNyGMN9bfjWnkVi/lV2CVooeiHIs7wLWEhYmU9Di
+AzcmODU9uMRRBlGOWK8UQg05exc518heICmudSbgSyQLGqzVoI4kybhmBA3w93KEXJSXlnU7hBzo
+YDP2d1g46Ay59UtvLycS1kxe0jVjxxRnh/f9aPbMwUYBzEC0naUzMeJtElHLHgW4HT6PLgFImgLL
+Fh8dnYJUzn35wz10g3YBA61YUJuODpapKHixn/2X/t/8Vf1vqr/VwiwUglNQj+P78Fdb3T56JsYR
+G1bdf6nz5dvv4qtLoG+OjPI/tiLjh2ktqaMjeVmlQFchy/C5Lr48d9IGmo+x2ECYSWVvwzxI7PIb
+YBI4oaPjh2zKIrz/AlY2RmqMMA==</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object><xades:QualifyingProperties Target="#S0"><xades:SignedProperties Id="SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>2025-06-17T08:17:33Z</xades:SigningTime><xades:SigningCertificateV2><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>nk6Dlz6rjsOp9TaNXJg0RNj/m53oC7RGzdDHcZ7jrfo=</ds:DigestValue></xades:CertDigest><xades:IssuerSerialV2>MDEwJKQiMCAxCzAJBgNVBAYTAkVFMREwDwYDVQQDDAhUZXN0IFRTTAIJAIv8I5RXKIaN</xades:IssuerSerialV2></xades:Cert></xades:SigningCertificateV2></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature></TrustServiceStatusList>
