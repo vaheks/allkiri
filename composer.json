@@ -1,0 +1,82 @@
+{
+    "name": "vaheks/allkiri",
+    "description": "Estonian eID for PHP: authenticate and digitally sign with ID-card (Web eID), Mobile-ID and Smart-ID; create and validate ASiC-E / XAdES-LT(A) containers compatible with DigiDoc.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "estonia",
+        "eid",
+        "id-card",
+        "web-eid",
+        "mobile-id",
+        "smart-id",
+        "asice",
+        "bdoc",
+        "xades",
+        "digidoc",
+        "digital-signature",
+        "eidas"
+    ],
+    "authors": [
+        {
+            "name": "Martin Vahemets"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-curl": "*",
+        "ext-dom": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-zip": "*",
+        "phpseclib/phpseclib": "^3.0",
+        "psr/http-client": "^1.0",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/log": "^3.0",
+        "psr/simple-cache": "^3.0",
+        "web-eid/web-eid-authtoken-validation-php": "^1.3"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.75",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Allkiri\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Allkiri\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite Unit",
+        "test:integration": "phpunit --testsuite Integration",
+        "phpstan": "phpstan analyse --memory-limit=1G",
+        "cs:check": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "check": [
+            "@cs:check",
+            "@phpstan",
+            "@test:unit"
+        ]
+    },
+    "scripts-descriptions": {
+        "check": "Run coding-standard check, static analysis and unit tests (what CI runs)."
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
