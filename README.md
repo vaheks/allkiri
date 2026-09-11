@@ -3,10 +3,11 @@
 Estonian eID for PHP: **authenticate** users and **create / validate qualified
 digital signatures** with the ID-card family (via Web eID), Mobile-ID and
 Smart-ID, plus local keys for e-seals and tests. Produces and validates ASiC-E
-containers with XAdES-LT and XAdES-LTA signatures, the format DigiDoc4 opens.
+containers with XAdES-LT signatures, the format DigiDoc4 opens.
 
-> **Status: pre-alpha. Nothing is usable yet.** The repository is being built
-> phase by phase (table below). Do not depend on it before 1.0.
+> **Status: alpha.** The signing core works and is tested against the real
+> Estonian demo services, but the eID means themselves are not wired up yet
+> (see the roadmap). The API may still change. Do not depend on it before 1.0.
 
 ## Why
 
@@ -16,53 +17,98 @@ libdigidocpp for building the signature container. SK's own Mobile-ID PHP
 client says it outright: signing is not supported because no such library
 exists for PHP. `allkiri` is that library.
 
-## What it will do
+## What works today
 
-| Area | ID-card (Web eID) | Mobile-ID | Smart-ID (RP API v3) | Local key |
-|---|---|---|---|---|
-| Authentication | yes | yes | yes, device-link and notification flows | n/a |
-| Signing | yes | yes | yes, RSASSA-PSS | yes |
-| Container | ASiC-E, new or append to existing | same | same | same |
-| Signature level | XAdES-LT, optionally LTA | same | same | same |
-| Validation | native validator, optional SiVa second opinion | | | |
+```php
+use Allkiri\Allkiri;
+use Allkiri\Config\Environment;
+use Allkiri\Container\AsicContainer;
+use Allkiri\Container\DataFile;
+use Allkiri\Crypto\PrivateKey;
+use Allkiri\Signing\LocalKeySigner;
 
-Both Estonian card PKIs are supported: IDEMIA cards (SK ID Solutions) and the
-Thales cards issued since November 2025 (Zetes).
+$allkiri = new Allkiri(Environment::demo());
 
-Framework-agnostic: PSR-18 HTTP client, PSR-3 logger, PSR-16 cache. The
-library never touches sessions, files or databases on its own; every remote
-signing flow hands you a serialisable state object you store between requests.
+$container = AsicContainer::create(DataFile::fromPath('leping.pdf'));
+$keyPair = PrivateKey::fromPkcs12(file_get_contents('seal.p12'), $password);
+
+$result = $allkiri->signingService()->signWith($container, LocalKeySigner::fromKeyPair($keyPair));
+file_put_contents('leping.asice', $allkiri->writer()->write($result->container));
+
+$report = $allkiri->validator()->validateFile('leping.asice');
+```
+
+- **Signing** with a local key or e-seal, at level B, T or LT, with ECDSA
+  (P-256, P-384) or RSA (PKCS#1 or PSS).
+- **A two-step API** built for remote signers: `prepare()` hands you a digest
+  and a serialisable session, `finalize()` takes the value back. Web eID,
+  Mobile-ID and Smart-ID will plug into it unchanged.
+- **Containers**: create, read, and append a signature without disturbing a
+  byte of what was already signed.
+- **Validation** with verdicts in the vocabulary SiVa and DigiDoc4 use, and an
+  optional second opinion from SiVa itself.
+- **Trust** from ETSI trusted lists, pinned to the certificates you name.
+
+Read [docs/signing.md](docs/signing.md), [docs/validation.md](docs/validation.md)
+and [docs/trust.md](docs/trust.md).
 
 ## Roadmap
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Repository bootstrap: tooling, CI, docs | done |
-| 1 | Signing core: ASiC-E, XAdES-LT, local-key signer, trust store, native validator | planned |
-| 2 | Mobile-ID: authentication and signing | planned |
+| 1 | Signing core: ASiC-E, XAdES-LT, local-key signer, trust store, native validator | done |
+| 2 | Mobile-ID: authentication and signing | next |
 | 3 | Smart-ID v3: authentication and signing, device-link flows | planned |
 | 4 | Web eID: authentication and signing, production trust lists | planned |
-| 5 | XAdES-LTA, validation polish, SiVa adapter | planned |
-| 6 | Browser helper, demo app, docs, 1.0 on Packagist | planned |
+| 5 | XAdES-LTA, validation polish | planned |
+| 6 | Browser helper, demo app, 1.0 on Packagist | planned |
 
-Every phase is verified against the public demo environments of SK ID
-Solutions, RIA and Zetes, and cross-checked with SiVa and DigiDoc4. See
-[docs/specs.md](docs/specs.md) for every specification and endpoint this
-library is built against.
+## What it is measured against
+
+Not our own tests alone:
+
+- Containers made by **digidoc4j** (ECDSA P-256 and P-384, RSA, LT, LTA, two
+  signatures) verify with our own code, and one validates TOTAL-PASSED end to
+  end once its PKI is trusted.
+- The **Estonian test trusted list** and the test list of lists verify against
+  the certificate RIA publishes.
+- Real responses captured from **SK's demo** timestamp and OCSP services parse
+  and verify.
+- Nightly, against the live demo services: a timestamp is obtained and chained
+  to the trusted list, a real test ID-card certificate's revocation status is
+  fetched through the responder its own certificate names, and **SiVa** is
+  asked to judge what we produce.
+
+Both Estonian card PKIs are handled: IDEMIA cards (SK ID Solutions) and the
+Thales cards issued since November 2025 (Zetes).
 
 ## Requirements
 
 PHP 8.2 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zip`.
+
+Framework-agnostic: bring your own PSR-18 HTTP client, PSR-3 logger and PSR-16
+cache, or use the built-in ones. The library never touches sessions, files or
+databases on its own.
 
 ## Development
 
 ```bash
 composer install
 composer check              # coding standard + static analysis + unit tests
-composer test:integration   # needs ALLKIRI_INTEGRATION=1, talks to demo environments
+composer test:integration   # needs ALLKIRI_INTEGRATION=1, talks to demo services
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+The unit suite runs entirely offline: an in-process timestamp authority and
+OCSP responder stand in for the real ones, so a full XAdES-LT signature is
+built and verified without a network or eID hardware. See
+[docs/testing.md](docs/testing.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Specifications
+
+Every specification, endpoint and reference implementation this is built
+against is listed in [docs/specs.md](docs/specs.md). Decisions that cost an
+afternoon to establish are recorded in [docs/decisions.md](docs/decisions.md).
 
 ## License
 
