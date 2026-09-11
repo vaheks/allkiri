@@ -1,0 +1,148 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Allkiri\Xades\Dsig;
+
+use Allkiri\Xades\Ns;
+
+/**
+ * XPath helpers that turn ext-dom's loosely typed results into definite ones,
+ * so the signature code reads as intent rather than as null handling.
+ */
+final class Xml
+{
+    private function __construct() {}
+
+    /**
+     * An XPath bound to the node's document with allkiri's prefixes registered.
+     */
+    public static function xpath(\DOMNode $context): \DOMXPath
+    {
+        $document = $context instanceof \DOMDocument ? $context : $context->ownerDocument;
+        if ($document === null) {
+            throw new \LogicException('Node without an owner document');
+        }
+        $xpath = new \DOMXPath($document);
+        $xpath->registerNamespace('ds', Ns::DS);
+        $xpath->registerNamespace('xades', Ns::XADES);
+        $xpath->registerNamespace('xadesv141', Ns::XADES141);
+        $xpath->registerNamespace('asic', Ns::ASIC);
+        $xpath->registerNamespace('ec', Ns::C14N_EXC);
+
+        return $xpath;
+    }
+
+    /**
+     * @return list<\DOMNameSpaceNode|\DOMNode>
+     */
+    public static function nodes(\DOMXPath $xpath, string $query, \DOMNode $context): array
+    {
+        $found = $xpath->query($query, $context);
+        if (!$found instanceof \DOMNodeList) {
+            return [];
+        }
+        $nodes = [];
+        foreach ($found as $node) {
+            $nodes[] = $node;
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    public static function elements(\DOMXPath $xpath, string $query, \DOMNode $context): array
+    {
+        $elements = [];
+        foreach (self::nodes($xpath, $query, $context) as $node) {
+            if ($node instanceof \DOMElement) {
+                $elements[] = $node;
+            }
+        }
+
+        return $elements;
+    }
+
+    public static function element(\DOMXPath $xpath, string $query, \DOMNode $context): ?\DOMElement
+    {
+        return self::elements($xpath, $query, $context)[0] ?? null;
+    }
+
+    /**
+     * An attribute value, or the empty string when the attribute is absent.
+     */
+    public static function attribute(\DOMXPath $xpath, string $query, \DOMNode $context): string
+    {
+        foreach (self::nodes($xpath, $query, $context) as $node) {
+            if ($node instanceof \DOMAttr) {
+                return $node->value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string> the values of every matching attribute, in document order
+     */
+    public static function attributes(\DOMXPath $xpath, string $query, \DOMNode $context): array
+    {
+        $values = [];
+        foreach (self::nodes($xpath, $query, $context) as $node) {
+            if ($node instanceof \DOMAttr) {
+                $values[] = $node->value;
+            }
+        }
+
+        return $values;
+    }
+
+    public static function text(\DOMXPath $xpath, string $query, \DOMNode $context): ?string
+    {
+        return self::element($xpath, $query, $context)?->textContent;
+    }
+
+    /**
+     * Decoded base64 content of an element, or null when absent or malformed.
+     */
+    public static function base64(\DOMXPath $xpath, string $query, \DOMNode $context): ?string
+    {
+        $text = self::text($xpath, $query, $context);
+        if ($text === null) {
+            return null;
+        }
+
+        return self::decodeBase64($text);
+    }
+
+    public static function decodeBase64(string $text): ?string
+    {
+        $decoded = base64_decode((string) preg_replace('/\s+/', '', $text), true);
+
+        return $decoded === false || $decoded === '' ? null : $decoded;
+    }
+
+    public static function elementById(\DOMDocument $document, string $id): ?\DOMElement
+    {
+        $xpath = new \DOMXPath($document);
+
+        return self::element($xpath, \sprintf('//*[@Id=%s]', self::literal($id)), $document);
+    }
+
+    /**
+     * An XPath string literal, quoted safely whatever the value contains.
+     */
+    public static function literal(string $value): string
+    {
+        if (!str_contains($value, "'")) {
+            return "'" . $value . "'";
+        }
+        if (!str_contains($value, '"')) {
+            return '"' . $value . '"';
+        }
+
+        return "concat('" . str_replace("'", "', \"'\", '", $value) . "')";
+    }
+}
