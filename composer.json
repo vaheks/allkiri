@@ -30,7 +30,9 @@
         "ext-openssl": "*",
         "ext-zip": "*",
         "phpseclib/phpseclib": "^3.0",
+        "psr/clock": "^1.0",
         "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
         "psr/http-message": "^1.1 || ^2.0",
         "psr/log": "^3.0",
         "psr/simple-cache": "^3.0",
@@ -38,6 +40,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.75",
+        "guzzlehttp/psr7": "^2.6",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-phpunit": "^2.0",
