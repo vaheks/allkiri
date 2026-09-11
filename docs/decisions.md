@@ -77,7 +77,7 @@ cannot produce; such legacy signatures are reported as unsupported.
 ### Demo services behave as the plan assumed
 
 - TSA `http://tsa.demo.sk.ee/tsa`: RFC 3161 over HTTP, policy 0.4.0.2023.1.1,
-  TSU "DEMO SK TIMESTAMPING UNIT 2025E" (P-256, ecdsa-with-SHA512, SHA-384
+  TSU "DEMO SK TIMESTAMPING UNIT 2025E" (P-256, ecdsa-with-SHA512, SHA-512
   message digest attribute), `ESSCertIDv2` with issuerSerial, TSU certificate
   included when `certReq` is set, nonce echoed, accuracy 1 s. The CMS
   signature verifies over the `signedAttrs` slice with its first byte rewritten
