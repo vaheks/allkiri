@@ -1,0 +1,40 @@
+# Runs the Integration suite against the public demo environments of
+# SK ID Solutions (Mobile-ID, Smart-ID, TSA, OCSP), RIA (SiVa, test TSL) and
+# Zetes (Thales ID-card OCSP). Never on plain pushes: the demo services are
+# shared, rate-limited and occasionally down, and a flaky external service
+# must not block a pull request.
+name: Integration (demo environments)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      ALLKIRI_INTEGRATION: '1'
+      # Public DEMO credentials by default; repository secrets override them.
+      ALLKIRI_MID_RP_UUID: ${{ secrets.ALLKIRI_MID_RP_UUID || '00000000-0000-0000-0000-000000000000' }}
+      ALLKIRI_MID_RP_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
+      ALLKIRI_SMARTID_RP_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
+      ALLKIRI_SMARTID_RP_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, dom, mbstring, openssl, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Integration tests
+        run: composer test:integration

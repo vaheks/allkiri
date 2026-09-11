@@ -1,0 +1,15 @@
+# Store text as LF so CI (Linux) and Windows checkouts agree.
+* text=auto eol=lf
+
+# Signed containers and DER blobs must never be touched.
+*.asice binary
+*.bdoc binary
+*.sce binary
+*.ddoc binary
+*.zip binary
+*.der binary
+*.p12 binary
+*.pfx binary
+*.tsr binary
+*.ors binary
+*.png binary
