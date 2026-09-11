@@ -45,8 +45,10 @@ change.
 | Variable | For |
 |---|---|
 | `ALLKIRI_CA_BUNDLE` | a PEM file of certificate authorities, when PHP has no `curl.cainfo` configured (common on Windows, where every HTTPS call otherwise fails with curl error 60) |
-| `ALLKIRI_TEST_P12` | a PKCS#12 whose CA is in the Estonian test trusted list; turns the SiVa gate into a full TOTAL-PASSED |
+| `ALLKIRI_TEST_P12` | a PKCS#12 whose CA is in the Estonian test trusted list; turns the local-key SiVa gate into a full TOTAL-PASSED. Optional: the Mobile-ID demo test already reaches TOTAL-PASSED with a key the test trusted list covers |
 | `ALLKIRI_TEST_P12_PASSWORD` | its password |
+| `ALLKIRI_ARTEFACTS` | a directory to keep the containers the Mobile-ID demo test signs, for opening in DigiDoc4 |
+| `ALLKIRI_MID_URL`, `ALLKIRI_MID_UUID`, `ALLKIRI_MID_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
 
 ### The test signing key and the demo OCSP service
 

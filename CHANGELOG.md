@@ -32,6 +32,14 @@ signatures with a local key, and the API the eID means will plug into.
 - **Configuration.** `Environment::demo()` works out of the box against the
   free Estonian test services; `Environment::production()` trusts nothing until
   the trusted list's signing certificates are pinned.
+- **Mobile-ID.** Authentication and signing through SK's REST service, in the
+  same two halves, with the four-digit verification code, long polling, and a
+  typed result for every outcome SK publishes. Authentication signs a random
+  challenge and the identity is believed only once that signature verifies
+  against a valid, trusted certificate belonging to the person the session was
+  started for. Display text is checked against what the chosen encoding can
+  actually carry, because the service replaces anything else with spaces
+  rather than refusing it.
 
 ### Verified against
 
@@ -39,9 +47,12 @@ signatures with a local key, and the API the eID means will plug into.
   to end once its PKI is trusted.
 - The live Estonian test trusted list, SK's demo timestamp and OCSP services,
   and SiVa.
+- Every Mobile-ID demo number SK publishes: each documented failure arrives as
+  its own typed result, and containers signed by the ECC and the RSA demo
+  number are TOTAL-PASSED in both our validator and SiVa.
 
 ### Not yet
 
-Mobile-ID, Smart-ID and Web eID; archive timestamps (LTA); BDOC-TM
+Smart-ID and Web eID; archive timestamps (LTA); BDOC-TM
 (time-mark) signatures, which SK stopped supporting on 2023-11-01 and which
 this library reports as unsupported rather than validating.

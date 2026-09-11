@@ -144,3 +144,73 @@ same situation. The two agree on the mapping, not only on the outcome.
   couple of kilobytes are written with the editor tool, not heredocs.
 - OpenSSL 3.5 CLI is available locally and used as the independent
   cross-check (`openssl ts`, `openssl ocsp`, `openssl asn1parse`).
+
+## 2026-09-12 — Phase 2, Mobile-ID
+
+### Display text is measured in characters, and bad characters are not refused
+
+SK's API reference says the display text is "maximum 100 bytes, that is either
+50 or 100 characters depending on the encoding", and then gives the real
+limits per format: GSM-7 takes **100 characters** of the GSM 03.38 alphabet
+including at most **5** from the extension table `€[]^|{}\`, and UCS-2 takes
+**50 characters**. Counting bytes, as a first reading of "100 bytes" suggests,
+is wrong in both directions: it under-counts extension characters, which cost
+two, and over-counts any non-ASCII letter, which costs one.
+
+The trap underneath is worse than the arithmetic. A character GSM-7 cannot
+carry is **replaced with a space**, not refused, so the request succeeds and
+the person simply reads a mangled sentence on their phone. Estonian `õ`, `š`
+and `ž` are all outside GSM-7, which makes `Nõustun` — about the most likely
+word to put on a signing prompt — arrive as `N ustun`.
+
+`MobileIdConfiguration` therefore refuses such text at construction and names
+the offending characters, and `DisplayTextFormat::forText()` picks a format
+that carries what it is given.
+
+### Mobile-ID returns DER-encoded ECDSA values
+
+XML-DSig carries ECDSA as raw `r‖s`; Mobile-ID hands back DER. The conversion
+already existed inside `SigningService::finalize()`, which is why signing
+worked immediately, but the authentication path verified the value directly
+and rejected every real answer. Both now go through
+`EcdsaSignature::toRaw()`, which detects the shape rather than trusting the
+source, so a third path cannot quietly acquire the same bug.
+
+### A long poll needs an HTTP timeout longer than itself
+
+The status endpoint holds the request open for `timeoutMs` before answering.
+SK's own note is to allow roughly 1500 ms more than that; allkiri allows five
+seconds, and `Allkiri::mobileIdClient()` builds the client with a timeout that
+fits instead of reusing the environment's 30-second default, which a 60-second
+poll would otherwise outlive. The configuration also refuses a poll timeout
+above 60 seconds, because the service silently substitutes its own maximum.
+
+### The new certificate profile reversed the common name
+
+Certificates issued under `TEST of ESTEID-SK 2015` carry
+`CN=SURNAME,GIVENNAME,IDENTITYCODE`. The profile in use since 2019, under
+`TEST of EID-SK 2016` and `TEST of SK ID Solutions EID-Q 2021E`, carries
+`CN=GIVENNAME,SURNAME` with no code at all. `AuthenticatedIdentity` reads the
+`serialNumber`, `SN`, `GN` and `C` attributes, which both profiles have, and
+only falls back to splitting the common name when it has exactly three parts —
+a two-part common name says nothing about which half is the surname.
+
+### PHP identifiers can contain high bytes
+
+`"@£$¥è…"` in a double-quoted string is not the literal it looks like: PHP
+allows bytes ≥ 0x80 in identifiers, so `$¥èéùìòÇ` parses as a variable, and a
+constant built from that string fails to compile with "Constant expression
+contains invalid operations". The GSM-7 alphabet constant is single-quoted
+with the two control characters concatenated separately.
+
+### What the demo numbers actually do
+
+All of SK's published test numbers behave as documented (2026-09-12). The
+positive ones are slow on purpose: `+37200000766` answers in about 7 seconds
+and `+37200001566` in about 15, which is why these are integration tests.
+
+Containers signed by both the ECC and the RSA demo number are **TOTAL-PASSED**
+in SiVa demo and in allkiri's own validator. That closes the Phase 1 gate that
+was waiting on a key anchored in the test trusted list: these certificates are
+issued by CAs the list carries, so `ALLKIRI_TEST_P12` is no longer needed for
+anything but exercising the same path with a local key.

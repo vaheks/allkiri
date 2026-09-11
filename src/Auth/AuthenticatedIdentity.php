@@ -31,19 +31,23 @@ final readonly class AuthenticatedIdentity implements \JsonSerializable
     /**
      * Estonian certificates put the semantics identifier in the subject's
      * serialNumber as "PNOEE-60001019906", the surname in SN, the given name in
-     * GN and the country in C. Older cards carry no prefix, and some foreign
-     * certificates carry none of it, so every part falls back to the common
-     * name, which is "SURNAME,GIVENNAME,IDENTITYCODE".
+     * GN and the country in C. That is where these are read from.
+     *
+     * The common name is only a fallback, and only in its old three-part form
+     * "SURNAME,GIVENNAME,IDENTITYCODE". The profile SK has issued since 2019
+     * writes "GIVENNAME,SURNAME" instead, so a two-part common name says
+     * nothing reliable about which half is which and is left alone.
      */
     public static function fromCertificate(Certificate $certificate): self
     {
-        $commonNameParts = explode(',', $certificate->commonName() ?? '');
+        $commonName = explode(',', $certificate->commonName() ?? '');
+        $legacy = \count($commonName) === 3 ? array_map(trim(...), $commonName) : null;
 
         $serialNumber = $certificate->subjectAttribute('serialNumber') ?? '';
-        // PNOEE-… (ETSI EN 319 412-1), PAS…, IDC…, or a bare code on old cards.
+        // PNOEE-… (ETSI EN 319 412-1), PASEE-…, IDCEE-…, or a bare code on old cards.
         $identityCode = preg_match('/^[A-Z]{3}[A-Z]{2}-(.+)$/', $serialNumber, $matches) === 1
             ? $matches[1]
-            : ($serialNumber !== '' ? $serialNumber : trim($commonNameParts[2] ?? ''));
+            : ($serialNumber !== '' ? $serialNumber : ($legacy[2] ?? ''));
 
         $country = $certificate->subjectAttribute('C') ?? '';
         if ($country === '' && preg_match('/^[A-Z]{3}([A-Z]{2})-/', $serialNumber, $matches) === 1) {
@@ -52,8 +56,8 @@ final readonly class AuthenticatedIdentity implements \JsonSerializable
 
         return new self(
             $identityCode,
-            $certificate->subjectAttribute('GN') ?? trim($commonNameParts[1] ?? ''),
-            $certificate->subjectAttribute('SN') ?? trim($commonNameParts[0] ?? ''),
+            $certificate->subjectAttribute('GN') ?? $legacy[1] ?? '',
+            $certificate->subjectAttribute('SN') ?? $legacy[0] ?? '',
             strtoupper($country),
             $certificate,
         );

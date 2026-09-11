@@ -87,7 +87,7 @@ final class SivaValidationTest extends IntegrationTestCase
     {
         $bundle = getenv('ALLKIRI_TEST_P12');
         if (!\is_string($bundle) || $bundle === '' || !is_file($bundle)) {
-            self::markTestSkipped('Set ALLKIRI_TEST_P12 to a PKCS#12 file whose CA is in the Estonian test trusted list (an SK test e-seal) to run the full interop gate.');
+            self::markTestSkipped('Set ALLKIRI_TEST_P12 to a PKCS#12 file whose CA is in the Estonian test trusted list (an SK test e-seal) to run the local-key form of this gate. The gate itself is already met by MobileIdDemoTest, which signs with a demo Mobile-ID whose CA the test trusted list carries.');
         }
         $password = getenv('ALLKIRI_TEST_P12_PASSWORD');
         $keyPair = PrivateKey::fromPkcs12((string) file_get_contents($bundle), \is_string($password) ? $password : '');
