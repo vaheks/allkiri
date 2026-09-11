@@ -1,0 +1,36 @@
+# X.509 v3 extension profiles for the allkiri test PKI (see generate.sh).
+
+[req]
+distinguished_name = req_dn
+prompt = no
+
+[req_dn]
+C = EE
+O = allkiri test PKI
+CN = allkiri Test CA
+
+[ca]
+basicConstraints = critical, CA:TRUE
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+
+[signer]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature, nonRepudiation
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+authorityInfoAccess = OCSP;URI:http://ocsp.allkiri.test/, caIssuers;URI:http://ca.allkiri.test/ca.crt
+
+[tsa]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = critical, timeStamping
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+
+[ocsp]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = OCSPSigning
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
