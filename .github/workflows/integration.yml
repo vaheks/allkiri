@@ -23,6 +23,9 @@ jobs:
       ALLKIRI_MID_RP_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
       ALLKIRI_SMARTID_RP_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
       ALLKIRI_SMARTID_RP_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
+      # A PKCS#12 whose CA is in the Estonian test trusted list turns the SiVa
+      # gate from "nothing wrong with the format" into a full TOTAL-PASSED.
+      ALLKIRI_TEST_P12_PASSWORD: ${{ secrets.ALLKIRI_TEST_P12_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
 
@@ -35,6 +38,12 @@ jobs:
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Provide the test signing key, when one is configured
+        if: ${{ secrets.ALLKIRI_TEST_P12 != '' }}
+        run: |
+          printf '%s' "${{ secrets.ALLKIRI_TEST_P12 }}" | base64 -d > "$RUNNER_TEMP/test.p12"
+          echo "ALLKIRI_TEST_P12=$RUNNER_TEMP/test.p12" >> "$GITHUB_ENV"
 
       - name: Integration tests
         run: composer test:integration

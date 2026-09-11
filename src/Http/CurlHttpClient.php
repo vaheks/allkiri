@@ -14,6 +14,11 @@ use Allkiri\Exception\InvalidArgumentException;
  * pinning (CURLOPT_PINNEDPUBLICKEY), which is why allkiri ships one instead
  * of requiring a PSR-18 implementation. Redirects are never followed: every
  * endpoint allkiri talks to is an exact, configured URL.
+ *
+ * Certificate verification is always on. A PHP build with no CA bundle
+ * configured (an empty `curl.cainfo`, common on Windows) will fail every
+ * HTTPS request with curl error 60; either set `curl.cainfo` in php.ini or
+ * pass a bundle path as `$caBundlePath`.
  */
 final class CurlHttpClient implements HttpClient
 {
@@ -23,15 +28,24 @@ final class CurlHttpClient implements HttpClient
     /** cURL's pin syntax "sha256//<base64>;sha256//<base64>", or null when nothing is pinned */
     private readonly ?string $pinnedPublicKeyOption;
 
+    /** @var non-empty-string|null */
+    private readonly ?string $caBundle;
+
     /**
      * @param list<string> $pinnedPublicKeys base64 SHA-256 hashes of the
      *                                       servers' SubjectPublicKeyInfo, with
      *                                       or without the "sha256//" prefix
+     * @param string|null  $caBundlePath     a PEM file of trusted certificate
+     *                                       authorities, for builds where PHP
+     *                                       has none configured (`curl.cainfo`
+     *                                       empty, common on Windows); the
+     *                                       system store is used when null
      */
     public function __construct(
         private readonly int $timeoutSeconds = 30,
         string $userAgent = Allkiri::USER_AGENT,
         array $pinnedPublicKeys = [],
+        ?string $caBundlePath = null,
     ) {
         if ($timeoutSeconds < 1) {
             throw new InvalidArgumentException('Timeout must be at least one second');
@@ -39,7 +53,11 @@ final class CurlHttpClient implements HttpClient
         if ($userAgent === '') {
             throw new InvalidArgumentException('User agent must not be empty');
         }
+        if ($caBundlePath !== null && ($caBundlePath === '' || !is_file($caBundlePath))) {
+            throw new InvalidArgumentException(\sprintf('CA bundle "%s" does not exist', $caBundlePath));
+        }
         $this->userAgent = $userAgent;
+        $this->caBundle = $caBundlePath;
         $this->pinnedPublicKeyOption = $pinnedPublicKeys === [] ? null : self::pinnedPublicKeyOption($pinnedPublicKeys);
     }
 
@@ -81,6 +99,9 @@ final class CurlHttpClient implements HttpClient
             }
             if ($this->pinnedPublicKeyOption !== null) {
                 $options[CURLOPT_PINNEDPUBLICKEY] = $this->pinnedPublicKeyOption;
+            }
+            if ($this->caBundle !== null) {
+                $options[CURLOPT_CAINFO] = $this->caBundle;
             }
             if (!curl_setopt_array($handle, $options)) {
                 throw new TransportException('curl_setopt_array() rejected the request options: ' . curl_error($handle));
