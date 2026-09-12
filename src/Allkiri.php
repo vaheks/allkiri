@@ -21,6 +21,10 @@ use Allkiri\MobileId\MobileIdClient;
 use Allkiri\MobileId\MobileIdConfiguration;
 use Allkiri\MobileId\MobileIdSigner;
 use Allkiri\Signing\SigningService;
+use Allkiri\SmartId\SmartIdAuthenticator;
+use Allkiri\SmartId\SmartIdClient;
+use Allkiri\SmartId\SmartIdConfiguration;
+use Allkiri\SmartId\SmartIdSigner;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
@@ -182,6 +186,34 @@ final class Allkiri
     public function mobileIdSigner(MobileIdConfiguration $configuration): MobileIdSigner
     {
         return new MobileIdSigner($this->mobileIdClient($configuration), $this->signingService());
+    }
+
+    /**
+     * The Smart-ID RP API v3 client.
+     *
+     * As with Mobile-ID, the relying-party identifier and name come with an SK
+     * contract; `SmartIdConfiguration::demo()` needs neither.
+     */
+    public function smartIdClient(SmartIdConfiguration $configuration): SmartIdClient
+    {
+        $http = $this->http ?? new CurlHttpClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
+
+        return new SmartIdClient($configuration, $http, $this->logger);
+    }
+
+    public function smartIdAuthenticator(SmartIdConfiguration $configuration): SmartIdAuthenticator
+    {
+        return new SmartIdAuthenticator(
+            $this->smartIdClient($configuration),
+            $this->chainBuilder(),
+            nonceGenerator: $this->nonces,
+            clock: $this->clock,
+        );
+    }
+
+    public function smartIdSigner(SmartIdConfiguration $configuration): SmartIdSigner
+    {
+        return new SmartIdSigner($this->smartIdClient($configuration), $this->signingService());
     }
 
     public function reader(): AsicReader

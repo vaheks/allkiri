@@ -40,6 +40,16 @@ final class TestPki
         return self::load('signer-rsa');
     }
 
+    /**
+     * An RSA key whose subject names a person, for Smart-ID: its keys are
+     * always RSA, and its certificates put the given name before the surname
+     * in the common name.
+     */
+    public static function signerRsaPerson(): KeyPair
+    {
+        return self::load('signer-rsa-person');
+    }
+
     public static function tsa(): KeyPair
     {
         return self::load('tsa');
