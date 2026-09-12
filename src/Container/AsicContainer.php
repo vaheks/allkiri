@@ -75,6 +75,33 @@ final readonly class AsicContainer
     }
 
     /**
+     * Replace a signature file that is already there.
+     *
+     * Only for extending a signature in place, which is what an archive
+     * timestamp does. The data files are untouched, so every other signature in
+     * the container stays valid.
+     */
+    public function withReplacedSignatureFile(SignatureFile $file): self
+    {
+        $replaced = [];
+        $found = false;
+        foreach ($this->signatureFiles as $existing) {
+            if ($existing->name === $file->name) {
+                $replaced[] = $file;
+                $found = true;
+
+                continue;
+            }
+            $replaced[] = $existing;
+        }
+        if (!$found) {
+            throw new InvalidArgumentException(\sprintf('The container has no "%s" to replace', $file->name));
+        }
+
+        return new self($this->dataFiles, $replaced, $this->manifest, $this->originalEntries, $this->structuralFindings);
+    }
+
+    /**
      * The name the next signature file should take.
      */
     public function nextSignatureFileName(): string

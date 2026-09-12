@@ -12,6 +12,7 @@ use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyType;
 use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
+use Allkiri\Xades\LtaExtender;
 use Allkiri\Xades\LtExtender;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureCompleter;
@@ -33,6 +34,7 @@ final class SigningService
     public function __construct(
         private readonly ClockInterface $clock,
         private readonly ?LtExtender $ltExtender = null,
+        private readonly ?LtaExtender $ltaExtender = null,
         private readonly ?SignatureBuilder $builder = null,
         private readonly SignatureCompleter $completer = new SignatureCompleter(),
         private readonly XmlDsigVerifier $dsigVerifier = new XmlDsigVerifier(),
@@ -109,11 +111,19 @@ final class SigningService
         $level = SignatureLevel::B;
         if ($dataToBeSigned->level !== SignatureLevel::B) {
             $extender = $this->ltExtender ?? throw new SigningException('No timestamp and OCSP service is configured');
-            $extension = $extender->extend($document, $signature, $dataToBeSigned->signerCertificate, $dataToBeSigned->level);
+            // LTA is reached through LT: the archive timestamp covers the
+            // signature timestamp and the revocation data, so those have to
+            // exist first.
+            $ltLevel = $dataToBeSigned->level === SignatureLevel::LTA ? SignatureLevel::LT : $dataToBeSigned->level;
+            $extension = $extender->extend($document, $signature, $dataToBeSigned->signerCertificate, $ltLevel);
             $timestampTime = $extension->timestampTime;
             $ocspProducedAt = $extension->ocspProducedAt;
             $warnings = $extension->warnings;
             $level = $extension->level;
+        }
+        if ($dataToBeSigned->level === SignatureLevel::LTA) {
+            $lta = $this->ltaExtender ?? throw new SigningException('Signing at LTA needs an archive timestamp service; none is configured');
+            $level = $lta->extend($document, $signature, new ContainerReferenceResolver($container))->level;
         }
 
         $this->logger?->info('Signed {file} at level {level}', ['file' => $dataToBeSigned->signatureFileName, 'level' => $level->value]);
@@ -127,6 +137,50 @@ final class SigningService
             $ocspProducedAt,
             $warnings,
         );
+    }
+
+    /**
+     * Add an archive timestamp to a signature that is already in a container.
+     *
+     * This is how a signature is kept verifiable over time, and it is normally
+     * done long after signing: before the algorithms or the certificates the
+     * existing proof rests on weaken, a fresh timestamp is laid over the whole
+     * assembly. It can be repeated, each one covering all the others.
+     *
+     * @param string|null $signatureFileName which signature file to archive;
+     *                                       null archives every one in the container
+     */
+    public function archive(AsicContainer $container, ?string $signatureFileName = null): SigningResult
+    {
+        $lta = $this->ltaExtender ?? throw new SigningException('Archiving needs a timestamp service; none is configured');
+
+        $files = $signatureFileName === null
+            ? $container->signatureFiles
+            : array_values(array_filter($container->signatureFiles, static fn(SignatureFile $f): bool => $f->name === $signatureFileName));
+        if ($files === []) {
+            throw new SigningException(\sprintf('The container has no signature file "%s"', $signatureFileName ?? ''));
+        }
+
+        $resolver = new ContainerReferenceResolver($container);
+        $result = $container;
+        $lastId = '';
+        $lastName = '';
+        $timestampTime = null;
+
+        foreach ($files as $file) {
+            $document = SignatureDocument::parse($file->xml);
+            foreach ($document->signatures() as $signature) {
+                $extension = $lta->extend($document, $signature, $resolver);
+                $timestampTime = $extension->timestampTime;
+                $lastId = $signature->getAttribute('Id');
+            }
+            $result = $result->withReplacedSignatureFile(new SignatureFile($file->name, $document->toXml()));
+            $lastName = $file->name;
+        }
+
+        $this->logger?->info('Archived {file}', ['file' => $lastName]);
+
+        return new SigningResult($result, $lastId, $lastName, SignatureLevel::LTA, $timestampTime);
     }
 
     /**

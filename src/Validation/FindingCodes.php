@@ -23,7 +23,14 @@ final class FindingCodes
     public const UNSUPPORTED_BDOC_TM = 'UNSUPPORTED_BDOC_TM';
     public const MISSING_DATA_OBJECT_FORMAT = 'MISSING_DATA_OBJECT_FORMAT';
     public const MIME_TYPE_MISMATCH = 'MIME_TYPE_MISMATCH';
-    public const LTA_NOT_VERIFIED = 'LTA_NOT_VERIFIED';
+    /** An archive timestamp is there but does not hold up. */
+    public const ARCHIVE_TIMESTAMP_INVALID = 'ARCHIVE_TIMESTAMP_INVALID';
+
+    /** Its timestamp authority does not chain to a trusted one. */
+    public const ARCHIVE_TIMESTAMP_NOT_TRUSTED = 'ARCHIVE_TIMESTAMP_NOT_TRUSTED';
+
+    /** It is dated before something it covers. */
+    public const ARCHIVE_TIMESTAMP_ORDER = 'ARCHIVE_TIMESTAMP_ORDER';
     public const CRL_NOT_SUPPORTED = 'CRL_NOT_SUPPORTED';
 
     // Cryptography
