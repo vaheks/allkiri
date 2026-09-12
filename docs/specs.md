@@ -1,6 +1,6 @@
 # Specifications, services and references
 
-Everything `allkiri` is built against, verified on 2026-09-11. When one of
+Everything `allkiri` is built against, verified on 2026-09-12. When one of
 these moves, update this file in the same change.
 
 ## Signature format
@@ -69,9 +69,30 @@ hash and 7 from its end, read as four decimal digits.
 | Environments, base URLs, pinning | https://sk-eid.github.io/smart-id-documentation/environments.html |
 | Test accounts | https://sk-eid.github.io/smart-id-documentation/test_accounts.html |
 | Base URLs | demo `https://sid.demo.sk.ee/smart-id-rp/v3/`, production `https://rp-api.smart-id.com/v3/` |
+| Scheme names | demo `smart-id-demo`, production `smart-id` (part of every signed payload and device link) |
 | Demo relying party | UUID `00000000-0000-4000-8000-000000000000`, name `DEMO` |
 | Official Java client (reference for ACSP_V2 validation and device links) | https://github.com/SK-EID/smart-id-java-client |
 | Official PHP client (authentication only, PHP 8.4, reference) | https://github.com/SK-EID/smart-id-php-client |
+
+The RP API reference pages are rendered from a module that is not in the public
+documentation repository, so the wire format here was read from the two clients
+above and confirmed against the live demo service.
+
+Endpoints (relative to the base URL): `POST /signature/certificate/{documentNumber}`;
+`POST /signature/certificate-choice/notification/etsi/{identifier}`;
+`POST /{authentication|signature}/notification/{etsi|document}/{id}`;
+`POST /{authentication|signature}/device-link/{anonymous|etsi|document}[/{id}]`;
+`GET /session/{id}?timeoutMs=`.
+
+Protocols: `ACSP_V2` for authentication, `RAW_DIGEST_SIGNATURE` for signing, both
+with `rsassa-pss` (MGF1 over the same hash, salt = digest length, trailer
+`0xbc`). Certificate levels `ADVANCED`, `QUALIFIED`, `QSCD`. Interactions
+`displayTextAndPIN` (60 characters), `confirmationMessage` and
+`confirmationMessageAndVerificationCodeChoice` (200), sent base64-encoded as a
+JSON array. A notification authentication must send `vcType: numeric4` and gets
+no code back; a notification signature sends none and gets `vc` back. The
+verification code is the last two bytes of the SHA-256 of the challenge or
+digest, read as an unsigned 16-bit big-endian number, modulo 10000.
 
 ## Timestamping
 

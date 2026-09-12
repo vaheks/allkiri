@@ -49,6 +49,7 @@ change.
 | `ALLKIRI_TEST_P12_PASSWORD` | its password |
 | `ALLKIRI_ARTEFACTS` | a directory to keep the containers the Mobile-ID demo test signs, for opening in DigiDoc4 |
 | `ALLKIRI_MID_URL`, `ALLKIRI_MID_UUID`, `ALLKIRI_MID_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
+| `ALLKIRI_SMARTID_URL`, `ALLKIRI_SMARTID_UUID`, `ALLKIRI_SMARTID_NAME` | the same for Smart-ID |
 
 ### The test signing key and the demo OCSP service
 

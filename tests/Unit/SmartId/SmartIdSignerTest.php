@@ -363,7 +363,7 @@ final class SmartIdSignerTest extends TestCase
             self::documentNumber(),
             random_bytes(64),
             self::interactions(),
-        )['sessionId'];
+        );
         $status = $this->client->sessionStatus($authenticationSessionId);
 
         $this->expectException(SmartIdException::class);

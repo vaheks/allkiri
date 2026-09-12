@@ -21,6 +21,7 @@ use Allkiri\SmartId\SmartIdException;
 use Allkiri\SmartId\SmartIdPoller;
 use Allkiri\SmartId\SmartIdSession;
 use Allkiri\SmartId\SmartIdSessionException;
+use Allkiri\SmartId\SmartIdSessionStatus;
 use Allkiri\SmartId\VerificationCode;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Http\MockHttpClient;
@@ -451,6 +452,47 @@ final class SmartIdAuthenticatorTest extends TestCase
         $this->expectExceptionMessageMatches('/not valid at this moment/');
 
         $authenticator->poll($session);
+    }
+
+    /**
+     * The parser tolerates a session that signed nothing, because a certificate
+     * choice looks like that. An authentication must not.
+     */
+    public function testAnAuthenticationWithoutASignatureIsRefused(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $status = new SmartIdSessionStatus(
+            SmartIdSessionStatus::STATE_COMPLETE,
+            SmartIdEndResult::Ok,
+            new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
+            certificate: $this->service->certificate(),
+            certificateLevel: CertificateLevel::Qualified,
+            signatureProtocol: AcspV2Payload::PROTOCOL,
+            interactionTypeUsed: InteractionType::DisplayTextAndPin,
+        );
+
+        $this->expectExceptionMessageMatches('/does not accept for authentication/');
+
+        $authenticator->complete($session, $status);
+    }
+
+    public function testAnAuthenticationWithoutACertificateIsRefused(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $status = new SmartIdSessionStatus(
+            SmartIdSessionStatus::STATE_COMPLETE,
+            SmartIdEndResult::Ok,
+            new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
+            signatureProtocol: AcspV2Payload::PROTOCOL,
+        );
+
+        $this->expectExceptionMessageMatches('/without returning a certificate/');
+
+        $authenticator->complete($session, $status);
     }
 
     public function testASigningSessionCannotBeCompletedAsAnAuthentication(): void
