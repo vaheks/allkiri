@@ -110,3 +110,36 @@ show the document to.
 
 Where both validate the same signature, they should agree. The integration
 suite compares them on every run.
+
+## Reading a report
+
+The report is built for programs: stable codes, ETSI indications, a JSON shape
+that mirrors SiVa's. For a log or a support ticket:
+
+```php
+use Allkiri\Validation\Report\ReportRenderer;
+
+echo ReportRenderer::summary($report);   // Valid: signed by JAAK-KRISTJAN JOEORG
+echo ReportRenderer::text($report);      // a few lines per signature
+```
+
+Neither is part of the verdict, and an application showing its own wording
+should read the findings rather than parse these lines.
+
+## A second opinion from SiVa
+
+`SivaClient` sends a container to RIA's validation service, and `SivaComparison`
+names the differences:
+
+```php
+$comparison = SivaComparison::of($ours, $siva->validate($bytes, 'leping.asice'));
+if (!$comparison->agrees()) {
+    $logger->warning($comparison->describe());
+}
+```
+
+A difference is a question, not a verdict. SiVa is the reference for Estonian
+practice, but it is a remote service with its own policy, its own trust-list
+refresh cycle and its own clock. Nothing in allkiri's validation consults it,
+and making SiVa's answer a condition of accepting a signature is a dependency to
+take on deliberately. It also means sending the whole document to a third party.

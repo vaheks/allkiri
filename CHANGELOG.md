@@ -66,6 +66,17 @@ signatures with a local key, and the API the eID means will plug into.
   lives and which certificates may sign it. A national list can rotate its
   signing certificate without a release of this library.
 
+- **Archive timestamps (XAdES-LTA).** An LT signature is only as good as the
+  algorithms and certificates it rests on; an archive timestamp re-stamps the
+  whole assembly so a fresh proof carries the old one, and can be laid over
+  itself indefinitely. Made at signing time or, more usually, long afterwards
+  through `SigningService::archive()`. The validator verifies them rather than
+  noting their presence: what each covers, its own signature, its authority's
+  trust, and its order relative to everything beneath it.
+- **Report helpers.** `ReportRenderer` turns a validation report into lines a
+  person can read, and `SivaComparison` names the differences between allkiri's
+  verdict and SiVa's. Neither is part of any verdict.
+
 ### Verified against
 
 - Containers made by digidoc4j, including one that validates TOTAL-PASSED end
@@ -80,12 +91,16 @@ signatures with a local key, and the API the eID means will plug into.
   and SHA-512 that are TOTAL-PASSED in both our validator and SiVa.
 - The live European list of trusted lists: its signature verifies against the
   certificates the Official Journal publishes, and the Estonian authorities
-  behind every eID mean here are reached through it.
+  behind every eID mean here are reached through it; Latvian and Lithuanian
+  lists are reachable the same way.
+- An archive timestamp digidoc4j made: our computation of what it covers
+  digests to exactly the imprint its timestamp authority was asked to stamp.
+  SiVa reads a container we archive as XAdES_BASELINE_LTA and passes it.
 
 ### Not yet
 
 The ID card against real hardware, which needs a card, a reader and a person;
 Smart-ID device-link flows against a live service, which needs someone to scan
-a code; archive timestamps (LTA); BDOC-TM
+a code; BDOC-TM
 (time-mark) signatures, which SK stopped supporting on 2023-11-01 and which
 this library reports as unsupported rather than validating.
