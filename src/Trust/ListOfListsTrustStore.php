@@ -28,9 +28,6 @@ final class ListOfListsTrustStore implements TrustStore
 {
     private ?InMemoryTrustStore $loaded = null;
 
-    /** @var list<string> */
-    private array $warnings = [];
-
     /**
      * @param list<ServiceType>|null $serviceTypes which services to keep as anchors
      */
@@ -87,16 +84,6 @@ final class ListOfListsTrustStore implements TrustStore
         }
 
         $this->loaded = new InMemoryTrustStore($anchors);
-    }
-
-    /**
-     * Anything noticed while loading that did not stop it.
-     *
-     * @return list<string>
-     */
-    public function warnings(): array
-    {
-        return $this->warnings;
     }
 
     public function anchors(?array $types = null): array
