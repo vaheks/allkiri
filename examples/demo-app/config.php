@@ -26,6 +26,12 @@ use Allkiri\Config\Environment;
 use Allkiri\MobileId\MobileIdConfiguration;
 use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\WebEid\WebEidConfiguration;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+// There is no autoloader for the demo's own files, and this one needs the
+// logger. A framework would do this for you.
+require_once __DIR__ . '/logger.php';
 
 final class Config
 {
@@ -47,6 +53,11 @@ final class Config
         public readonly SmartIdConfiguration $smartId,
         public readonly WebEidConfiguration $webEid,
         public readonly ?string $caBundle,
+        public readonly LoggerInterface $logger,
+        /** Wrap the HTTP client, so every remote call the library makes is logged. */
+        public readonly bool $logHttp,
+        /** Let the HTTP log carry bodies and identity codes. Debugging only. */
+        public readonly bool $logPersonalData,
     ) {}
 
     public static function fromEnvironment(): self
@@ -123,6 +134,7 @@ final class Config
             // card signs it, and a mismatch verifies nothing.
             WebEidConfiguration::forOrigin(self::env('ALLKIRI_ORIGIN', 'https://localhost:8443')),
             $bundle === '' ? null : $bundle,
+            ...self::logging(),
         );
     }
 
@@ -165,7 +177,36 @@ final class Config
             SmartIdConfiguration::production($sidUuid, $sidName),
             WebEidConfiguration::forOrigin(self::env('ALLKIRI_ORIGIN', '')),
             $bundle === '' ? null : $bundle,
+            ...self::logging(),
         );
+    }
+
+    /**
+     * Where the log goes, and how much of it there is.
+     *
+     * Three switches, because they answer three different questions. Whether to
+     * log at all (`ALLKIRI_LOG`, a path). Whether to include every HTTP call the
+     * library makes, which is a transcript rather than a record
+     * (`ALLKIRI_LOG_HTTP`). And whether that transcript may carry identity
+     * codes, phone numbers and certificates (`ALLKIRI_LOG_PERSONAL_DATA`),
+     * which is a data-protection decision rather than a verbosity setting.
+     *
+     * @return array{LoggerInterface, bool, bool}
+     */
+    private static function logging(): array
+    {
+        $path = self::env('ALLKIRI_LOG', '');
+
+        return [
+            $path === '' ? new NullLogger() : new FileLogger($path),
+            $path !== '' && self::flag('ALLKIRI_LOG_HTTP'),
+            $path !== '' && self::flag('ALLKIRI_LOG_PERSONAL_DATA'),
+        ];
+    }
+
+    private static function flag(string $name): bool
+    {
+        return self::env($name, '0') === '1';
     }
 
     private static function refuseDemoCredentials(string $service, string $uuid, string $name, string $demoUuid): void

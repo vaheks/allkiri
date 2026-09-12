@@ -76,6 +76,22 @@ The repeatable version of the same thing is `composer test:live`, which signs
 once with each remote mean and validates the result in SiVa production. See
 [docs/releasing.md](../../docs/releasing.md).
 
+## Logging
+
+```bash
+ALLKIRI_LOG=/tmp/allkiri.log ALLKIRI_LOG_HTTP=1 php -S localhost:8080 -t examples/demo-app/public
+```
+
+One JSON object per line, holding three things at once: the audit trail the
+application writes at each stage, the library's own milestones, and, with
+`ALLKIRI_LOG_HTTP=1`, every remote call it makes. Add
+`ALLKIRI_LOG_PERSONAL_DATA=1` to put bodies and whole URLs in the transcript,
+which is a debugging setting rather than a verbosity one. Credentials are never
+logged whatever you set.
+
+The point of it here is the shape rather than the implementation. See
+[docs/logging.md](../../docs/logging.md).
+
 ## Test credentials
 
 All published by SK for their demo services. No real person is involved.
@@ -116,6 +132,7 @@ report.
 | File | What it is |
 |---|---|
 | `config.php` | the two modes, and the only place the environment is read |
+| `logger.php` | a PSR-3 logger in thirty lines, writing JSON lines |
 | `app.php` | every endpoint, and the only place the library is called |
 | `public/index.php` | routing, and nothing else |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |

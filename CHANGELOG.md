@@ -107,6 +107,17 @@ signatures with a local key, and the API the eID means will plug into.
   top of live mode, and nothing scheduled sets either, because it signs with a
   real person's phone on services that bill per timestamp.
 
+- **Logging, in two layers.** `LoggingHttpClient` wraps the client you give the
+  library and records every remote call it makes, which is all four means plus
+  timestamps, revocation checks and trusted lists. Credentials are never logged
+  at any setting: the relying-party identifiers are shared secrets and a
+  Smart-ID session secret mints device links for a whole session. Personal data
+  is logged only when asked for, so by default no bodies are recorded and
+  identity codes are removed from the URLs that carry them. The audit trail of
+  who signed what stays the application's to write, because only it knows the
+  business meaning, and `examples/demo-app` shows the ten lines that does it.
+  See docs/logging.md.
+
 ### Fixed
 
 - Replacing a signature file in a container that was read from bytes now
