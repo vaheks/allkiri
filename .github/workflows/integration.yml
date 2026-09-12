@@ -40,6 +40,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          # zip is for the test suite only; the library uses zlib, which is
+          # compiled in. See the Requirements section of the README.
           extensions: curl, dom, mbstring, openssl, zip
           coverage: none
           tools: composer:v2

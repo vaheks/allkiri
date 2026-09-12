@@ -142,7 +142,12 @@ Thales cards issued since November 2025 (Zetes).
 
 ## Requirements
 
-PHP 8.2 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zip`.
+PHP 8.2 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zlib`.
+
+No `zip` extension: the ASiC-E container layer is written here, because
+`ZipArchive` cannot be made to emit the uncompressed first entry the format
+requires. Running the test suite does need it, for cross-checking what our own
+writer produced.
 
 Framework-agnostic: bring your own PSR-18 HTTP client, PSR-3 logger and PSR-16
 cache, or use the built-in ones. The library never touches sessions, files or
