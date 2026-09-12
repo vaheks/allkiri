@@ -53,6 +53,7 @@ Produce the containers with the integration suite or a short script, then:
 | 13 | The same on a Thales card issued since November 2025 | | |
 | 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | | |
 | 15 | The same in Chrome, Firefox and Safari | | |
+| 16 | An **XAdES-LTA** container allkiri archived opens in DigiDoc4 and shows the signature as valid | | |
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
@@ -87,6 +88,17 @@ ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
 
 Check both the SHA-256 and the SHA-512 file, and record which DigiDoc4 version
 was used.
+
+Item 16 covers the construction most likely to differ between
+implementations. The octet stream an archive timestamp covers is intricate, and
+a wrong one is only discovered by software that did not build it. SiVa already
+accepts ours; DigiDoc4 is the second opinion. Produce one with:
+
+```bash
+ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
+  vendor/bin/phpunit tests/Integration/MobileIdDemoTest.php \
+  --filter testAnArchivedContainerIsRecognisedAsLtaBySiva
+```
 
 ## Signing in DigiDoc4 test mode
 
