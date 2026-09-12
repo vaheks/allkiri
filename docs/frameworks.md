@@ -41,10 +41,10 @@ use Psr\SimpleCache\CacheInterface;
 public function register(): void
 {
     $this->app->singleton(Allkiri::class, function ($app) {
-        $production = $app['config']->get('allkiri.production');
+        $live = $app['config']->get('allkiri.live');
 
         return new Allkiri(
-            $production ? Environment::production() : Environment::demo(),
+            $live ? Environment::production() : Environment::demo(),
             null,
             new \Allkiri\Clock\SystemClock(),
             // Laravel's cache repository is PSR-16 from Laravel 9 onwards.
@@ -54,7 +54,7 @@ public function register(): void
         );
     });
 
-    $this->app->singleton(MobileIdConfiguration::class, fn ($app) => $app['config']->get('allkiri.production')
+    $this->app->singleton(MobileIdConfiguration::class, fn ($app) => $app['config']->get('allkiri.live')
         ? MobileIdConfiguration::production(
             $app['config']->get('allkiri.mobile_id.uuid'),
             $app['config']->get('allkiri.mobile_id.name'),
@@ -62,7 +62,7 @@ public function register(): void
         )
         : MobileIdConfiguration::demo('Sign the contract'));
 
-    $this->app->singleton(SmartIdConfiguration::class, fn ($app) => $app['config']->get('allkiri.production')
+    $this->app->singleton(SmartIdConfiguration::class, fn ($app) => $app['config']->get('allkiri.live')
         ? SmartIdConfiguration::production(
             $app['config']->get('allkiri.smart_id.uuid'),
             $app['config']->get('allkiri.smart_id.name'),
@@ -79,7 +79,7 @@ public function register(): void
 
 ```php
 return [
-    'production' => env('ALLKIRI_PRODUCTION', false),
+    'live' => env('ALLKIRI_MODE', 'demo') === 'live',
     'mobile_id' => ['uuid' => env('MID_RP_UUID'), 'name' => env('MID_RP_NAME')],
     'smart_id' => ['uuid' => env('SID_RP_UUID'), 'name' => env('SID_RP_NAME')],
 ];
@@ -123,8 +123,8 @@ $request->session()->save();
 
 ## Symfony
 
-The environment is one boolean, so give it a two-line factory rather than trying
-to express the choice in YAML:
+The mode is one word, so give it a two-line factory rather than trying to
+express the choice in YAML:
 
 ```php
 // src/Allkiri/EnvironmentFactory.php
@@ -134,9 +134,11 @@ use Allkiri\Config\Environment;
 
 final class EnvironmentFactory
 {
-    public static function create(bool $production): Environment
+    public static function create(string $mode): Environment
     {
-        return $production ? Environment::production() : Environment::demo();
+        // One explicit word rather than a boolean. "ALLKIRI_MODE=false" is a
+        // non-empty string, and reads as true in a careless check.
+        return $mode === 'live' ? Environment::production() : Environment::demo();
     }
 }
 ```
@@ -145,12 +147,12 @@ Then, in `config/services.yaml`:
 
 ```yaml
 parameters:
-    allkiri.production: '%env(bool:ALLKIRI_PRODUCTION)%'
+    allkiri.mode: '%env(ALLKIRI_MODE)%'
 
 services:
     Allkiri\Config\Environment:
         factory: ['App\Allkiri\EnvironmentFactory', 'create']
-        arguments: ['%allkiri.production%']
+        arguments: ['%allkiri.mode%']
 
     Allkiri\Allkiri:
         arguments:
@@ -183,7 +185,14 @@ services:
 
 `Environment::demo()` and `Environment::production()` are the only switch
 between the free test services and the real ones. Keep it in configuration, so
-that nothing but an environment variable separates the two.
+that nothing but an environment variable separates the two, and make that one
+variable decide the relying-party credentials as well. A setup where the
+services are live and the credentials are not, or the reverse, fails somewhere
+deep inside a signature rather than at boot.
+
+`examples/demo-app/config.php` is the whole idea in one readable file: two
+modes, five required values in the live one, and a refusal to start rather than
+a fallback.
 
 To use Symfony's HTTP client instead of the built-in one, wrap it:
 
@@ -198,7 +207,7 @@ arise.
 
 Plain PHP, Slim, Mezzio, a queue worker: build one `Allkiri`, keep it, and pass
 the configuration objects where they are needed. `examples/demo-app` is exactly
-that, in one file, with no framework at all.
+that, with no framework at all: one file of endpoints and one of configuration.
 
 ## What to cache, and what not to
 

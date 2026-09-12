@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          cacheDirectory=".phpunit.cache"
          colors="true"
          failOnRisky="true"
@@ -16,13 +16,18 @@
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>
+        <!--
+            Signs for real, against the production services, with a real phone.
+            Its own suite so that nothing else ever loads it; self-skips unless
+            ALLKIRI_LIVE_SMOKE=1 and ALLKIRI_MODE=live. See docs/releasing.md.
+        -->
+        <testsuite name="LiveSmoke">
+            <directory>tests/LiveSmoke</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>src</directory>
         </include>
     </source>
-    <php>
-        <env name="ALLKIRI_INTEGRATION" value="0"/>
-    </php>
 </phpunit>

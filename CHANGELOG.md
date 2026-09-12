@@ -94,6 +94,19 @@ signatures with a local key, and the API the eID means will plug into.
   including the session-lock trap that makes polling endpoints queue behind each
   other.
 
+- **Two modes, and no way to confuse them.** `ALLKIRI_MODE` is one explicit word,
+  `demo` or `live`. Live mode refuses to start unless all five credentials are
+  present, names every missing one at once, and never falls back to the test
+  services, because a signature made against those looks valid and is worth
+  nothing. It also refuses the identifiers SK publishes, and demo mode refuses
+  real ones. The demo page carries a banner saying which mode it is in, and
+  prefills the published test numbers only in demo mode.
+- **A production smoke test**, `composer test:live`: one real signature by
+  Mobile-ID and one by Smart-ID, each validated by this library and by SiVa
+  production. It lives in its own test suite, needs `ALLKIRI_LIVE_SMOKE=1` on
+  top of live mode, and nothing scheduled sets either, because it signs with a
+  real person's phone on services that bill per timestamp.
+
 ### Fixed
 
 - Replacing a signature file in a container that was read from bytes now

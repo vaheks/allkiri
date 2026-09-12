@@ -1,3 +1,16 @@
+<?php
+/**
+ * The page. Everything it needs from the server is $config, so that a live-mode
+ * page cannot look like a demo-mode one.
+ *
+ * @var \Allkiri\Demo\Config $config
+ */
+$live = $config->isLive();
+// In live mode nothing is prefilled: the published test numbers belong to
+// nobody, and a live service would refuse them anyway. Worse, a prefilled real
+// number is a request sent to a stranger's phone.
+$prefill = static fn(string $value): string => $live ? '' : $value;
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -15,6 +28,9 @@
   button { padding: .5rem 1rem; margin-top: .8rem; margin-right: .4rem; cursor: pointer; }
   .code { font-size: 2.2rem; letter-spacing: .2em; font-variant-numeric: tabular-nums; margin: .5rem 0; }
   .note { font-size: .85rem; opacity: .75; }
+  .banner { font-size: .9rem; border: 1px solid var(--line); border-left-width: 5px; border-radius: 6px; padding: .7rem .9rem; }
+  .banner.demo { border-left-color: #2a7; }
+  .banner.live { border-left-color: #c00; background: #c0011; }
   .status { margin-top: .8rem; min-height: 1.5rem; }
   .status.bad { color: #c00; }
   pre { background: #8881; padding: .8rem; overflow-x: auto; font-size: .8rem; }
@@ -24,12 +40,23 @@
 <body>
 
 <h1>allkiri demo</h1>
-<p class="note">
-  Test services only. Use the published demo credentials:
+
+<?php if ($live) { ?>
+<p class="banner live">
+  <strong>Live services.</strong>
+  Relying party <code><?= htmlspecialchars($config->relyingPartyName(), ENT_QUOTES) ?></code>.
+  Every signature made here is a real signature by a real person, timestamps are
+  billed, and requests go to real phones. Nothing on this page is a test.
+</p>
+<?php } else { ?>
+<p class="banner demo">
+  <strong>Test services.</strong>
+  Nothing made here is a valid signature. Use the credentials SK publishes:
   Mobile-ID <code>+37200000766</code> / <code>60001019906</code>,
   Smart-ID <code>50001029996</code> (document <code>PNOEE-50001029996-DEMO-Q</code>),
   or a test ID card.
 </p>
+<?php } ?>
 
 <h2>1. Sign in</h2>
 
@@ -43,9 +70,9 @@
 <section>
   <strong>Mobile-ID</strong>
   <label for="mid-phone">Phone number</label>
-  <input type="text" id="mid-phone" value="+37200000766">
+  <input type="text" id="mid-phone" value="<?= $prefill('+37200000766') ?>">
   <label for="mid-code">Identity code</label>
-  <input type="text" id="mid-code" value="60001019906">
+  <input type="text" id="mid-code" value="<?= $prefill('60001019906') ?>">
   <button id="mid-login">Sign in with Mobile-ID</button>
   <div class="code" id="mid-login-code"></div>
   <div class="status" id="mid-login-status"></div>
@@ -54,7 +81,7 @@
 <section>
   <strong>Smart-ID</strong>
   <label for="sid-code">Identity code</label>
-  <input type="text" id="sid-code" value="50001029996">
+  <input type="text" id="sid-code" value="<?= $prefill('50001029996') ?>">
   <button id="sid-login">Sign in with Smart-ID</button>
   <div class="code" id="sid-login-code"></div>
   <div class="status" id="sid-login-status"></div>
@@ -76,7 +103,7 @@
   <button id="sign-mid">With Mobile-ID</button>
   <button id="sign-sid">With Smart-ID</button>
   <label for="sid-doc" style="margin-top:.8rem">Smart-ID document number</label>
-  <input type="text" id="sid-doc" value="PNOEE-50001029996-DEMO-Q">
+  <input type="text" id="sid-doc" value="<?= $prefill('PNOEE-50001029996-DEMO-Q') ?>">
   <div class="code" id="sign-code"></div>
   <div class="status" id="sign-status"></div>
   <button id="archive">Add an archive timestamp</button>

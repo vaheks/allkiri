@@ -22,15 +22,21 @@ The command-line tool shipped with it can be pointed at the test list
 directly, which is the quickest check:
 
 ```bash
-digidoc-tool open \
-  --tslurl=https://open-eid.github.io/test-TL/tl-mp-test-EE.xml \
-  --tslcert=trusted-test-tsl.crt \
-  leping.asice
+"C:/Program Files/DigiDoc4 Client/digidoc-tool.exe" open --tslurl=https://open-eid.github.io/test-TL/tl-mp-test-EE.xml --tslcert=C:/path/to/allkiri/resources/trust/test/test-tsl-signer.pem leping.asice
+esources	rust	est	est-tsl-signer.pem leping.asice
 ```
 
-`trusted-test-tsl.crt` is at
-<https://open-eid.github.io/test-TL/trusted-test-tsl.crt>, and the same
-certificate is bundled here as `resources/trust/test/test-tsl-signer.pem`.
+Both paths are absolute on purpose. `--tslcert` is resolved against the current
+directory, not against the executable, and a relative name fails with a message
+about opening an X.509 file. The certificate is bundled here as
+`resources/trust/test/test-tsl-signer.pem`, byte for byte what RIA publishes as
+`trusted-test-tsl.crt` at <https://open-eid.github.io/test-TL/trusted-test-tsl.crt>.
+
+**The first run prints two errors and the second does not.** libdigidocpp tries
+its cached copy of each trusted list before downloading, and reports every
+failure of that attempt, including the file not being there yet, as
+`TSL ... signature is invalid`. It then downloads the list, verifies it properly
+and carries on. Run the command twice before believing the message.
 
 ## The checklist
 
@@ -110,7 +116,7 @@ The Web eID extension refuses to work on an insecure origin, so the demo needs
 HTTPS and an origin the server agrees with exactly:
 
 ```bash
-ALLKIRI_DEMO_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
+ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
 ```
 
 with a TLS terminator in front. An origin mismatch is the failure to expect

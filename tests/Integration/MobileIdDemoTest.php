@@ -45,8 +45,8 @@ final class MobileIdDemoTest extends IntegrationTestCase
     {
         return new MobileIdConfiguration(
             self::env('ALLKIRI_MID_URL', MobileIdConfiguration::DEMO_URL),
-            self::env('ALLKIRI_MID_UUID', MobileIdConfiguration::DEMO_RELYING_PARTY_UUID),
-            self::env('ALLKIRI_MID_NAME', MobileIdConfiguration::DEMO_RELYING_PARTY_NAME),
+            self::env('ALLKIRI_MID_RP_UUID', MobileIdConfiguration::DEMO_RELYING_PARTY_UUID),
+            self::env('ALLKIRI_MID_RP_NAME', MobileIdConfiguration::DEMO_RELYING_PARTY_NAME),
             displayText: 'allkiri test',
             // The demo numbers answer well inside this, and a failing one
             // should not hold the suite for two minutes.

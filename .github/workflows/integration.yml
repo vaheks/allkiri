@@ -19,10 +19,14 @@ jobs:
     env:
       ALLKIRI_INTEGRATION: '1'
       # Public DEMO credentials by default; repository secrets override them.
-      ALLKIRI_MID_UUID: ${{ secrets.ALLKIRI_MID_RP_UUID || '00000000-0000-0000-0000-000000000000' }}
-      ALLKIRI_MID_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
-      ALLKIRI_SMARTID_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
-      ALLKIRI_SMARTID_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
+      ALLKIRI_MID_RP_UUID: ${{ secrets.ALLKIRI_MID_RP_UUID || '00000000-0000-0000-0000-000000000000' }}
+      ALLKIRI_MID_RP_NAME: ${{ secrets.ALLKIRI_MID_RP_NAME || 'DEMO' }}
+      ALLKIRI_SMARTID_RP_UUID: ${{ secrets.ALLKIRI_SMARTID_RP_UUID || '00000000-0000-4000-8000-000000000000' }}
+      ALLKIRI_SMARTID_RP_NAME: ${{ secrets.ALLKIRI_SMARTID_RP_NAME || 'DEMO' }}
+      # Never set ALLKIRI_LIVE_SMOKE or ALLKIRI_MODE here. Those two run the
+      # production smoke test, which signs for real with a real person's phone
+      # and bills a timestamp for each signature. It is a one-shot manual gate
+      # (composer test:live), not something a schedule may reach.
       # A PKCS#12 whose CA is in the Estonian test trusted list turns the
       # local-key SiVa gate into a full TOTAL-PASSED. Optional: the Mobile-ID
       # demo numbers already reach TOTAL-PASSED without it.

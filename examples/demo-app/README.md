@@ -2,7 +2,7 @@
 
 A small application that signs in with all four Estonian eID means, signs an
 uploaded file with any of them, archives the result, and validates a container.
-Plain PHP, no framework, one file of server code.
+Plain PHP, no framework: one file of endpoints and one of configuration.
 
 It exists to be read. Every endpoint is a few lines, and the parts that matter —
 storing a challenge against the browser session, showing a verification code
@@ -12,6 +12,12 @@ the server — are commented where they happen.
 **Not for production.** No accounts, no authorisation, no rate limiting, and
 uploads live in a temporary directory keyed by session. It also reports errors
 verbatim, which a real application must not do.
+
+It has two modes. In `demo` it talks to SK's free test services with the
+credentials SK publishes, and nothing it produces is a valid signature. In
+`live` it talks to the real services with your own credentials, and everything
+it produces is real. The page says which, in a banner, because the two look
+otherwise identical.
 
 ## Running it
 
@@ -27,11 +33,11 @@ not**: the Web eID extension refuses to work on an insecure origin. For that you
 need HTTPS and an origin the server agrees with:
 
 ```bash
-ALLKIRI_DEMO_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
+ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
 ```
 
 with a TLS terminator in front, or run it behind whatever you normally use.
-`ALLKIRI_DEMO_ORIGIN` must be exactly what the browser reports as
+`ALLKIRI_ORIGIN` must be exactly what the browser reports as
 `location.origin`, because the card signs it.
 
 If every HTTPS call fails with curl error 60, your PHP has no `curl.cainfo`
@@ -40,6 +46,35 @@ configured, which is common on Windows. Point it at a bundle:
 ```bash
 ALLKIRI_CA_BUNDLE=/path/to/cacert.pem php -S localhost:8080 -t examples/demo-app/public
 ```
+
+## Live mode
+
+Only when you have contracts with SK, and only from a machine whose public
+address they have registered. Copy `.env.example` at the repository root to
+`.env` and fill in five values:
+
+```
+ALLKIRI_MODE=live
+ALLKIRI_MID_RP_UUID=...
+ALLKIRI_MID_RP_NAME=...
+ALLKIRI_SMARTID_RP_UUID=...
+ALLKIRI_SMARTID_RP_NAME=...
+ALLKIRI_ORIGIN=https://your.host
+```
+
+Live mode refuses to start if any of them is missing, and names all of them at
+once. It also refuses the identifiers SK publishes for the demo environment, and
+demo mode refuses your real ones, because the failure worth preventing is a
+signature made against the wrong services that looks exactly like one made
+against the right ones.
+
+Nothing else changes. The timestamp service, the revocation responders and the
+trust anchors all come from `Environment::production()`, which needs no
+configuration.
+
+The repeatable version of the same thing is `composer test:live`, which signs
+once with each remote mean and validates the result in SiVa production. See
+[docs/releasing.md](../../docs/releasing.md).
 
 ## Test credentials
 
@@ -80,6 +115,7 @@ report.
 
 | File | What it is |
 |---|---|
+| `config.php` | the two modes, and the only place the environment is read |
 | `app.php` | every endpoint, and the only place the library is called |
 | `public/index.php` | routing, and nothing else |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |

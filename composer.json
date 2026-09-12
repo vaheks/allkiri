@@ -64,9 +64,10 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
+        "test": "phpunit --testsuite Unit,Integration",
         "test:unit": "phpunit --testsuite Unit",
         "test:integration": "phpunit --testsuite Integration",
+        "test:live": "phpunit --testsuite LiveSmoke",
         "test:js": "node tests/js/qr-golden.mjs",
         "phpstan": "phpstan analyse --memory-limit=1G",
         "cs:check": "php-cs-fixer fix --dry-run --diff",
@@ -78,7 +79,8 @@
         ]
     },
     "scripts-descriptions": {
-        "check": "Run coding-standard check, static analysis and unit tests (what CI runs)."
+        "check": "Run coding-standard check, static analysis and unit tests (what CI runs).",
+        "test:live": "The production smoke test: real signatures against the live services. Needs ALLKIRI_LIVE_SMOKE=1, ALLKIRI_MODE=live and a phone in your hand."
     },
     "config": {
         "sort-packages": true,

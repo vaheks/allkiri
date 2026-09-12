@@ -46,8 +46,8 @@ final class SmartIdDemoTest extends IntegrationTestCase
     {
         return new SmartIdConfiguration(
             self::env('ALLKIRI_SMARTID_URL', SmartIdConfiguration::DEMO_URL),
-            self::env('ALLKIRI_SMARTID_UUID', SmartIdConfiguration::DEMO_RELYING_PARTY_UUID),
-            self::env('ALLKIRI_SMARTID_NAME', SmartIdConfiguration::DEMO_RELYING_PARTY_NAME),
+            self::env('ALLKIRI_SMARTID_RP_UUID', SmartIdConfiguration::DEMO_RELYING_PARTY_UUID),
+            self::env('ALLKIRI_SMARTID_RP_NAME', SmartIdConfiguration::DEMO_RELYING_PARTY_NAME),
             SmartIdConfiguration::SCHEME_DEMO,
             CertificateLevel::Qualified,
             sessionTimeoutSeconds: 90,
