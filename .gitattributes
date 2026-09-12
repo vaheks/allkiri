@@ -13,3 +13,16 @@
 *.tsr binary
 *.ors binary
 *.png binary
+
+# Kept out of the Packagist archive: the test suite carries megabytes of
+# containers and PKI fixtures that no consumer needs. assets/, docs/, examples/
+# and resources/ stay, because the documentation tells people to serve
+# vendor/vaheks/allkiri/assets/ directly and the trust anchors are required.
+/tests export-ignore
+/.github export-ignore
+/phpunit.xml.dist export-ignore
+/phpstan.neon.dist export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/CONTRIBUTING.md export-ignore
