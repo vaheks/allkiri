@@ -50,6 +50,15 @@ final class TestPki
         return self::load('signer-rsa-person');
     }
 
+    /**
+     * An ID-card authentication key: elliptic curve P-384 as Estonian cards
+     * use, with the client-authentication purpose Web eID requires.
+     */
+    public static function cardAuth(): KeyPair
+    {
+        return self::load('card-auth');
+    }
+
     public static function tsa(): KeyPair
     {
         return self::load('tsa');

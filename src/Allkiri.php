@@ -34,6 +34,9 @@ use Allkiri\Trust\TrustStore;
 use Allkiri\Validation\ContainerValidator;
 use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationPolicy;
+use Allkiri\WebEid\WebEidAuthenticator;
+use Allkiri\WebEid\WebEidConfiguration;
+use Allkiri\WebEid\WebEidSigner;
 use Allkiri\Xades\LtExtender;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
@@ -214,6 +217,30 @@ final class Allkiri
     public function smartIdSigner(SmartIdConfiguration $configuration): SmartIdSigner
     {
         return new SmartIdSigner($this->smartIdClient($configuration), $this->signingService());
+    }
+
+    /**
+     * Signing in with an ID card.
+     *
+     * Nothing is negotiated with a service here, so the configuration carries
+     * only the site's own origin, which is what the card signs.
+     */
+    public function webEidAuthenticator(WebEidConfiguration $configuration): WebEidAuthenticator
+    {
+        return new WebEidAuthenticator(
+            $configuration,
+            $this->trustStore(),
+            $this->ocspClient(),
+            $this->chainBuilder(),
+            $this->nonces,
+            $this->clock,
+            $this->logger,
+        );
+    }
+
+    public function webEidSigner(): WebEidSigner
+    {
+        return new WebEidSigner($this->signingService());
     }
 
     public function reader(): AsicReader
