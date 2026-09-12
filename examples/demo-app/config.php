@@ -82,6 +82,18 @@ final class Config
         return $this->mobileId->relyingPartyName;
     }
 
+    /**
+     * What to call this service in the text shown on someone's phone.
+     *
+     * "the allkiri demo" is honest in demo mode and a lie in live mode, where a
+     * real person is being asked to authorise something and the wording is the
+     * only thing telling them what.
+     */
+    public function serviceName(): string
+    {
+        return $this->isLive() ? $this->relyingPartyName() : 'the allkiri demo';
+    }
+
     // --- the two modes ------------------------------------------------------
 
     private static function demo(string $bundle): self
@@ -145,7 +157,11 @@ final class Config
         return new self(
             self::MODE_LIVE,
             Environment::production(),
-            MobileIdConfiguration::production($midUuid, $midName, 'allkiri demo'),
+            // No display text unless one is given. Mobile-ID shows the relying
+            // party's name regardless, and a wrong sentence above it is worse
+            // than none. It is also checked against what GSM-7 can carry, so a
+            // name with "õ" in it would refuse to start rather than sign.
+            MobileIdConfiguration::production($midUuid, $midName, self::env('ALLKIRI_MID_DISPLAY_TEXT', '')),
             SmartIdConfiguration::production($sidUuid, $sidName),
             WebEidConfiguration::forOrigin(self::env('ALLKIRI_ORIGIN', '')),
             $bundle === '' ? null : $bundle,
