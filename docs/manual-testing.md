@@ -76,7 +76,9 @@ our PSS containers, so if DigiDoc4 does not, that is a client limitation to
 document rather than a defect to fix. Produce them with:
 
 ```bash
-ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory   vendor/bin/phpunit tests/Integration/SmartIdDemoTest.php   --filter testAnRsaPssContainerIsAcceptedEverywhere
+ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
+  vendor/bin/phpunit tests/Integration/SmartIdDemoTest.php \
+  --filter testAnRsaPssContainerIsAcceptedEverywhere
 ```
 
 Check both the SHA-256 and the SHA-512 file, and record which DigiDoc4 version
