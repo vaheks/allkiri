@@ -40,3 +40,25 @@ jobs:
 
       - name: Unit tests
         run: composer test:unit
+
+  browser:
+    name: Browser helper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Pinned matrices, no dependencies: catches a regression on its own.
+      - name: QR golden tests
+        run: node tests/js/qr-golden.mjs
+
+      # The one that matters: everything this encoder makes is read back by a
+      # decoder that had no hand in making it. A reversed generator polynomial
+      # passes every structural check and scans as nothing.
+      - name: QR round trip through an independent decoder
+        run: |
+          npm install --no-save --no-audit --no-fund jsqr
+          node tests/js/qr-roundtrip.mjs
