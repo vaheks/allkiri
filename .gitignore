@@ -2,6 +2,10 @@
 /vendor/
 /composer.lock
 
+# Node, only ever installed to run the QR round-trip test
+/node_modules/
+/package-lock.json
+
 # Tool caches and reports
 /.phpunit.cache/
 /.phpstan.cache/
