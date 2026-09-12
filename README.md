@@ -5,9 +5,10 @@ digital signatures** with the ID-card family (via Web eID), Mobile-ID and
 Smart-ID, plus local keys for e-seals and tests. Produces and validates ASiC-E
 containers with XAdES-LT signatures, the format DigiDoc4 opens.
 
-> **Status: alpha.** The signing core, Mobile-ID and Smart-ID work and are
-> tested against the real Estonian demo services. The ID-card is not wired up
-> yet (see the roadmap). The API may still change. Do not depend on it before 1.0.
+> **Status: alpha.** All four eID means work, and production trust is taken
+> from the European list of trusted lists. Tested against the real Estonian
+> services; the ID card itself still needs the manual checklist run on
+> hardware. The API may still change. Do not depend on it before 1.0.
 
 ## Why
 
@@ -46,18 +47,23 @@ $report = $allkiri->validator()->validateFile('leping.asice');
 - **Smart-ID** v3, both flow families: push notifications, and device links for
   QR codes and taps. RSASSA-PSS signatures, which is what SK now requires. See
   [docs/smart-id.md](docs/smart-id.md).
+- **The ID card**, through Web eID, for signing in and for signing, with the
+  card's own algorithms negotiated rather than assumed. See
+  [docs/web-eid.md](docs/web-eid.md).
 - **A two-step API** built for remote signers: `prepare()` hands you a digest
-  and a serialisable session, `finalize()` takes the value back. Web eID will
-  plug into it unchanged.
+  and a serialisable session, `finalize()` takes the value back. All four means
+  use it unchanged.
 - **Containers**: create, read, and append a signature without disturbing a
   byte of what was already signed.
 - **Validation** with verdicts in the vocabulary SiVa and DigiDoc4 use, and an
   optional second opinion from SiVa itself.
-- **Trust** from ETSI trusted lists, pinned to the certificates you name.
+- **Trust** from the European list of trusted lists, verified against the
+  certificates the Official Journal publishes, or from any list you pin
+  yourself.
 
 Read [docs/signing.md](docs/signing.md), [docs/mobile-id.md](docs/mobile-id.md),
-[docs/smart-id.md](docs/smart-id.md), [docs/validation.md](docs/validation.md)
-and [docs/trust.md](docs/trust.md).
+[docs/smart-id.md](docs/smart-id.md), [docs/web-eid.md](docs/web-eid.md),
+[docs/validation.md](docs/validation.md) and [docs/trust.md](docs/trust.md).
 
 ## Roadmap
 
@@ -67,8 +73,8 @@ and [docs/trust.md](docs/trust.md).
 | 1 | Signing core: ASiC-E, XAdES-LT, local-key signer, trust store, native validator | done |
 | 2 | Mobile-ID: authentication and signing | done |
 | 3 | Smart-ID v3: authentication and signing, device-link flows | done |
-| 4 | Web eID: authentication and signing, production trust lists | next |
-| 5 | XAdES-LTA, validation polish | planned |
+| 4 | Web eID: authentication and signing, production trust lists | done |
+| 5 | XAdES-LTA, validation polish | next |
 | 6 | Browser helper, demo app, 1.0 on Packagist | planned |
 
 ## What it is measured against
@@ -92,6 +98,9 @@ Not our own tests alone:
 - **SK's published Smart-ID demo accounts**: authentication by account and by
   person, every documented refusal, a certificate choice, and RSA-PSS containers
   that are TOTAL-PASSED in SiVa.
+- **The live European list of trusted lists**: its signature verifies against
+  the certificates the Official Journal publishes, and the Estonian authorities
+  behind every eID mean here are reached through it.
 
 Both Estonian card PKIs are handled: IDEMIA cards (SK ID Solutions) and the
 Thales cards issued since November 2025 (Zetes).

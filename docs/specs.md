@@ -37,6 +37,22 @@ on 2023-11-01.
 | Zetes OCSP | production `http://ocsp.eidpki.ee/`, test `http://ocsp-test.eidpki.ee` |
 | SK OCSP (IDEMIA cards, Mobile-ID, Smart-ID) | https://github.com/SK-EID/ocsp/wiki ; AIA `http://aia.sk.ee/...`, demo `http://aia.demo.sk.ee/...`, contract `http://ocsp.sk.ee`, demo `http://demo.sk.ee/ocsp` |
 | Web eID demo site | https://web-eid.eu/ |
+| Authentication token format (version 2) | https://github.com/web-eid/web-eid-system-architecture-doc/blob/main/docs/web-eid-auth-token-v2-format-spec.md |
+
+The token is `{unverifiedCertificate, algorithm, signature, format, appVersion}`
+and the signed value is `hash(origin) || hash(challenge)`, the hash matching the
+signature algorithm. Neither the origin nor the challenge is carried, so the
+server must supply both. The origin is the ASCII serialisation
+`https://host[:port]`, Punycode for internationalised names. The challenge is an
+opaque string of 44 to 128 characters carrying at least 32 bytes of entropy, and
+the application signs those characters rather than the bytes they decode to.
+Algorithms are JWA names: ES256-512, PS256-512, RS256-512.
+
+Signing: `getSigningCertificate()` returns the certificate and
+`supportedSignatureAlgorithms` as `{cryptoAlgorithm, hashFunction,
+paddingScheme}` triples; `sign(certificate, hash, hashFunction)` takes only the
+hash function and reports the algorithm it used, so the padding must be worked
+out in advance from the published list.
 
 ## Mobile-ID
 
@@ -106,6 +122,7 @@ digest, read as an unsigned 16-bit big-endian number, modulo 10000.
 | What | Where |
 |---|---|
 | EU List of Trusted Lists | https://ec.europa.eu/tools/lotl/eu-lotl.xml |
+| Certificates that may sign the LOTL (Official Journal) | https://eur-lex.europa.eu/eli/C/2026/1944/oj — C/2026/1944, 15 April 2026; bundled in `resources/trust/eu` |
 | Estonian trusted list | https://sr.riik.ee/tsl/estonian-tsl.xml |
 | Test LOTL and test Estonian TL | https://open-eid.github.io/test-TL/tl-mp-test-EE.xml and https://open-eid.github.io/test-TL/EE_T.xml |
 | TL v6 transition and LOTL anchor change (2026) | https://www.id.ee/en/article/the-planned-start-of-the-transition-period-to-version-6-of-the-trusted-list-is-14-april-2026-in-addition-the-lotl-trust-anchors-will-change/ |

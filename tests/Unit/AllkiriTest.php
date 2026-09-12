@@ -19,6 +19,7 @@ use Allkiri\Tests\Support\Pki\MockTsa;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListSource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -60,7 +61,7 @@ final class AllkiriTest extends TestCase
         }
     }
 
-    public function testTheProductionEnvironmentRefusesToTrustAnythingUnpinned(): void
+    public function testTheProductionEnvironmentTakesTrustFromTheEuropeanChain(): void
     {
         $environment = Environment::production();
 
@@ -68,12 +69,28 @@ final class AllkiriTest extends TestCase
         self::assertSame('http://tsa.sk.ee', $environment->tsaUrl);
         self::assertNull($environment->ocspDefaultUrl, 'the free AIA responder named in each certificate is used instead');
         self::assertSame('https://siva.eesti.ee/V3/validate', $environment->sivaUrl);
-        self::assertSame([], $environment->trustedListSources, 'nothing is trusted until the trusted list signer is pinned');
         self::assertSame([], $environment->extraTrustAnchors);
 
-        // Nothing is loaded, so there are no anchors to build a chain from.
-        $allkiri = new Allkiri($environment, new MockHttpClient());
-        self::assertSame([], $allkiri->trustStore()->anchors());
+        // No list is pinned by hand. Trust is reached through the European list
+        // of trusted lists, which is verified against the certificates the
+        // Official Journal publishes and which allkiri ships.
+        self::assertSame([], $environment->trustedListSources);
+        self::assertNotNull($environment->listOfLists);
+        self::assertCount(6, $environment->listOfLists->allowedSigners);
+    }
+
+    /**
+     * Production trust needs the network, and a failure to reach it must be
+     * reported rather than quietly yielding an empty trust store that would
+     * reject every signature for the wrong reason.
+     */
+    public function testProductionTrustFailsLoudlyWhenTheListCannotBeFetched(): void
+    {
+        $allkiri = new Allkiri(Environment::production(), new MockHttpClient());
+
+        $this->expectException(TrustedListException::class);
+
+        $allkiri->trustStore()->anchors();
     }
 
     public function testTheEnvironmentIsImmutableAndConfigurable(): void

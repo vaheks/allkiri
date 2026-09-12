@@ -312,3 +312,90 @@ scan a code, and SK drives that through a mock service their client knows about.
 Their own repository disables the linked-notification test with the note that
 device-link demo accounts are not currently testable. The link construction is
 pinned offline instead.
+
+## 2026-09-12 — Phase 4, Web eID and production trust
+
+### What the dependency does, and what it does not
+
+The plan was to depend on `web-eid/web-eid-authtoken-validation-php` rather than
+reimplement the authentication token check, and that holds: the token format,
+the signature over origin and challenge, and the certificate's key usage and
+policies are its job. Two things are not.
+
+Its `ChallengeNonceStore` is a concrete class that writes to `$_SESSION` and
+throws if there is none. allkiri never touches sessions, and its validator takes
+the nonce as a plain string, so the challenge is generated here and the store is
+not used at all.
+
+Its OCSP checking is switched off and allkiri's own is used instead. Phase 1
+recorded why that implementation is not the one to build on, and beyond that a
+library with one OCSP client, one trust store and one chain builder judges a
+card exactly as it judges a Mobile-ID or Smart-ID certificate. The chain check
+runs twice as a result, theirs as a precondition of their own batch and ours for
+the verdict, both against the same anchors.
+
+### A malformed token reaches a TypeError
+
+`AuthTokenValidatorImpl::validateToken()` checks `format` and
+`unverifiedCertificate` for null but not `algorithm` or `signature`, and passes
+both straight into a method with `string` parameters. A token missing either
+therefore throws `TypeError`, which is outside the library's own exception
+hierarchy: an application catching `AuthTokenException` would serve a 500 for
+what is simply a malformed request. Everything thrown inside that call is
+caught and turned into a refusal, deliberately including `Throwable`, because
+that call is the boundary where an attacker-supplied string is interpreted.
+
+### The padding is decided by the card and reported afterwards
+
+`getSigningCertificate()` returns what the card supports as
+`{cryptoAlgorithm, hashFunction, paddingScheme}` triples, but `sign()` takes
+only the hash function. The card picks the padding and names it in the reply.
+
+That is the same shape of problem as Smart-ID: the XAdES declares its signature
+method before the signature exists. So the padding is worked out in advance from
+the published list, and the reported algorithm is checked against what was
+prepared, refusing rather than writing a container that declares a method it
+does not use. `CardAlgorithm` is where the browser's three fields and XML-DSig's
+single URI meet; SHA-224 and SHA-3 are reported by some cards and map to
+nothing, so they are passed over rather than guessed at.
+
+### The origin must be the browser's, exactly
+
+The token carries neither the origin nor the challenge, which is the whole point
+of the format: the server is forced to supply both from its own storage, so a
+token cannot be relayed from another site and cannot be replayed against another
+session. It also means an origin that differs by one character verifies nothing.
+`WebEidOrigin` builds the ASCII serialisation: https only, no path, default port
+443 dropped because a browser omits it, and an internationalised host converted
+to Punycode.
+
+### Production trust: the full chain, not a pinned fallback
+
+Phase 1 left this open — verify the European list of trusted lists properly, or
+fall back to pinning the Estonian list's signing certificates. The full chain
+turned out to be straightforward, because Phase 1's parser already reads
+pointers and their signing certificates, so it is what shipped.
+
+The live list of lists (sequence 393, 3 September 2026) verifies with allkiri's
+own verifier against a certificate published in Official Journal C/2026/1944.
+All six certificates that publication lists are shipped in `resources/trust/eu`
+with their digests and their provenance. Nothing else is pinned: where the
+Estonian list lives, which certificates may sign it, and which services it
+publishes are all read from the verified list of lists, so a national list can
+rotate its signing certificate without a release here.
+
+`ListOfListsLiveTest` fails when the list of lists is signed by something not in
+that directory, which is the only warning that the Journal has published a new
+set.
+
+### A territory has two pointers, and the PDF may come first
+
+Each territory points at its list twice: once as `application/vnd.etsi.tsl+xml`
+for a program and once as `application/pdf` for a person. `pointerTo()` returned
+the first match, and in the European list the Estonian PDF comes first — so
+following it fetched a document rather than a list. It now prefers the
+machine-readable form explicitly, and `pointersTo()` returns all of them. Of the
+43 pointers in the current list, 11 are PDFs.
+
+Test lists name their territory `EE_T` rather than `EE`, so a territory code is
+validated as two letters with an optional suffix.

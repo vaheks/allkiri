@@ -49,6 +49,10 @@ Produce the containers with the integration suite or a short script, then:
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
 | 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | | |
 | 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | | |
+| 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | | |
+| 13 | The same on a Thales card issued since November 2025 | | |
+| 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | | |
+| 15 | The same in Chrome, Firefox and Safari | | |
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
