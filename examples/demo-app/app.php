@@ -151,7 +151,7 @@ final class App
         $authenticator = $this->allkiri->smartIdAuthenticator($this->config->smartId);
         $session = $authenticator->startNotification(
             SemanticsIdentifier::estonian(self::string($request, 'identityCode')),
-            self::interactions('Log in to the allkiri demo'),
+            self::interactions('Log in to ' . $this->config->serviceName()),
         );
         $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
 
