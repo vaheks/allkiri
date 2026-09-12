@@ -61,6 +61,7 @@
         "test": "phpunit",
         "test:unit": "phpunit --testsuite Unit",
         "test:integration": "phpunit --testsuite Integration",
+        "test:js": "node tests/js/qr-golden.mjs",
         "phpstan": "phpstan analyse --memory-limit=1G",
         "cs:check": "php-cs-fixer fix --dry-run --diff",
         "cs:fix": "php-cs-fixer fix",
