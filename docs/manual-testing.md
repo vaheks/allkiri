@@ -48,6 +48,7 @@ Produce the containers with the integration suite or a short script, then:
 | 8 | The same with a Smart-ID demo account | | |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
 | 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | | |
+| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | | |
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
@@ -67,6 +68,19 @@ That writes `mobile-id-60001019906.asice` (ECDSA P-256) and
 `mobile-id-39901019992.asice` (RSA) into that directory. Both are already
 TOTAL-PASSED in SiVa, so DigiDoc4 should show them as valid signatures by
 "O'CONNEŽ-ŠUSLIK TESTNUMBER,MARY ÄNN".
+
+Item 11 is the one open cryptographic question in the project. RSA-PSS is the
+only algorithm SK still recommends for Smart-ID, and some DigiDoc4 builds have
+been reported to reject the `…#sha256-rsa-MGF1` signature method. SiVa accepts
+our PSS containers, so if DigiDoc4 does not, that is a client limitation to
+document rather than a defect to fix. Produce them with:
+
+```bash
+ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory   vendor/bin/phpunit tests/Integration/SmartIdDemoTest.php   --filter testAnRsaPssContainerIsAcceptedEverywhere
+```
+
+Check both the SHA-256 and the SHA-512 file, and record which DigiDoc4 version
+was used.
 
 ## Signing in DigiDoc4 test mode
 
