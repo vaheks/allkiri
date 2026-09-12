@@ -1,0 +1,460 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * The demo application's server side: one file, plain PHP, no framework.
+ *
+ * It is deliberately small enough to read in one sitting, because its job is to
+ * show what an application has to do rather than to be an application. Every
+ * endpoint is a few lines, and the interesting parts are commented.
+ *
+ * What it stores in `$_SESSION` is what a real application would store
+ * somewhere: the challenge, the signing session, the container being signed.
+ * The library never touches sessions itself.
+ *
+ * Not for production. It has no accounts, no authorisation, no rate limiting,
+ * and it keeps uploaded files in a temporary directory.
+ */
+
+namespace Allkiri\Demo;
+
+use Allkiri\Allkiri;
+use Allkiri\Config\Environment;
+use Allkiri\Container\AsicContainer;
+use Allkiri\Container\DataFile;
+use Allkiri\Http\CurlHttpClient;
+use Allkiri\MobileId\MobileIdConfiguration;
+use Allkiri\MobileId\MobileIdIdentity;
+use Allkiri\MobileId\MobileIdSession;
+use Allkiri\MobileId\MobileIdSigningSession;
+use Allkiri\SmartId\CertificateLevel;
+use Allkiri\SmartId\DocumentNumber;
+use Allkiri\SmartId\Interaction;
+use Allkiri\SmartId\Interactions;
+use Allkiri\SmartId\SemanticsIdentifier;
+use Allkiri\SmartId\SmartIdConfiguration;
+use Allkiri\SmartId\SmartIdSession;
+use Allkiri\SmartId\SmartIdSigningSession;
+use Allkiri\Validation\Report\ReportRenderer;
+use Allkiri\WebEid\CardAlgorithm;
+use Allkiri\WebEid\WebEidChallenge;
+use Allkiri\WebEid\WebEidConfiguration;
+use Allkiri\WebEid\WebEidSigningSession;
+
+final class App
+{
+    private Allkiri $allkiri;
+
+    public function __construct()
+    {
+        // The demo environment: free test services, test trust anchors. A real
+        // application would use Environment::production().
+        //
+        // ALLKIRI_CA_BUNDLE is only needed where PHP has no curl.cainfo set,
+        // which is common on Windows and makes every HTTPS call fail with curl
+        // error 60. A properly installed PHP needs none of this.
+        $bundle = self::env('ALLKIRI_CA_BUNDLE', '');
+        $http = $bundle === '' ? null : new CurlHttpClient(30, caBundlePath: $bundle);
+
+        $this->allkiri = new Allkiri(Environment::demo(), $http);
+    }
+
+    // --- the four means, for signing in -------------------------------------
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function cardChallenge(): array
+    {
+        $challenge = $this->allkiri->webEidAuthenticator($this->webEid())->challenge();
+        // Against the browser session that asked, and used once. The token
+        // carries no challenge, so this binding is what ties an answer to the
+        // browser that started it.
+        $_SESSION['web-eid'] = json_encode($challenge, JSON_THROW_ON_ERROR);
+
+        return ['nonce' => $challenge->nonce];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function cardLogin(array $request): array
+    {
+        $stored = $_SESSION['web-eid'] ?? null;
+        unset($_SESSION['web-eid']);
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No challenge was issued to this browser');
+        }
+
+        $identity = $this->allkiri->webEidAuthenticator($this->webEid())->validate(
+            self::string($request, 'token'),
+            WebEidChallenge::fromJson($stored),
+        );
+
+        return $this->signedIn($identity);
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function mobileIdLoginStart(array $request): array
+    {
+        $authenticator = $this->allkiri->mobileIdAuthenticator($this->mobileId());
+        $session = $authenticator->start(new MobileIdIdentity(
+            self::string($request, 'phoneNumber'),
+            self::string($request, 'identityCode'),
+        ));
+        $_SESSION['mobile-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+
+        // Show this before the person touches their phone: it is the only thing
+        // telling them the request is the one they started here.
+        return ['verificationCode' => $session->verificationCode];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function mobileIdLoginPoll(): array
+    {
+        $stored = $_SESSION['mobile-id'] ?? null;
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No Mobile-ID session is in progress');
+        }
+
+        $identity = $this->allkiri->mobileIdAuthenticator($this->mobileId())->poll(MobileIdSession::fromJson($stored));
+        if ($identity === null) {
+            return ['done' => false];
+        }
+        unset($_SESSION['mobile-id']);
+
+        return ['done' => true] + $this->signedIn($identity);
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdLoginStart(array $request): array
+    {
+        $authenticator = $this->allkiri->smartIdAuthenticator($this->smartId());
+        $session = $authenticator->startNotification(
+            SemanticsIdentifier::estonian(self::string($request, 'identityCode')),
+            self::interactions('Log in to the allkiri demo'),
+        );
+        $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+
+        return ['verificationCode' => $session->verificationCode];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function smartIdLoginPoll(): array
+    {
+        $stored = $_SESSION['smart-id'] ?? null;
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No Smart-ID session is in progress');
+        }
+
+        $identity = $this->allkiri->smartIdAuthenticator($this->smartId())->poll(SmartIdSession::fromJson($stored));
+        if ($identity === null) {
+            return ['done' => false];
+        }
+        unset($_SESSION['smart-id']);
+
+        return ['done' => true] + $this->signedIn($identity);
+    }
+
+    // --- signing a file -----------------------------------------------------
+
+    /**
+     * Take an upload and put it in a container, ready to be signed.
+     *
+     * @param array{name?: string, tmp_name?: string} $file
+     *
+     * @return array<string, mixed>
+     */
+    public function upload(array $file): array
+    {
+        $name = basename((string) ($file['name'] ?? 'document'));
+        $path = (string) ($file['tmp_name'] ?? '');
+        if ($path === '' || !is_uploaded_file($path)) {
+            throw new \RuntimeException('Nothing was uploaded');
+        }
+
+        $container = AsicContainer::create(DataFile::fromString($name, (string) file_get_contents($path)));
+        $this->storeContainer($container);
+
+        return ['name' => $name, 'size' => filesize($path)];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function mobileIdSignStart(array $request): array
+    {
+        $signer = $this->allkiri->mobileIdSigner($this->mobileId());
+        $signing = $signer->start($this->container(), new MobileIdIdentity(
+            self::string($request, 'phoneNumber'),
+            self::string($request, 'identityCode'),
+        ));
+        $_SESSION['signing'] = json_encode($signing, JSON_THROW_ON_ERROR);
+
+        return ['verificationCode' => $signing->verificationCode()];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function mobileIdSignPoll(): array
+    {
+        $stored = $_SESSION['signing'] ?? null;
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No signing session is in progress');
+        }
+
+        $container = $this->container();
+        $result = $this->allkiri->mobileIdSigner($this->mobileId())->poll($container, MobileIdSigningSession::fromJson($stored));
+        if ($result === null) {
+            return ['done' => false];
+        }
+        unset($_SESSION['signing']);
+        $this->storeContainer($result->container);
+
+        return ['done' => true, 'level' => $result->level->value];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdSignStart(array $request): array
+    {
+        $configuration = $this->smartId()->withCertificateLevel(CertificateLevel::Qscd);
+        $signer = $this->allkiri->smartIdSigner($configuration);
+
+        $signing = $signer->startNotification(
+            $this->container(),
+            new DocumentNumber(self::string($request, 'documentNumber')),
+            self::interactions('Sign the uploaded file'),
+        );
+        $_SESSION['signing-smart-id'] = json_encode($signing, JSON_THROW_ON_ERROR);
+
+        return ['verificationCode' => $signing->verificationCode()];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function smartIdSignPoll(): array
+    {
+        $stored = $_SESSION['signing-smart-id'] ?? null;
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No signing session is in progress');
+        }
+
+        $container = $this->container();
+        $signer = $this->allkiri->smartIdSigner($this->smartId()->withCertificateLevel(CertificateLevel::Qscd));
+        $result = $signer->poll($container, SmartIdSigningSession::fromJson($stored));
+        if ($result === null) {
+            return ['done' => false];
+        }
+        unset($_SESSION['signing-smart-id']);
+        $this->storeContainer($result->container);
+
+        return ['done' => true, 'level' => $result->level->value];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function cardSignPrepare(array $request): array
+    {
+        $algorithms = $request['supportedSignatureAlgorithms'] ?? [];
+        if (!\is_array($algorithms)) {
+            throw new \RuntimeException('The browser sent no algorithm list');
+        }
+
+        $session = $this->allkiri->webEidSigner()->prepare(
+            $this->container(),
+            self::string($request, 'certificate'),
+            array_values($algorithms),
+        );
+        $_SESSION['signing-card'] = json_encode($session, JSON_THROW_ON_ERROR);
+
+        return $session->forBrowser();
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function cardSignComplete(array $request): array
+    {
+        $stored = $_SESSION['signing-card'] ?? null;
+        unset($_SESSION['signing-card']);
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No signing session is in progress');
+        }
+
+        $reported = $request['signatureAlgorithm'] ?? null;
+        $result = $this->allkiri->webEidSigner()->complete(
+            $this->container(),
+            WebEidSigningSession::fromJson($stored),
+            self::string($request, 'signature'),
+            \is_array($reported) ? CardAlgorithm::fromArray($reported) : null,
+        );
+        $this->storeContainer($result->container);
+
+        return ['done' => true, 'level' => $result->level->value];
+    }
+
+    /**
+     * Lay an archive timestamp over whatever is signed, so it outlasts the
+     * algorithms it was made with.
+     *
+     * @return array<string, mixed>
+     */
+    public function archive(): array
+    {
+        $result = $this->allkiri->signingService()->archive($this->container());
+        $this->storeContainer($result->container);
+
+        return ['done' => true, 'level' => $result->level->value];
+    }
+
+    public function download(): string
+    {
+        return $this->allkiri->writer()->write($this->container());
+    }
+
+    // --- validating ---------------------------------------------------------
+
+    /**
+     * @param array{name?: string, tmp_name?: string} $file
+     *
+     * @return array<string, mixed>
+     */
+    public function validate(array $file): array
+    {
+        $path = (string) ($file['tmp_name'] ?? '');
+        if ($path === '' || !is_uploaded_file($path)) {
+            throw new \RuntimeException('Nothing was uploaded');
+        }
+
+        $report = $this->allkiri->validator()->validate(
+            (string) file_get_contents($path),
+            basename((string) ($file['name'] ?? 'container.asice')),
+        );
+
+        return [
+            'valid' => $report->isValid(),
+            'summary' => ReportRenderer::summary($report),
+            'text' => ReportRenderer::text($report),
+            'report' => $report->jsonSerialize(),
+        ];
+    }
+
+    // --- configuration ------------------------------------------------------
+
+    private function webEid(): WebEidConfiguration
+    {
+        // Must be exactly what the browser reports as location.origin. The card
+        // signs it, and a mismatch verifies nothing.
+        return WebEidConfiguration::forOrigin(self::env('ALLKIRI_DEMO_ORIGIN', 'https://localhost:8443'));
+    }
+
+    private function mobileId(): MobileIdConfiguration
+    {
+        return MobileIdConfiguration::demo('allkiri demo');
+    }
+
+    private function smartId(): SmartIdConfiguration
+    {
+        return SmartIdConfiguration::demo();
+    }
+
+    private static function interactions(string $text): Interactions
+    {
+        return Interactions::of(
+            // Offered first because it is the strongest: the app shows three
+            // codes and only one matches the page.
+            Interaction::confirmationMessageAndVerificationCodeChoice($text),
+            Interaction::confirmationMessage($text),
+            Interaction::displayTextAndPin(mb_substr($text, 0, 60)),
+        );
+    }
+
+    // --- the bits a framework would do for you ------------------------------
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signedIn(\Allkiri\Auth\AuthenticatedIdentity $identity): array
+    {
+        $_SESSION['user'] = $identity->semanticsIdentifier();
+
+        return [
+            'identity' => $identity->semanticsIdentifier(),
+            'name' => $identity->fullName(),
+            'country' => $identity->country,
+        ];
+    }
+
+    private function container(): AsicContainer
+    {
+        $path = $this->containerPath();
+        if (!is_file($path)) {
+            throw new \RuntimeException('Upload a file first');
+        }
+
+        return $this->allkiri->reader()->read((string) file_get_contents($path));
+    }
+
+    private function storeContainer(AsicContainer $container): void
+    {
+        file_put_contents($this->containerPath(), $this->allkiri->writer()->write($container));
+    }
+
+    private function containerPath(): string
+    {
+        $directory = sys_get_temp_dir() . '/allkiri-demo';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o700, true);
+        }
+
+        return $directory . '/' . session_id() . '.asice';
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function string(array $data, string $key): string
+    {
+        $value = $data[$key] ?? null;
+        if (!\is_string($value) || trim($value) === '') {
+            throw new \RuntimeException(\sprintf('"%s" is missing', $key));
+        }
+
+        return trim($value);
+    }
+
+    private static function env(string $name, string $fallback): string
+    {
+        $value = getenv($name);
+
+        return \is_string($value) && $value !== '' ? $value : $fallback;
+    }
+}
