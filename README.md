@@ -5,11 +5,13 @@ digital signatures** with the ID-card family (via Web eID), Mobile-ID and
 Smart-ID, plus local keys for e-seals and tests. Produces and validates ASiC-E
 containers with XAdES-LT signatures, the format DigiDoc4 opens.
 
-> **Status: alpha.** All four eID means work, signatures reach XAdES-LTA, and
-> production trust is taken from the European list of trusted lists. Tested
-> against the real Estonian services; the ID card itself still needs the manual
-> checklist run on hardware. The API may still change. Do not depend on it
-> before 1.0.
+> **Status: alpha.** All four eID means work, signatures reach XAdES-LTA,
+> production trust is taken from the European list of trusted lists, and there
+> is a demo application that exercises the lot. Tested against the real Estonian
+> test services. Four things stand between this and 1.0: the ID card on real
+> hardware, a Smart-ID device link scanned by a person, the manual DigiDoc4
+> checklist, and a smoke test against the production services. The API may still
+> change until then.
 
 ## Why
 
@@ -64,9 +66,33 @@ $report = $allkiri->validator()->validateFile('leping.asice');
   certificates the Official Journal publishes, or from any list you pin
   yourself.
 
-Read [docs/signing.md](docs/signing.md), [docs/mobile-id.md](docs/mobile-id.md),
-[docs/smart-id.md](docs/smart-id.md), [docs/web-eid.md](docs/web-eid.md),
-[docs/validation.md](docs/validation.md) and [docs/trust.md](docs/trust.md).
+- **A browser helper**, dependency-free, that drives the Web eID extension,
+  shows verification codes and draws the QR code Smart-ID needs. It decides
+  nothing: every answer goes to your server. See
+  [docs/browser.md](docs/browser.md).
+
+| Guide | |
+|---|---|
+| [docs/signing.md](docs/signing.md) | making a signature, and the two-step API |
+| [docs/validation.md](docs/validation.md) | reading a verdict, and every finding code |
+| [docs/mobile-id.md](docs/mobile-id.md) | Mobile-ID |
+| [docs/smart-id.md](docs/smart-id.md) | Smart-ID, both flow families |
+| [docs/web-eid.md](docs/web-eid.md) | the ID card |
+| [docs/browser.md](docs/browser.md) | the page: `assets/allkiri.js` |
+| [docs/frameworks.md](docs/frameworks.md) | wiring it into Laravel or Symfony |
+| [docs/trust.md](docs/trust.md) | trusted lists, and what production needs |
+
+## Try it
+
+```bash
+composer install
+php -S localhost:8080 -t examples/demo-app/public
+```
+
+A small application that signs in with Mobile-ID, Smart-ID or an ID card, signs
+an upload with any of them, archives the result and validates a container. It
+runs against the free test services with published test credentials, so nothing
+real is involved. See [examples/demo-app/README.md](examples/demo-app/README.md).
 
 ## Roadmap
 
@@ -78,7 +104,8 @@ Read [docs/signing.md](docs/signing.md), [docs/mobile-id.md](docs/mobile-id.md),
 | 3 | Smart-ID v3: authentication and signing, device-link flows | done |
 | 4 | Web eID: authentication and signing, production trust lists | done |
 | 5 | XAdES-LTA, validation polish | done |
-| 6 | Browser helper, demo app, 1.0 on Packagist | next |
+| 6 | Browser helper, demo app, framework guides | done |
+| — | Hardware and production gates, then 1.0 on Packagist | remaining |
 
 ## What it is measured against
 

@@ -77,6 +77,32 @@ signatures with a local key, and the API the eID means will plug into.
   person can read, and `SivaComparison` names the differences between allkiri's
   verdict and SiVa's. Neither is part of any verdict.
 
+- **The browser half.** `assets/allkiri.js` drives the Web eID extension,
+  shows verification codes, and polls your own endpoints; it decides nothing,
+  because a page cannot check a signature and must not pretend to.
+  `assets/allkiri-qr.js` is a QR encoder, needed because a Smart-ID device link
+  expires about once a second and only the server can mint the next one. Both
+  are dependency-free and have no build step. The encoder is tested by pinning
+  six known matrices and by encoding 1208 strings and reading every one of them
+  back with an independent decoder.
+- **A demo application.** `examples/demo-app`: sign in with all three eID means,
+  turn an upload into a container, sign it with any of them, archive it, and
+  validate anything. Plain PHP, no framework, one file of server code, written
+  to be read rather than deployed.
+- **Guides for the two halves nobody else documents.** `docs/browser.md` for
+  the page, `docs/frameworks.md` for wiring it into Laravel or Symfony,
+  including the session-lock trap that makes polling endpoints queue behind each
+  other.
+
+### Fixed
+
+- Replacing a signature file in a container that was read from bytes now
+  actually changes those bytes. The writer re-emits original ZIP entries
+  verbatim, which is what keeps other signatures valid when one is appended; it
+  also silently discarded an archive timestamp at the moment of writing. Every
+  test had archived a container built in memory, where there are no original
+  entries to win, so the demo application found it first.
+
 ### Verified against
 
 - Containers made by digidoc4j, including one that validates TOTAL-PASSED end
@@ -101,6 +127,8 @@ signatures with a local key, and the API the eID means will plug into.
 
 The ID card against real hardware, which needs a card, a reader and a person;
 Smart-ID device-link flows against a live service, which needs someone to scan
-a code; BDOC-TM
-(time-mark) signatures, which SK stopped supporting on 2023-11-01 and which
-this library reports as unsupported rather than validating.
+a code; the manual DigiDoc4 checklist in `docs/manual-testing.md`, which is
+written but unperformed; a smoke test against the production services, which
+needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
+signatures are not coming: SK stopped supporting them on 2023-11-01 and this
+library reports them as unsupported rather than validating them.

@@ -460,3 +460,68 @@ and every positional call passing a `SignatureBuilder` third then passed it as
 the wrong parameter. PHPStan caught it because the types differ; had both been
 nullable objects of compatible shape it would not have. Worth remembering for
 anything after 1.0, where the fix cannot be "update the callers".
+
+## 2026-09-12 — Phase 6, the browser half and the demo
+
+### The page decides nothing
+
+`assets/allkiri.js` moves bytes between the Web eID extension, your endpoints
+and the screen. It never inspects a token, never looks at a certificate, and
+never reports success on its own: every answer is posted to the server, which is
+the only place a signature can be checked. This sounds obvious and is exactly
+what a helper library is tempted to get wrong, because "show the person their
+name from the certificate" is a two-line feature that quietly moves an
+authentication decision into a page.
+
+The one thing it does decide is that a missing extension is an error before the
+server is asked for anything. A challenge issued to a browser that cannot answer
+it leaves a session open for its whole lifetime for no reason.
+
+### The QR encoder is vendored, not depended on
+
+A Smart-ID device link needs a new QR code about once a second, and the obvious
+answer — pull in a QR library — means an application that wants to sign
+something now ships someone else's npm tree, or a CDN request, to draw a square.
+`assets/allkiri-qr.js` is about 560 lines, byte mode only, levels L and M,
+versions 1 to 20, which covers every link SK produces with room to spare.
+
+### A QR code that scans is the only proof a QR encoder works
+
+The first version produced codes that looked entirely plausible — right size,
+right finder patterns, believable noise — and scanned as nothing at all. The
+generator polynomial was being built reversed, so every error-correction
+codeword was wrong while every structural byte was right.
+
+Comparing against another encoder was initially misleading: `qrcode` chose
+alphanumeric mode for the test string and ours chose byte mode, so the matrices
+differed for a legitimate reason and the real difference hid behind it. What
+settled it was checking the degree-7 polynomial against its published alpha
+exponents, and then `tests/js/qr-roundtrip.mjs`: 1208 strings encoded here and
+decoded by `jsqr`, at every length from 1 to 600, both levels, all eight masks.
+The golden test pins six matrices by digest so a regression is caught without
+`jsqr` installed; the round-trip test is what would have caught the original
+mistake.
+
+### The demo found a bug twelve tests could not
+
+`AsicWriter` re-emits entries read from the original archive byte for byte,
+which is what keeps other signatures valid when one is appended. Replacing a
+signature file in place — what an archive timestamp does — left the stale entry
+in that list, so the new XML was built, reported as added, and discarded at the
+moment of writing.
+
+Every test in `ArchiveTimestampTest` archived a container that had just been
+built in memory, where `originalEntries` is empty and there is nothing to win.
+The demo downloaded a container it had been told was LTA and got LT. The lesson
+is not about ZIP entries: a test fixture that never travels through the
+persistence layer cannot find a bug that lives there, however many assertions it
+makes about the model.
+
+### The demo is one file on purpose
+
+`examples/demo-app/app.php` holds every endpoint, because the point of the demo
+is to be read in one sitting by someone deciding whether this library fits their
+application. A well-factored demo with a router, a container and six classes
+demonstrates good structure and hides the two lines that matter. Anything a real
+application must do differently — accounts, rate limiting, not echoing exception
+messages at people — is said plainly in the README rather than implemented.
