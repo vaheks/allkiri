@@ -80,6 +80,7 @@ $report = $allkiri->validator()->validateFile('leping.asice');
 | [docs/web-eid.md](docs/web-eid.md) | the ID card |
 | [docs/browser.md](docs/browser.md) | the page: `assets/allkiri.js` |
 | [docs/frameworks.md](docs/frameworks.md) | wiring it into Laravel or Symfony |
+| [docs/logging.md](docs/logging.md) | the audit trail, and what must never reach a log |
 | [docs/trust.md](docs/trust.md) | trusted lists, and what production needs |
 
 ## Try it

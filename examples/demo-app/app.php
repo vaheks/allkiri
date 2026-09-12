@@ -26,6 +26,7 @@ use Allkiri\Allkiri;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\DataFile;
 use Allkiri\Http\CurlHttpClient;
+use Allkiri\Http\LoggingHttpClient;
 use Allkiri\MobileId\MobileIdIdentity;
 use Allkiri\MobileId\MobileIdSession;
 use Allkiri\MobileId\MobileIdSigningSession;
@@ -56,9 +57,15 @@ final class App
         // ALLKIRI_CA_BUNDLE is only needed where PHP has no curl.cainfo set,
         // which is common on Windows and makes every HTTPS call fail with curl
         // error 60. A properly installed PHP needs none of this.
-        $http = $this->config->caBundle === null ? null : new CurlHttpClient(30, caBundlePath: $this->config->caBundle);
+        $http = new CurlHttpClient(30, caBundlePath: $this->config->caBundle);
 
-        $this->allkiri = new Allkiri($this->config->environment, $http);
+        // One wrapper, and every remote call the library makes is logged:
+        // Mobile-ID, Smart-ID, timestamps, revocation checks, trusted lists.
+        if ($this->config->logHttp) {
+            $http = new LoggingHttpClient($http, $this->config->logger, $this->config->logPersonalData);
+        }
+
+        $this->allkiri = new Allkiri($this->config->environment, $http, logger: $this->config->logger);
     }
 
     public function config(): Config
@@ -78,6 +85,7 @@ final class App
         // carries no challenge, so this binding is what ties an answer to the
         // browser that started it.
         $_SESSION['web-eid'] = json_encode($challenge, JSON_THROW_ON_ERROR);
+        $this->audit('card challenge issued');
 
         return ['nonce' => $challenge->nonce];
     }
@@ -116,6 +124,11 @@ final class App
             self::string($request, 'identityCode'),
         ));
         $_SESSION['mobile-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->audit('authentication started', [
+            'mean' => 'mobile-id',
+            'session' => $session->sessionId,
+            'identity' => $session->identity->nationalIdentityNumber,
+        ]);
 
         // Show this before the person touches their phone: it is the only thing
         // telling them the request is the one they started here.
@@ -154,6 +167,7 @@ final class App
             self::interactions('Log in to ' . $this->config->serviceName()),
         );
         $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->audit('authentication started', ['mean' => 'smart-id', 'session' => $session->sessionId]);
 
         return ['verificationCode' => $session->verificationCode];
     }
@@ -196,6 +210,13 @@ final class App
 
         $container = AsicContainer::create(DataFile::fromString($name, (string) file_get_contents($path)));
         $this->storeContainer($container);
+        $this->audit('container created', [
+            'file' => $name,
+            'bytes' => filesize($path),
+            // What the signature will actually cover, which is the thing to
+            // record before anyone signs anything.
+            'fingerprint' => $container->fingerprint(),
+        ]);
 
         return ['name' => $name, 'size' => filesize($path)];
     }
@@ -213,6 +234,12 @@ final class App
             self::string($request, 'identityCode'),
         ));
         $_SESSION['signing'] = json_encode($signing, JSON_THROW_ON_ERROR);
+        $this->audit('signing started', [
+            'mean' => 'mobile-id',
+            'session' => $signing->session->sessionId,
+            'file' => $signing->dataToBeSigned->signatureFileName,
+            'covers' => $signing->dataToBeSigned->containerFingerprint,
+        ]);
 
         return ['verificationCode' => $signing->verificationCode()];
     }
@@ -234,6 +261,7 @@ final class App
         }
         unset($_SESSION['signing']);
         $this->storeContainer($result->container);
+        $this->auditSigned('mobile-id', $result);
 
         return ['done' => true, 'level' => $result->level->value];
     }
@@ -254,6 +282,12 @@ final class App
             self::interactions('Sign the uploaded file'),
         );
         $_SESSION['signing-smart-id'] = json_encode($signing, JSON_THROW_ON_ERROR);
+        $this->audit('signing started', [
+            'mean' => 'smart-id',
+            'session' => $signing->session->sessionId,
+            'file' => $signing->dataToBeSigned->signatureFileName,
+            'covers' => $signing->dataToBeSigned->containerFingerprint,
+        ]);
 
         return ['verificationCode' => $signing->verificationCode()];
     }
@@ -276,6 +310,7 @@ final class App
         }
         unset($_SESSION['signing-smart-id']);
         $this->storeContainer($result->container);
+        $this->auditSigned('smart-id', $result);
 
         return ['done' => true, 'level' => $result->level->value];
     }
@@ -298,6 +333,12 @@ final class App
             array_values($algorithms),
         );
         $_SESSION['signing-card'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->audit('signing started', [
+            'mean' => 'card',
+            'file' => $session->dataToBeSigned->signatureFileName,
+            'covers' => $session->dataToBeSigned->containerFingerprint,
+            'algorithm' => $session->dataToBeSigned->algorithm->value,
+        ]);
 
         return $session->forBrowser();
     }
@@ -323,6 +364,7 @@ final class App
             \is_array($reported) ? CardAlgorithm::fromArray($reported) : null,
         );
         $this->storeContainer($result->container);
+        $this->auditSigned('card', $result);
 
         return ['done' => true, 'level' => $result->level->value];
     }
@@ -337,6 +379,7 @@ final class App
     {
         $result = $this->allkiri->signingService()->archive($this->container());
         $this->storeContainer($result->container);
+        $this->audit('archived', ['file' => $result->signatureFileName, 'level' => $result->level->value]);
 
         return ['done' => true, 'level' => $result->level->value];
     }
@@ -365,6 +408,12 @@ final class App
             basename((string) ($file['name'] ?? 'container.asice')),
         );
 
+        $this->audit('validated', [
+            'file' => $report->filename,
+            'valid' => $report->isValid(),
+            'summary' => ReportRenderer::summary($report),
+        ]);
+
         return [
             'valid' => $report->isValid(),
             'summary' => ReportRenderer::summary($report),
@@ -386,6 +435,66 @@ final class App
         );
     }
 
+    // --- the audit trail ----------------------------------------------------
+
+    /**
+     * A finished signature, with the two times that decide whether it stays
+     * valid: when the timestamp says it existed, and when its revocation status
+     * was checked.
+     */
+    private function auditSigned(string $mean, \Allkiri\Signing\SigningResult $result): void
+    {
+        $this->audit('signed', [
+            'mean' => $mean,
+            'file' => $result->signatureFileName,
+            'signature' => $result->signatureId,
+            'level' => $result->level->value,
+            'timestamp' => $result->timestampTime,
+            'revocationChecked' => $result->ocspProducedAt,
+            'warnings' => $result->warnings,
+        ]);
+    }
+
+    /**
+     * One line per stage, with a correlation identifier.
+     *
+     * This is the log that matters, and it is the application's to write: the
+     * two-step API makes every stage an explicit call here, so this is the only
+     * layer that knows the business meaning of what just happened. The HTTP
+     * transcript underneath answers "what did we send"; this answers "who asked
+     * for what, and how did it end".
+     *
+     * `audit` ties the lines of one browser's attempt together, and the eID
+     * service's own session identifier ties them to what SK sees, which is what
+     * you will be asked for when something is disputed.
+     *
+     * Personal data is in here on purpose. An audit trail without an identity is
+     * not an audit trail. That makes retention, access and deletion your
+     * problem, and a demo is not the place to pretend otherwise.
+     *
+     * @param array<string, mixed> $context
+     */
+    private function audit(string $event, array $context = []): void
+    {
+        $this->config->logger->info($event, ['audit' => self::auditId(), 'mode' => $this->config->mode] + $context);
+    }
+
+    /**
+     * Stable for one browser session, and not the session identifier itself,
+     * which is a credential and must not be written anywhere.
+     */
+    private static function auditId(): string
+    {
+        $existing = $_SESSION['audit'] ?? null;
+        if (\is_string($existing) && $existing !== '') {
+            return $existing;
+        }
+        $fresh = substr(bin2hex(random_bytes(8)), 0, 12);
+        $_SESSION['audit'] = $fresh;
+
+        return $fresh;
+    }
+
     // --- the bits a framework would do for you ------------------------------
 
     /**
@@ -394,6 +503,13 @@ final class App
     private function signedIn(\Allkiri\Auth\AuthenticatedIdentity $identity): array
     {
         $_SESSION['user'] = $identity->semanticsIdentifier();
+        $this->audit('signed in', [
+            'identity' => $identity->semanticsIdentifier(),
+            'name' => $identity->fullName(),
+            // Which certificate it was, so the claim can be checked years later
+            // against the revocation data in whatever they went on to sign.
+            'serial' => $identity->certificate->serialNumber(),
+        ]);
 
         return [
             'identity' => $identity->semanticsIdentifier(),
