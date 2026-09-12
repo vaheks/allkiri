@@ -75,8 +75,10 @@ final readonly class Environment
      * contract with SK; the free AIA responders named in each certificate do
      * not, which is why no default OCSP URL is set here.
      *
-     * Nothing loads until `withTrustedListSources()` supplies the Estonian
-     * trusted list with its signing certificates pinned.
+     * Trust comes from the European list of trusted lists, verified against the
+     * certificates the Official Journal publishes, which is the only trust
+     * material shipped. `withTrustedListSources()` replaces that with lists you
+     * pin yourself.
      */
     public static function production(): self
     {

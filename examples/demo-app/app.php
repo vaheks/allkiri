@@ -15,16 +15,17 @@ declare(strict_types=1);
  *
  * Not for production. It has no accounts, no authorisation, no rate limiting,
  * and it keeps uploaded files in a temporary directory.
+ *
+ * Which services it talks to, and whose credentials it uses, is decided in
+ * config.php. That is the only file here that reads the environment.
  */
 
 namespace Allkiri\Demo;
 
 use Allkiri\Allkiri;
-use Allkiri\Config\Environment;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\DataFile;
 use Allkiri\Http\CurlHttpClient;
-use Allkiri\MobileId\MobileIdConfiguration;
 use Allkiri\MobileId\MobileIdIdentity;
 use Allkiri\MobileId\MobileIdSession;
 use Allkiri\MobileId\MobileIdSigningSession;
@@ -33,31 +34,36 @@ use Allkiri\SmartId\DocumentNumber;
 use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
-use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdSession;
 use Allkiri\SmartId\SmartIdSigningSession;
 use Allkiri\Validation\Report\ReportRenderer;
 use Allkiri\WebEid\CardAlgorithm;
 use Allkiri\WebEid\WebEidChallenge;
-use Allkiri\WebEid\WebEidConfiguration;
 use Allkiri\WebEid\WebEidSigningSession;
 
 final class App
 {
-    private Allkiri $allkiri;
+    private readonly Allkiri $allkiri;
 
-    public function __construct()
+    private readonly Config $config;
+
+    public function __construct(?Config $configuration = null)
     {
-        // The demo environment: free test services, test trust anchors. A real
-        // application would use Environment::production().
-        //
+        // Which services, and whose credentials, is the one decision that has
+        // to be made before anything else. See config.php.
+        $this->config = $configuration ?? Config::fromEnvironment();
+
         // ALLKIRI_CA_BUNDLE is only needed where PHP has no curl.cainfo set,
         // which is common on Windows and makes every HTTPS call fail with curl
         // error 60. A properly installed PHP needs none of this.
-        $bundle = self::env('ALLKIRI_CA_BUNDLE', '');
-        $http = $bundle === '' ? null : new CurlHttpClient(30, caBundlePath: $bundle);
+        $http = $this->config->caBundle === null ? null : new CurlHttpClient(30, caBundlePath: $this->config->caBundle);
 
-        $this->allkiri = new Allkiri(Environment::demo(), $http);
+        $this->allkiri = new Allkiri($this->config->environment, $http);
+    }
+
+    public function config(): Config
+    {
+        return $this->config;
     }
 
     // --- the four means, for signing in -------------------------------------
@@ -67,7 +73,7 @@ final class App
      */
     public function cardChallenge(): array
     {
-        $challenge = $this->allkiri->webEidAuthenticator($this->webEid())->challenge();
+        $challenge = $this->allkiri->webEidAuthenticator($this->config->webEid)->challenge();
         // Against the browser session that asked, and used once. The token
         // carries no challenge, so this binding is what ties an answer to the
         // browser that started it.
@@ -89,7 +95,7 @@ final class App
             throw new \RuntimeException('No challenge was issued to this browser');
         }
 
-        $identity = $this->allkiri->webEidAuthenticator($this->webEid())->validate(
+        $identity = $this->allkiri->webEidAuthenticator($this->config->webEid)->validate(
             self::string($request, 'token'),
             WebEidChallenge::fromJson($stored),
         );
@@ -104,7 +110,7 @@ final class App
      */
     public function mobileIdLoginStart(array $request): array
     {
-        $authenticator = $this->allkiri->mobileIdAuthenticator($this->mobileId());
+        $authenticator = $this->allkiri->mobileIdAuthenticator($this->config->mobileId);
         $session = $authenticator->start(new MobileIdIdentity(
             self::string($request, 'phoneNumber'),
             self::string($request, 'identityCode'),
@@ -126,7 +132,7 @@ final class App
             throw new \RuntimeException('No Mobile-ID session is in progress');
         }
 
-        $identity = $this->allkiri->mobileIdAuthenticator($this->mobileId())->poll(MobileIdSession::fromJson($stored));
+        $identity = $this->allkiri->mobileIdAuthenticator($this->config->mobileId)->poll(MobileIdSession::fromJson($stored));
         if ($identity === null) {
             return ['done' => false];
         }
@@ -142,7 +148,7 @@ final class App
      */
     public function smartIdLoginStart(array $request): array
     {
-        $authenticator = $this->allkiri->smartIdAuthenticator($this->smartId());
+        $authenticator = $this->allkiri->smartIdAuthenticator($this->config->smartId);
         $session = $authenticator->startNotification(
             SemanticsIdentifier::estonian(self::string($request, 'identityCode')),
             self::interactions('Log in to the allkiri demo'),
@@ -162,7 +168,7 @@ final class App
             throw new \RuntimeException('No Smart-ID session is in progress');
         }
 
-        $identity = $this->allkiri->smartIdAuthenticator($this->smartId())->poll(SmartIdSession::fromJson($stored));
+        $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->poll(SmartIdSession::fromJson($stored));
         if ($identity === null) {
             return ['done' => false];
         }
@@ -201,7 +207,7 @@ final class App
      */
     public function mobileIdSignStart(array $request): array
     {
-        $signer = $this->allkiri->mobileIdSigner($this->mobileId());
+        $signer = $this->allkiri->mobileIdSigner($this->config->mobileId);
         $signing = $signer->start($this->container(), new MobileIdIdentity(
             self::string($request, 'phoneNumber'),
             self::string($request, 'identityCode'),
@@ -222,7 +228,7 @@ final class App
         }
 
         $container = $this->container();
-        $result = $this->allkiri->mobileIdSigner($this->mobileId())->poll($container, MobileIdSigningSession::fromJson($stored));
+        $result = $this->allkiri->mobileIdSigner($this->config->mobileId)->poll($container, MobileIdSigningSession::fromJson($stored));
         if ($result === null) {
             return ['done' => false];
         }
@@ -239,7 +245,7 @@ final class App
      */
     public function smartIdSignStart(array $request): array
     {
-        $configuration = $this->smartId()->withCertificateLevel(CertificateLevel::Qscd);
+        $configuration = $this->config->smartId->withCertificateLevel(CertificateLevel::Qscd);
         $signer = $this->allkiri->smartIdSigner($configuration);
 
         $signing = $signer->startNotification(
@@ -263,7 +269,7 @@ final class App
         }
 
         $container = $this->container();
-        $signer = $this->allkiri->smartIdSigner($this->smartId()->withCertificateLevel(CertificateLevel::Qscd));
+        $signer = $this->allkiri->smartIdSigner($this->config->smartId->withCertificateLevel(CertificateLevel::Qscd));
         $result = $signer->poll($container, SmartIdSigningSession::fromJson($stored));
         if ($result === null) {
             return ['done' => false];
@@ -369,23 +375,6 @@ final class App
 
     // --- configuration ------------------------------------------------------
 
-    private function webEid(): WebEidConfiguration
-    {
-        // Must be exactly what the browser reports as location.origin. The card
-        // signs it, and a mismatch verifies nothing.
-        return WebEidConfiguration::forOrigin(self::env('ALLKIRI_DEMO_ORIGIN', 'https://localhost:8443'));
-    }
-
-    private function mobileId(): MobileIdConfiguration
-    {
-        return MobileIdConfiguration::demo('allkiri demo');
-    }
-
-    private function smartId(): SmartIdConfiguration
-    {
-        return SmartIdConfiguration::demo();
-    }
-
     private static function interactions(string $text): Interactions
     {
         return Interactions::of(
@@ -449,12 +438,5 @@ final class App
         }
 
         return trim($value);
-    }
-
-    private static function env(string $name, string $fallback): string
-    {
-        $value = getenv($name);
-
-        return \is_string($value) && $value !== '' ? $value : $fallback;
     }
 }

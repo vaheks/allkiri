@@ -10,12 +10,29 @@ services. Four things remain, and none of them can be done by software alone.
 | 1 | The ID card on real hardware | an IDEMIA test card, a Thales test card, a reader and a person. Items 12 to 15 of [manual-testing.md](manual-testing.md), through `examples/demo-app` over HTTPS |
 | 2 | A Smart-ID device link scanned | a phone with the Smart-ID demo app, scanning a QR code the demo application draws |
 | 3 | The DigiDoc4 checklist | DigiDoc4 beta, pointed at the test trusted list. All sixteen items of [manual-testing.md](manual-testing.md) |
-| 4 | A production smoke test | contracts with SK for Mobile-ID, Smart-ID, the timestamp service and OCSP. One real signature by each mean, validated in SiVa production and in DigiDoc4's default mode |
+| 4 | A production smoke test | contracts with SK for Mobile-ID, Smart-ID, the timestamp service and OCSP, and a machine whose public address SK has registered. `composer test:live`, then open what it writes in DigiDoc4's default mode |
 
 Gate 4 is the only one that costs money, and it is the one that matters most:
 production uses different endpoints, different relying-party credentials, a
 different trusted list and a timestamp authority that bills per stamp. Nothing
 in the test environment proves any of that works.
+
+Run it like this, from a machine whose address SK has registered:
+
+```bash
+cp .env.example .env      # fill in the five live values, plus your own phone and codes
+ALLKIRI_LIVE_SMOKE=1 ALLKIRI_ARTEFACTS=/some/directory composer test:live
+```
+
+It signs once with Mobile-ID and once with Smart-ID, prints each verification
+code, validates both containers with our own validator and with SiVa production,
+and writes them out for DigiDoc4. Two phone interactions are needed for Smart-ID:
+signing addresses a device rather than a person, and learning which device costs
+an authentication.
+
+Nothing scheduled can reach it. It lives in its own test suite, which neither
+`composer test` nor `composer test:integration` loads, and it refuses to run
+unless `ALLKIRI_LIVE_SMOKE=1` and `ALLKIRI_MODE=live` are both set.
 
 Until all four are recorded as done, the README says alpha and the version stays
 below 1.0.
