@@ -21,6 +21,7 @@ final readonly class SignatureInfo implements \JsonSerializable
         public ?string $timeAssertionMessageImprint = null,
         public array $signerRoles = [],
         public ?string $signatureProductionPlace = null,
+        public ?\DateTimeImmutable $archiveTimestampTime = null,
     ) {}
 
     /**
@@ -36,6 +37,7 @@ final readonly class SignatureInfo implements \JsonSerializable
             'timeAssertionMessageImprint' => $this->timeAssertionMessageImprint,
             'signerRoles' => $this->signerRoles === [] ? null : $this->signerRoles,
             'signatureProductionPlace' => $this->signatureProductionPlace,
+            'archiveTimestampTime' => $this->archiveTimestampTime?->format(DATE_ATOM),
         ], static fn(mixed $value): bool => $value !== null);
     }
 }

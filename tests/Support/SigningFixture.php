@@ -19,6 +19,7 @@ use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustStore;
+use Allkiri\Xades\LtaExtender;
 use Allkiri\Xades\LtExtender;
 use Allkiri\Xades\SignatureBuilder;
 
@@ -67,6 +68,7 @@ final class SigningFixture
         $this->signingService = new SigningService(
             $this->clock,
             new LtExtender($tspClient, $ocspClient, $this->chainBuilder, $this->trustStore),
+            new LtaExtender($tspClient),
             new SignatureBuilder($this->clock),
         );
     }
@@ -76,6 +78,6 @@ final class SigningFixture
      */
     public function besOnlyService(): SigningService
     {
-        return new SigningService($this->clock, null, new SignatureBuilder($this->clock));
+        return new SigningService($this->clock, null, null, new SignatureBuilder($this->clock));
     }
 }

@@ -38,9 +38,11 @@ use Allkiri\Validation\Report\SubIndication;
 use Allkiri\Xades\Dsig\Canonicalizer;
 use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
+use Allkiri\Xades\Lta\ArchiveTimestampData;
 use Allkiri\Xades\Model\XadesSignature;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\Ns;
+use Allkiri\Xades\XadesException;
 
 /**
  * Decides whether one XAdES signature in a container is valid, and says why
@@ -60,6 +62,7 @@ final class SignatureValidator
         private readonly TimestampTokenVerifier $timestampVerifier = new TimestampTokenVerifier(),
         private readonly OcspResponseVerifier $ocspVerifier = new OcspResponseVerifier(),
         private readonly Canonicalizer $canonicalizer = new Canonicalizer(),
+        private readonly ArchiveTimestampData $archiveTimestampData = new ArchiveTimestampData(),
     ) {}
 
     public function validate(AsicContainer $container, SignatureFile $file, \DOMElement $element, \DateTimeImmutable $validationTime, ?TrustStore $trustStore = null): SignatureReport
@@ -99,6 +102,8 @@ final class SignatureValidator
             $this->checkTimestampOcspOrder($timestamp, $ocsp, $findings);
         }
 
+        $archiveTime = $this->checkArchiveTimestamps($container, $element, $store, $timestamp, $findings);
+
         [$indication, $subIndication] = $this->verdict($findings);
 
         return new SignatureReport(
@@ -117,6 +122,7 @@ final class SignatureValidator
                 $timestamp === null ? null : base64_encode($timestamp->tstInfo()->messageImprint),
                 $signature->claimedRoles,
                 $signature->productionPlace,
+                $archiveTime,
             ),
             $this->scopes($container, $signature),
             $signer,
@@ -135,8 +141,6 @@ final class SignatureValidator
             return SignatureLevel::B;
         }
         if ($signature->archiveTimestampCount > 0) {
-            $findings[] = Finding::warning(FindingCodes::LTA_NOT_VERIFIED, 'The archive timestamp is reported but not verified; allkiri validates up to LT');
-
             return SignatureLevel::LTA;
         }
         if ($signature->ocspValues !== [] || $signature->certificateValues !== []) {
@@ -451,6 +455,121 @@ final class SignatureValidator
         $findings[] = Finding::error(FindingCodes::REVOCATION_INVALID, 'No usable OCSP response' . ($lastProblem === null ? '' : ': ' . $lastProblem), Indication::Indeterminate, SubIndication::TryLater);
 
         return null;
+    }
+
+    /**
+     * Verify every archive timestamp: what it covers, its own signature, and
+     * that its authority is trusted.
+     *
+     * An archive timestamp is what lets a signature outlast the algorithms it
+     * was made with, so a broken one is worth reporting even when everything
+     * beneath it is sound. The signature is still good today; the protection it
+     * was given for tomorrow is not there.
+     *
+     * @param list<Finding> $findings
+     *
+     * @return \DateTimeImmutable|null the time of the last one that verified
+     */
+    private function checkArchiveTimestamps(
+        AsicContainer $container,
+        \DOMElement $element,
+        TrustStore $store,
+        ?TimestampToken $signatureTimestamp,
+        array &$findings,
+    ): ?\DateTimeImmutable {
+        $archives = Xml::elements(Xml::xpath($element), './/xadesv141:ArchiveTimeStamp', $element);
+        if ($archives === []) {
+            return null;
+        }
+
+        $resolver = new ContainerReferenceResolver($container);
+        $tsaCandidates = array_values(array_map(
+            static fn(\Allkiri\Trust\TrustAnchor $anchor): Certificate => $anchor->certificate,
+            $store->anchors(ServiceType::tsaTypes()),
+        ));
+        $latest = null;
+        $previous = $signatureTimestamp?->genTime();
+
+        foreach ($archives as $index => $archive) {
+            $number = $index + 1;
+
+            $encoded = Xml::base64(Xml::xpath($archive), './/xades:EncapsulatedTimeStamp', $archive);
+            if ($encoded === null) {
+                $findings[] = $this->archiveFinding($number, 'carries no token');
+                continue;
+            }
+
+            try {
+                $token = TimestampToken::fromDer($encoded);
+            } catch (Asn1Exception $e) {
+                $findings[] = $this->archiveFinding($number, 'could not be read: ' . $e->getMessage());
+                continue;
+            }
+
+            $method = ArchiveTimestampData::canonicalizationOf($archive);
+            if (!Canonicalizer::supports($method)) {
+                $findings[] = $this->archiveFinding($number, \sprintf('uses canonicalization method "%s", which is not supported', $method));
+                continue;
+            }
+            $imprintAlgorithm = HashAlgorithm::tryFromOid($token->tstInfo()->hashAlgorithmOid);
+            if ($imprintAlgorithm === null) {
+                $findings[] = $this->archiveFinding($number, 'uses an unsupported digest algorithm');
+                continue;
+            }
+
+            try {
+                $covered = $this->archiveTimestampData->forExistingTimestamp($element, $archive, $resolver);
+            } catch (XadesException $e) {
+                $findings[] = $this->archiveFinding($number, 'covers something that cannot be reconstructed: ' . $e->getMessage());
+                continue;
+            }
+
+            try {
+                $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($covered), null, $tsaCandidates);
+            } catch (TimestampException $e) {
+                $findings[] = $this->archiveFinding($number, 'does not verify: ' . $e->getMessage());
+                continue;
+            }
+
+            try {
+                (new ChainBuilder($store))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+            } catch (ChainBuildingException $e) {
+                $findings[] = Finding::error(
+                    FindingCodes::ARCHIVE_TIMESTAMP_NOT_TRUSTED,
+                    \sprintf('The authority behind archive timestamp %d is not trusted: %s', $number, $e->getMessage()),
+                    Indication::Indeterminate,
+                    SubIndication::NoPoe,
+                );
+                continue;
+            }
+
+            // Each archive timestamp covers the ones before it, so its own time
+            // has to come after theirs, or the chain of proof runs backwards.
+            if ($previous !== null && $token->genTime() < $previous) {
+                $findings[] = Finding::error(
+                    FindingCodes::ARCHIVE_TIMESTAMP_ORDER,
+                    \sprintf('Archive timestamp %d is dated before what it covers', $number),
+                    Indication::TotalFailed,
+                    SubIndication::TimestampOrderFailure,
+                );
+                continue;
+            }
+
+            $previous = $token->genTime();
+            $latest = $token->genTime();
+        }
+
+        return $latest;
+    }
+
+    private function archiveFinding(int $number, string $problem): Finding
+    {
+        return Finding::error(
+            FindingCodes::ARCHIVE_TIMESTAMP_INVALID,
+            \sprintf('Archive timestamp %d %s', $number, $problem),
+            Indication::Indeterminate,
+            SubIndication::NoPoe,
+        );
     }
 
     /**
