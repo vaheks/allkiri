@@ -34,3 +34,13 @@ keyUsage = critical, digitalSignature
 extendedKeyUsage = OCSPSigning
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always
+
+# An ID-card authentication certificate: digitalSignature for TLS-style client
+# authentication, where the signing certificate above carries nonRepudiation.
+[card-auth]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = clientAuth
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+authorityInfoAccess = OCSP;URI:http://ocsp.allkiri.test/, caIssuers;URI:http://ca.allkiri.test/ca.crt

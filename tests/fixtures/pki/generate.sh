@@ -44,6 +44,11 @@ issue signer-rsa "/C=EE/O=Allkiri OÜ/organizationIdentifier=NTREE-00000000/CN=A
 # diacritics real Smart-ID subjects carry are covered by the integration test.
 issue signer-rsa-person "/C=EE/CN=MARY ANN,OCONNEZ-SUSLIK TESTNUMBER/SN=OCONNEZ-SUSLIK TESTNUMBER/GN=MARY ANN/serialNumber=PNOEE-40504040001" 1004 signer \
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+# An ID-card authentication certificate. A real card carries two: this one for
+# authentication (digitalSignature, clientAuth) and a signing one carrying
+# nonRepudiation, which signer-ec384 above stands in for.
+issue card-auth "/C=EE/CN=JOEORG,JAAK-KRISTJAN,38001085718/SN=JOEORG/GN=JAAK-KRISTJAN/serialNumber=PNOEE-38001085718" 1005 card-auth \
+  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -pkeyopt ec_param_enc:named_curve
 issue tsa "/C=EE/O=allkiri test PKI/CN=allkiri Test TSA" 2001 tsa \
   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve
 issue ocsp "/C=EE/O=allkiri test PKI/CN=allkiri Test OCSP Responder" 3001 ocsp \
