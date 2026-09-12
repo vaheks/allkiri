@@ -37,6 +37,13 @@ issue signer-ec384 "/C=EE/CN=ALLKIRI,TESTER,38001085718/SN=ALLKIRI/GN=TESTER/ser
   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -pkeyopt ec_param_enc:named_curve
 issue signer-rsa "/C=EE/O=Allkiri OÜ/organizationIdentifier=NTREE-00000000/CN=Allkiri test e-seal" 1003 signer \
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+# An RSA key with a personal subject, for Smart-ID: its keys are always RSA, and
+# the common name follows the profile SK has issued since 2019, which puts the
+# given name first — the opposite of the older one the EC signers above use.
+# Kept ASCII on purpose: Git Bash does not hand UTF-8 through to -subj, and the
+# diacritics real Smart-ID subjects carry are covered by the integration test.
+issue signer-rsa-person "/C=EE/CN=MARY ANN,OCONNEZ-SUSLIK TESTNUMBER/SN=OCONNEZ-SUSLIK TESTNUMBER/GN=MARY ANN/serialNumber=PNOEE-40504040001" 1004 signer \
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
 issue tsa "/C=EE/O=allkiri test PKI/CN=allkiri Test TSA" 2001 tsa \
   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve
 issue ocsp "/C=EE/O=allkiri test PKI/CN=allkiri Test OCSP Responder" 3001 ocsp \
