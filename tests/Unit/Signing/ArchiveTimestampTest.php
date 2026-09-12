@@ -139,6 +139,58 @@ final class ArchiveTimestampTest extends TestCase
         self::assertSame(Indication::TotalPassed, $report->indication);
     }
 
+    /**
+     * The case the demo application found: a container read back from bytes,
+     * archived, and written out again.
+     *
+     * The writer re-emits entries from the original archive byte for byte,
+     * which is what keeps other signatures valid when one is appended. It also
+     * meant the archive timestamp was built, reported as added, and then thrown
+     * away at the moment of writing. Every earlier test archived a container
+     * that had just been built in memory, where there are no original entries
+     * to win.
+     */
+    public function testArchivingAContainerReadFromBytesActuallyChangesTheBytes(): void
+    {
+        $lt = $this->signLt();
+        $onDisk = (new AsicWriter())->write($lt->container);
+
+        $reread = (new AsicReader())->read($onDisk);
+        $archived = $this->fixture->signingService->archive($reread);
+        $written = (new AsicWriter())->write($archived->container);
+
+        self::assertNotSame($onDisk, $written, 'the written container should differ once archived');
+
+        $signature = (new AsicReader())->read($written)->signatureFiles[0];
+        self::assertStringContainsString('ArchiveTimeStamp', $signature->xml);
+
+        $report = $this->validate((new AsicReader())->read($written));
+        self::assertSame(SignatureLevel::LTA, $report->format);
+        self::assertSame(Indication::TotalPassed, $report->indication);
+    }
+
+    /**
+     * Replacing one signature file must leave the others exactly as they were,
+     * which is what the original entries exist for.
+     */
+    public function testArchivingOneSignatureLeavesAnotherUntouched(): void
+    {
+        $first = $this->signLt();
+        $second = $this->fixture->signingService->signWith(
+            $first->container,
+            LocalKeySigner::fromKeyPair(TestPki::signerRsa()),
+        );
+        $before = (new AsicReader())->read((new AsicWriter())->write($second->container));
+        $untouched = $before->signatureFile('META-INF/signatures1.xml');
+        self::assertNotNull($untouched);
+
+        $archived = $this->fixture->signingService->archive($before, 'META-INF/signatures0.xml');
+        $after = (new AsicReader())->read((new AsicWriter())->write($archived->container));
+
+        self::assertStringContainsString('ArchiveTimeStamp', (string) $after->signatureFile('META-INF/signatures0.xml')?->xml);
+        self::assertSame($untouched->xml, $after->signatureFile('META-INF/signatures1.xml')?->xml, 'the other signature must be byte for byte what it was');
+    }
+
     // --- refusals -----------------------------------------------------------
 
     public function testASignatureWithoutRevocationDataCannotBeArchived(): void

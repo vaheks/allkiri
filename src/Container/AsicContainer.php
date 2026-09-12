@@ -98,7 +98,17 @@ final readonly class AsicContainer
             throw new InvalidArgumentException(\sprintf('The container has no "%s" to replace', $file->name));
         }
 
-        return new self($this->dataFiles, $replaced, $this->manifest, $this->originalEntries, $this->structuralFindings);
+        // The writer re-emits entries read from the original archive byte for
+        // byte, which is what keeps other signatures valid when one is
+        // appended. That would also quietly undo this replacement, so the old
+        // entry has to go: without this the new XML is built, reported, and
+        // then thrown away at the moment of writing.
+        $entries = array_values(array_filter(
+            $this->originalEntries,
+            static fn(ZipEntry $entry): bool => $entry->name !== $file->name,
+        ));
+
+        return new self($this->dataFiles, $replaced, $this->manifest, $entries, $this->structuralFindings);
     }
 
     /**
