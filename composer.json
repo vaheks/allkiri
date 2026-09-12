@@ -22,6 +22,12 @@
             "name": "Martin Vahemets"
         }
     ],
+    "homepage": "https://github.com/vaheks/allkiri",
+    "support": {
+        "issues": "https://github.com/vaheks/allkiri/issues",
+        "source": "https://github.com/vaheks/allkiri",
+        "docs": "https://github.com/vaheks/allkiri/tree/main/docs"
+    },
     "require": {
         "php": "^8.2",
         "ext-curl": "*",

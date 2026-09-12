@@ -100,6 +100,28 @@ ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
   --filter testAnArchivedContainerIsRecognisedAsLtaBySiva
 ```
 
+## The card items, through the demo application
+
+Items 12 to 15 need a browser, so run `examples/demo-app` rather than writing a
+script. It signs in with a card, signs an upload with one, and validates the
+result, which is all four items in one sitting.
+
+The Web eID extension refuses to work on an insecure origin, so the demo needs
+HTTPS and an origin the server agrees with exactly:
+
+```bash
+ALLKIRI_DEMO_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
+```
+
+with a TLS terminator in front. An origin mismatch is the failure to expect
+first, and it is indistinguishable from a rejected token unless you look: the
+card signs the origin, so the server refuses a token signed for anything else.
+See `examples/demo-app/README.md`.
+
+Item 15 is about the extension rather than about this library, but a browser
+that cannot reach the card at all is worth knowing before someone reports it as
+a signing bug.
+
 ## Signing in DigiDoc4 test mode
 
 Test Mobile-ID numbers are published at
