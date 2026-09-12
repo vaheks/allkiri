@@ -54,34 +54,71 @@ final class SmartIdSessionStatusParser
             );
         }
 
-        $signature = $body['signature'] ?? null;
-        if (!\is_array($signature)) {
-            throw self::malformed('the session succeeded but carries no signature');
-        }
-        /** @var array<string, mixed> $signature */
-        $certificate = $body['cert'] ?? null;
-        if (!\is_array($certificate)) {
-            throw self::malformed('the session succeeded but carries no certificate');
-        }
-        /** @var array<string, mixed> $certificate */
+        // A certificate-choice session succeeds without signing anything, so
+        // neither the signature nor the dialogue is required here. What each
+        // flow needs, it requires for itself.
+        $signature = self::signatureObject($body);
+        $certificate = self::objectAt($body, 'cert');
 
         return new SmartIdSessionStatus(
             SmartIdSessionStatus::STATE_COMPLETE,
             $endResult,
             self::documentNumber($result),
-            self::signatureValue($signature),
-            self::requiredString($signature, 'signature.signatureAlgorithm'),
-            self::pssParameters($signature),
-            self::certificate($certificate),
-            self::certificateLevel($certificate),
-            self::optionalString($signature, 'serverRandom'),
-            self::optionalString($signature, 'userChallenge'),
-            self::flowType($signature),
+            $signature === null ? null : self::signatureValue($signature),
+            $signature === null ? null : self::requiredString($signature, 'signature.signatureAlgorithm'),
+            $signature === null ? null : self::pssParameters($signature),
+            $certificate === null ? null : self::certificate($certificate),
+            $certificate === null ? null : self::certificateLevel($certificate),
+            $signature === null ? null : self::optionalString($signature, 'serverRandom'),
+            $signature === null ? null : self::optionalString($signature, 'userChallenge'),
+            $signature === null ? null : self::flowType($signature),
             self::interactionTypeUsed($body),
             null,
             self::optionalString($body, 'deviceIpAddress'),
-            self::requiredString($body, 'signatureProtocol'),
+            self::optionalString($body, 'signatureProtocol'),
         );
+    }
+
+    /**
+     * The signature, or null when the session signed nothing.
+     *
+     * A certificate-choice session still arrives with a `signature` object,
+     * carrying only the flow type, so what marks a real signature is a value
+     * rather than the object being there.
+     *
+     * @param array<string, mixed> $body
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function signatureObject(array $body): ?array
+    {
+        $signature = self::objectAt($body, 'signature');
+        if ($signature === null) {
+            return null;
+        }
+        $value = $signature['value'] ?? null;
+
+        return \is_string($value) && $value !== '' ? $signature : null;
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function objectAt(array $body, string $key): ?array
+    {
+        $value = $body[$key] ?? null;
+        if (!\is_array($value)) {
+            return null;
+        }
+
+        $object = [];
+        foreach ($value as $name => $entry) {
+            $object[(string) $name] = $entry;
+        }
+
+        return $object;
     }
 
     /**
@@ -230,11 +267,11 @@ final class SmartIdSessionStatusParser
     /**
      * @param array<string, mixed> $body
      */
-    private static function interactionTypeUsed(array $body): InteractionType
+    private static function interactionTypeUsed(array $body): ?InteractionType
     {
         $raw = $body['interactionTypeUsed'] ?? null;
         if (!\is_string($raw) || $raw === '') {
-            throw self::malformed('the session succeeded without saying which dialogue the app showed');
+            return null;
         }
 
         return InteractionType::tryFrom($raw)

@@ -69,6 +69,9 @@ final class MockSmartIdService
 
     public ?string $serverRandomOverride = null;
 
+    /** The shape of code a signature session reports. */
+    public string $verificationCodeType = 'numeric4';
+
     /** @var array<string, string> hex digest => the bytes it is a digest of */
     private array $preimages = [];
 
@@ -189,11 +192,21 @@ final class MockSmartIdService
      */
     private function notificationResponse(string $type, array $body): HttpResponse
     {
+        // The service requires vcType on an authentication and rejects the
+        // request without it, and it answers with no verification code.
+        if ($type === 'auth') {
+            if (($body['vcType'] ?? null) !== 'numeric4') {
+                return self::json(400, ['detail' => 'Null argument found: /vcType', 'paramName' => 'vcType']);
+            }
+
+            return self::json(200, ['sessionID' => $this->newSession($type, $body)]);
+        }
+
         $sessionId = $this->newSession($type, $body);
 
         return self::json(200, [
             'sessionID' => $sessionId,
-            'vc' => ['type' => 'numeric4', 'value' => VerificationCode::forData($this->sessions[$sessionId]->challenge)],
+            'vc' => ['type' => $this->verificationCodeType, 'value' => VerificationCode::forData($this->sessions[$sessionId]->challenge)],
         ]);
     }
 

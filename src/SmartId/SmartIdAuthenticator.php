@@ -53,14 +53,16 @@ final class SmartIdAuthenticator
     public function startNotification(SemanticsIdentifier|DocumentNumber $subject, Interactions $interactions, ?CertificateLevel $level = null): SmartIdSession
     {
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
-        $started = $this->client->startNotificationAuthentication($subject, $challenge, $interactions, $level);
+        $sessionId = $this->client->startNotificationAuthentication($subject, $challenge, $interactions, $level);
 
         return new SmartIdSession(
-            $started['sessionId'],
+            $sessionId,
             SmartIdSession::TYPE_AUTHENTICATION,
             $challenge,
             $interactions,
-            $started['verificationCode'],
+            // An authentication's code is not handed back by the service; both
+            // sides derive it from the challenge.
+            VerificationCode::forData($challenge),
             $subject instanceof DocumentNumber ? $subject->value : null,
             startedAt: $this->now(),
         );
@@ -141,6 +143,14 @@ final class SmartIdAuthenticator
                 $status->signatureProtocol ?? 'unnamed',
                 AcspV2Payload::PROTOCOL,
             ));
+        }
+        // Every session reports which dialogue was shown, and it is part of
+        // what was signed, so a missing one would make the payload guesswork.
+        if ($status->interactionTypeUsed === null) {
+            throw new SmartIdApiException(
+                SmartIdApiException::REASON_MALFORMED_RESPONSE,
+                'Smart-ID authenticated without saying which dialogue the app showed',
+            );
         }
 
         // Authentication is PSS only. A PKCS#1 v1.5 answer would mean the

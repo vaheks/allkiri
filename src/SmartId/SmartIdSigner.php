@@ -54,6 +54,36 @@ final class SmartIdSigner
     }
 
     /**
+     * Read a finished certificate-choice session.
+     *
+     * Such a session signs nothing, so it carries only the account the person
+     * chose and its certificate. Store the document number: from then on no
+     * further interaction is needed to prepare a signature.
+     */
+    public function completeCertificateChoice(SmartIdSessionStatus $status, ?CertificateLevel $level = null): SmartIdCertificate
+    {
+        $status->requireOk();
+
+        $certificate = $status->certificate
+            ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'The certificate choice returned no certificate');
+        $documentNumber = $status->documentNumber
+            ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'The certificate choice did not name the account that was chosen');
+
+        $actual = $status->certificateLevel
+            ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'The certificate choice did not report a certificate level');
+        $requested = $level ?? $this->client->configuration()->certificateLevel;
+        if (!$requested->isSatisfiedBy($actual)) {
+            throw new SmartIdException(\sprintf(
+                'The chosen certificate is %s where %s was requested',
+                $actual->value,
+                $requested->value,
+            ));
+        }
+
+        return new SmartIdCertificate($certificate, $actual, $documentNumber);
+    }
+
+    /**
      * Prepare the signature and push the request to the person's device.
      */
     public function startNotification(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, ?SigningOptions $options = null, ?CertificateLevel $level = null): SmartIdSigningSession

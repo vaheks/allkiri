@@ -36,6 +36,9 @@ final class SmartIdClient
 
     public const SIGNATURE_ALGORITHM_PSS = 'rsassa-pss';
 
+    /** The only verification code shape the service offers, and the only one we show. */
+    public const VERIFICATION_CODE_TYPE = 'numeric4';
+
     public function __construct(
         private readonly SmartIdConfiguration $configuration,
         private readonly HttpClient $httpClient = new CurlHttpClient(),
@@ -127,19 +130,21 @@ final class SmartIdClient
     /**
      * Start an authentication as a push notification.
      *
-     * @return array{sessionId: string, verificationCode: string}
+     * Unlike a signature session, this returns only the session identifier.
+     * The service does not hand back a verification code for an
+     * authentication; the relying party derives it from the challenge it just
+     * sent, and `vcType` tells the service which shape the app should show.
+     *
+     * @return string the session identifier
      */
-    public function startNotificationAuthentication(SemanticsIdentifier|DocumentNumber $subject, string $rpChallenge, Interactions $interactions, ?CertificateLevel $level = null): array
+    public function startNotificationAuthentication(SemanticsIdentifier|DocumentNumber $subject, string $rpChallenge, Interactions $interactions, ?CertificateLevel $level = null): string
     {
         $body = $this->post(
             $this->subjectPath('/authentication/notification', $subject),
-            $this->authenticationRequest($rpChallenge, $interactions, $level),
+            ['vcType' => self::VERIFICATION_CODE_TYPE] + $this->authenticationRequest($rpChallenge, $interactions, $level),
         );
 
-        return [
-            'sessionId' => $this->stringField($body, 'sessionID'),
-            'verificationCode' => $this->verificationCodeFrom($body),
-        ];
+        return $this->stringField($body, 'sessionID');
     }
 
     // --- signing ------------------------------------------------------------
@@ -360,6 +365,15 @@ final class SmartIdClient
             throw new SmartIdApiException(
                 SmartIdApiException::REASON_MALFORMED_RESPONSE,
                 'Smart-ID started a notification session without a verification code to show',
+            );
+        }
+        // A code of some other shape must not be shown as though it were four
+        // digits: the person compares it character by character.
+        $type = $vc['type'] ?? null;
+        if (\is_string($type) && $type !== self::VERIFICATION_CODE_TYPE) {
+            throw new SmartIdApiException(
+                SmartIdApiException::REASON_MALFORMED_RESPONSE,
+                \sprintf('Smart-ID returned a "%s" verification code, and this library only knows how to present "%s"', $type, self::VERIFICATION_CODE_TYPE),
             );
         }
 

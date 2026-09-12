@@ -214,3 +214,101 @@ in SiVa demo and in allkiri's own validator. That closes the Phase 1 gate that
 was waiting on a key anchored in the test trusted list: these certificates are
 issued by CAs the list carries, so `ALLKIRI_TEST_P12` is no longer needed for
 anything but exercising the same path with a local key.
+
+## 2026-09-12 — Phase 3, Smart-ID v3
+
+The RP API v3 reference pages are not in SK's public documentation repository,
+so the protocol here was read from their own v3 clients
+(`SK-EID/smart-id-java-client`, which covers signing, and
+`SK-EID/smart-id-php-client`, which covers authentication only) and then checked
+against the live demo service. Four things only the second step revealed.
+
+### A notification authentication requires `vcType`, and returns no code
+
+`POST /authentication/notification/...` is rejected with HTTP 400 and
+`Null argument found: /vcType` unless the request says which shape of
+verification code the app should show; the only value is `numeric4`. The
+response then carries **no** verification code at all: the relying party derives
+it from the challenge it just sent, and both sides arrive at the same four
+digits.
+
+A notification *signature* is the other way round. It takes no `vcType` and its
+response carries `vc` with a `type` and a `value`. A `type` other than
+`numeric4` is refused rather than shown, because the person compares the code
+character by character.
+
+### A certificate choice signs nothing, and still sends a `signature`
+
+A completed certificate-choice session answers with a `signature` object
+containing only `flowType`, no value and no algorithm, plus the certificate and
+the document number. Requiring a signature on every successful session — which
+is right for authentication and for signing — makes that unreadable. What marks
+a real signature is therefore a non-empty `value`, not the object being present,
+and the parser now reads what is there while each flow requires what it needs,
+which is how SK's own validators are arranged.
+
+`interactionTypeUsed` is likewise absent from a certificate choice, so it moved
+from the parser to the authenticator, which genuinely cannot do without it: it
+is one of the eleven parts of the signed payload.
+
+### The PSS profile SK uses is exactly the one RFC 6931 fixes
+
+Smart-ID keys are RSA, and SK deprecates PKCS#1 v1.5 in favour of
+`rsassa-pss`. Their own client refuses any answer whose salt is not the digest
+length, whose mask generation function is not MGF1 over the same hash, or whose
+trailer field is not `0xbc`. That is precisely the profile the
+`…xmldsig-more#sha256-rsa-MGF1` family of XML-DSig methods describes, so a
+Smart-ID signature fits `PS256`/`PS384`/`PS512` unchanged and no explicit
+`RSAPSSParams` element is needed.
+
+This matters more than it looks. The XAdES declares its signature method before
+the signature exists, so a value produced with different parameters would make
+the container describe itself wrongly. The library therefore checks the reported
+parameters against the profile and refuses to finalize rather than writing out a
+container no validator could accept. The same check rejects a session that
+answers in a different algorithm from the one it was prepared for.
+
+The API also accepts SHA-3, which has no signature method in the profile we
+produce; such an answer is refused with that explanation.
+
+### Verification code: the last two bytes, modulo ten thousand
+
+The unsigned 16-bit big-endian integer formed by the last two bytes of the
+SHA-256 of the data, then its last four decimal digits. SK's Java client
+expresses the modulo as string padding and slicing, which reads like it could
+produce five digits and cannot. All six of their published vectors match.
+
+### Device links are the one place a string must be exact
+
+The app rebuilds the authentication code itself, so the query parameters have to
+appear in the order `deviceLinkType`, `elapsedSeconds` (QR only), `sessionToken`,
+`sessionType`, `version`, `lang`, and the HMAC covers eight pipe-joined parts
+ending with that whole URL. A QR link's elapsed seconds are inside the code, so
+each second needs a new link and a new code, which is why the session secret
+stays on the server and only finished links reach the browser.
+
+Session types in a link are `auth`, `sign` and `cert`; a certificate choice
+contributes an empty signature protocol to the payload rather than a name.
+
+### Certificate profiles vary more than expected
+
+`PNOEE-50001029996-DEMO-Q` has `CN=TEST,OK` with `SN=TEST` and `GN=OK`: the
+common name is surname-first here, where the profile on the Mobile-ID demo
+numbers is given-name-first. Reading `serialNumber`, `SN`, `GN` and `C` rather
+than splitting the common name is what makes both work, and is why the two-part
+common name is never split.
+
+### What the demo accounts actually do
+
+Authentication, refusals and signing all behave as documented (2026-09-12).
+Containers signed with SHA-256 and SHA-512, by accounts under both
+`TEST of SK ID Solutions EID-Q 2021E` and `EID-Q 2024E`, are **TOTAL-PASSED** in
+SiVa demo and in allkiri's own validator. These are the library's first RSA-PSS
+signatures accepted end to end, which settles the Phase 1 risk that noted PSS
+might be rejected.
+
+Device-link flows are not integration-tested: completing one needs a person to
+scan a code, and SK drives that through a mock service their client knows about.
+Their own repository disables the linked-notification test with the note that
+device-link demo accounts are not currently testable. The link construction is
+pinned offline instead.

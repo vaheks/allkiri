@@ -139,9 +139,9 @@ final class SmartIdClientTest extends TestCase
     {
         $client = new SmartIdClient($this->service->configuration()->withTimeouts(30_000, 120), $this->http);
         $this->service->runningPolls = 1;
-        $started = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
+        $sessionId = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
 
-        $client->sessionStatus($started['sessionId']);
+        $client->sessionStatus($sessionId);
 
         self::assertStringContainsString('timeoutMs=30000', (string) $this->http->lastRequest()?->url);
     }
@@ -151,9 +151,9 @@ final class SmartIdClientTest extends TestCase
     public function testARunningSessionCarriesNothingElse(): void
     {
         $this->service->runningPolls = 1;
-        $started = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
+        $sessionId = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
 
-        $status = $this->client->sessionStatus($started['sessionId']);
+        $status = $this->client->sessionStatus($sessionId);
 
         self::assertTrue($status->isRunning());
         self::assertNull($status->result);
@@ -163,9 +163,9 @@ final class SmartIdClientTest extends TestCase
 
     public function testACompleteSessionIsFullyRead(): void
     {
-        $started = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
+        $sessionId = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
 
-        $status = $this->client->sessionStatus($started['sessionId']);
+        $status = $this->client->sessionStatus($sessionId);
 
         self::assertTrue($status->isOk());
         self::assertSame(MockSmartIdService::DOCUMENT_NUMBER, $status->documentNumber?->value);
@@ -182,9 +182,9 @@ final class SmartIdClientTest extends TestCase
     public function testALegacyRsaAnswerIsRecognisedAsSuch(): void
     {
         $this->service->legacyRsa = true;
-        $started = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
+        $sessionId = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
 
-        $status = $this->client->sessionStatus($started['sessionId']);
+        $status = $this->client->sessionStatus($sessionId);
 
         self::assertTrue($status->isLegacyRsa());
         self::assertNull($status->pssParameters);
@@ -207,9 +207,9 @@ final class SmartIdClientTest extends TestCase
     public function testEveryEndResultTheServiceCanSendIsRead(SmartIdEndResult $expected): void
     {
         $this->service->endResult = $expected;
-        $started = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
+        $sessionId = $this->client->startNotificationAuthentication(SemanticsIdentifier::estonian('40504040001'), random_bytes(64), self::interactions());
 
-        $status = $this->client->sessionStatus($started['sessionId']);
+        $status = $this->client->sessionStatus($sessionId);
 
         self::assertTrue($status->isComplete());
         self::assertSame($expected, $status->result);
@@ -297,8 +297,9 @@ final class SmartIdClientTest extends TestCase
         yield 'no state' => ['{"result":{"endResult":"OK"}}', 'no state'];
         yield 'no result' => ['{"state":"COMPLETE"}', 'no result'];
         yield 'unknown end result' => ['{"state":"COMPLETE","result":{"endResult":"WHAT"}}', 'unknown end result'];
-        yield 'no signature' => ['{"state":"COMPLETE","result":{"endResult":"OK","documentNumber":"PNOEE-1-MOCK-Q"}}', 'no signature'];
-        yield 'no certificate' => ['{"state":"COMPLETE","result":{"endResult":"OK","documentNumber":"PNOEE-1-MOCK-Q"},"signature":{"value":"AA=="}}', 'no certificate'];
+        yield 'unusable document number' => ['{"state":"COMPLETE","result":{"endResult":"OK","documentNumber":"nonsense"}}', 'unusable document number'];
+        yield 'signature without an algorithm' => ['{"state":"COMPLETE","result":{"endResult":"OK","documentNumber":"PNOEE-1-MOCK-Q"},"signature":{"value":"AA=="}}', 'signature.signatureAlgorithm'];
+        yield 'no account named' => ['{"state":"COMPLETE","result":{"endResult":"OK"}}', 'without naming the account'];
     }
 
     #[DataProvider('malformedStatuses')]
@@ -375,6 +376,35 @@ final class SmartIdClientTest extends TestCase
         $this->expectExceptionMessageMatches('/only MGF1 is usable/');
 
         $client->sessionStatus('abc');
+    }
+
+    /**
+     * A certificate-choice session signs nothing, and the service still sends a
+     * `signature` object carrying only the flow type. That must read as no
+     * signature rather than as a malformed one.
+     */
+    public function testACertificateChoiceSessionCarriesNoSignature(): void
+    {
+        $body = json_encode([
+            'state' => SmartIdSessionStatus::STATE_COMPLETE,
+            'result' => ['endResult' => 'OK', 'documentNumber' => MockSmartIdService::DOCUMENT_NUMBER],
+            'signature' => ['flowType' => 'Notification'],
+            'cert' => ['value' => $this->service->certificate()->base64(), 'certificateLevel' => 'QUALIFIED'],
+        ], JSON_THROW_ON_ERROR);
+
+        $http = new MockHttpClient();
+        $http->respond(MockSmartIdService::URL, 200, 'application/json', $body);
+        $client = new SmartIdClient($this->service->configuration(), $http);
+
+        $status = $client->sessionStatus('abc');
+
+        self::assertTrue($status->isOk());
+        self::assertNull($status->signatureValue);
+        self::assertNull($status->pssParameters);
+        self::assertNull($status->signatureAlgorithmName);
+        self::assertNull($status->interactionTypeUsed);
+        self::assertNotNull($status->certificate);
+        self::assertSame(MockSmartIdService::DOCUMENT_NUMBER, $status->documentNumber?->value);
     }
 
     public function testACertificateChoiceSessionCanBeStarted(): void

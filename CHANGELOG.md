@@ -41,6 +41,16 @@ signatures with a local key, and the API the eID means will plug into.
   actually carry, because the service replaces anything else with spaces
   rather than refusing it.
 
+- **Smart-ID v3.** Authentication and signing in both flow families:
+  notifications pushed to a registered device, and device links for QR codes and
+  taps, including an anonymous one that lets whoever scans identify themselves.
+  Authentication verifies the ACSP_V2 payload, which binds an answer to one
+  session on one service rather than merely to a challenge. Signing is
+  RSASSA-PSS, which SK now requires, so the container declares an RFC 6931 PSS
+  signature method and the parameters the service reports are checked against
+  what that method describes rather than trusted. Device links carry an HMAC
+  over the whole session, keyed with a secret that never leaves the server.
+
 ### Verified against
 
 - Containers made by digidoc4j, including one that validates TOTAL-PASSED end
@@ -50,9 +60,13 @@ signatures with a local key, and the API the eID means will plug into.
 - Every Mobile-ID demo number SK publishes: each documented failure arrives as
   its own typed result, and containers signed by the ECC and the RSA demo
   number are TOTAL-PASSED in both our validator and SiVa.
+- SK's Smart-ID demo accounts: authentication by account and by person, every
+  documented refusal, a certificate choice, and RSA-PSS containers at SHA-256
+  and SHA-512 that are TOTAL-PASSED in both our validator and SiVa.
 
 ### Not yet
 
-Smart-ID and Web eID; archive timestamps (LTA); BDOC-TM
+Web eID; Smart-ID device-link flows against a live service, which needs a
+person to scan a code; archive timestamps (LTA); BDOC-TM
 (time-mark) signatures, which SK stopped supporting on 2023-11-01 and which
 this library reports as unsupported rather than validating.
