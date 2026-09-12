@@ -51,6 +51,11 @@ change.
 | `ALLKIRI_MID_URL`, `ALLKIRI_MID_UUID`, `ALLKIRI_MID_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
 | `ALLKIRI_SMARTID_URL`, `ALLKIRI_SMARTID_UUID`, `ALLKIRI_SMARTID_NAME` | the same for Smart-ID |
 
+`ListOfListsLiveTest` needs no configuration and is the one that matters most
+nightly: it fails when the European list of trusted lists is signed by a
+certificate this library does not ship, which is the only warning that
+`resources/trust/eu` needs refreshing from the Official Journal.
+
 ### The test signing key and the demo OCSP service
 
 `tests/fixtures/pki/signer-rsa.cert.pem` has been uploaded at

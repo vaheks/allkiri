@@ -11,6 +11,7 @@ use Allkiri\Crypto\Ocsp\NonceMode;
 use Allkiri\Resources;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListSource;
 
 /**
@@ -39,6 +40,7 @@ final readonly class Environment
         public int $httpTimeoutSeconds = 30,
         public HashAlgorithm $timestampDigestAlgorithm = HashAlgorithm::SHA256,
         public ?string $sivaUrl = null,
+        public ?ListOfListsSource $listOfLists = null,
     ) {}
 
     /**
@@ -85,7 +87,37 @@ final readonly class Environment
             ocspUrlOverrides: [],
             trustedListSources: [],
             sivaUrl: 'https://siva.eesti.ee/V3/validate',
+            listOfLists: self::euListOfLists(),
         );
+    }
+
+    /**
+     * The European list of trusted lists, with the certificates the Official
+     * Journal publishes as the only thing shipped.
+     *
+     * Read `resources/trust/eu/README.md` before relying on it: those
+     * certificates decide what your application will treat as qualified, and
+     * they should be checked against the Journal rather than against this
+     * library.
+     *
+     * @param list<string> $territories two-letter codes whose lists to follow
+     */
+    public static function euListOfLists(array $territories = ['EE']): ListOfListsSource
+    {
+        $signers = [];
+        for ($i = 1; $i <= 6; ++$i) {
+            $signers[] = self::certificate(\sprintf('eu/lotl-signer-%d.pem', $i));
+        }
+
+        return new ListOfListsSource(ListOfListsSource::EU_URL, $signers, $territories);
+    }
+
+    /**
+     * Null takes trust back to whatever `withTrustedListSources()` supplies.
+     */
+    public function withListOfLists(?ListOfListsSource $source): self
+    {
+        return $this->but(listOfLists: $source, listOfListsGiven: true);
     }
 
     /**
@@ -164,6 +196,8 @@ final readonly class Environment
         ?int $httpTimeoutSeconds = null,
         ?string $sivaUrl = null,
         bool $sivaUrlGiven = false,
+        ?ListOfListsSource $listOfLists = null,
+        bool $listOfListsGiven = false,
     ): self {
         return new self(
             $this->name,
@@ -176,6 +210,7 @@ final readonly class Environment
             $httpTimeoutSeconds ?? $this->httpTimeoutSeconds,
             $this->timestampDigestAlgorithm,
             $sivaUrlGiven ? $sivaUrl : $this->sivaUrl,
+            $listOfListsGiven ? $listOfLists : $this->listOfLists,
         );
     }
 

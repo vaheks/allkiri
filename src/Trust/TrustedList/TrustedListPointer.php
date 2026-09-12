@@ -12,6 +12,12 @@ use Allkiri\Crypto\Certificate;
  */
 final readonly class TrustedListPointer
 {
+    /** The machine-processable form of a trusted list. */
+    public const MIME_XML = 'application/vnd.etsi.tsl+xml';
+
+    /** The same list as a document for people to read. */
+    public const MIME_PDF = 'application/pdf';
+
     /**
      * @param list<Certificate> $signingCertificates
      */

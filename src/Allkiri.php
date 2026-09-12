@@ -28,6 +28,7 @@ use Allkiri\SmartId\SmartIdSigner;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
+use Allkiri\Trust\ListOfListsTrustStore;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use Allkiri\Trust\TrustedListTrustStore;
 use Allkiri\Trust\TrustStore;
@@ -94,11 +95,12 @@ final class Allkiri
     {
         if ($this->trustStore === null) {
             $stores = [];
+            $loader = new TrustedListLoader($this->httpClient(), $this->cache ?? new ArrayCache(), clock: $this->clock, logger: $this->logger);
+            if ($this->environment->listOfLists !== null) {
+                $stores[] = new ListOfListsTrustStore($loader, $this->environment->listOfLists, logger: $this->logger);
+            }
             if ($this->environment->trustedListSources !== []) {
-                $stores[] = new TrustedListTrustStore(
-                    new TrustedListLoader($this->httpClient(), $this->cache ?? new ArrayCache(), clock: $this->clock, logger: $this->logger),
-                    $this->environment->trustedListSources,
-                );
+                $stores[] = new TrustedListTrustStore($loader, $this->environment->trustedListSources);
             }
             if ($this->environment->extraTrustAnchors !== []) {
                 $stores[] = new InMemoryTrustStore($this->environment->extraTrustAnchors);
