@@ -101,8 +101,19 @@ final class XmlDsigVerifierTest extends TestCase
         self::assertFalse($missing->isValid());
         self::assertFalse($missing->reference('test.txt')?->resolved);
 
-        // Flip one byte of the SignatureValue: references still match, the signature no longer verifies.
-        $broken = SignatureDocument::parse(preg_replace('/(<ds:SignatureValue[^>]*>)./', '$1X', $xml, 1) ?? '');
+        // Flip one byte of the SignatureValue: references still match, the
+        // signature no longer verifies. The new character must differ from the
+        // old one, which a constant does not guarantee when the value itself is
+        // random.
+        $brokenXml = preg_replace_callback(
+            '/(<ds:SignatureValue[^>]*>)(.)/',
+            static fn(array $m): string => $m[1] . ($m[2] === 'A' ? 'B' : 'A'),
+            $xml,
+            1,
+        );
+        self::assertIsString($brokenXml);
+        self::assertNotSame($xml, $brokenXml);
+        $broken = SignatureDocument::parse($brokenXml);
         $result = $verifier->verify($broken->signatures()[0], new ArrayReferenceResolver(['test.txt' => $content]));
         self::assertFalse($result->signatureValid);
         self::assertTrue($result->reference('test.txt')?->digestMatches);

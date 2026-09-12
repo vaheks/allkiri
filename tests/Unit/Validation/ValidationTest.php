@@ -120,9 +120,18 @@ final class ValidationTest extends TestCase
         self::assertSame(SubIndication::HashFailure, $report->signatures[0]->subIndication);
         self::assertTrue($report->signatures[0]->has(FindingCodes::DATA_FILE_DIGEST_MISMATCH));
 
-        // A changed signature value.
-        $brokenXml = preg_replace('/(<ds:SignatureValue[^>]*>)[A-Za-z0-9+\/]/', '$1X', $signatureXml, 1);
+        // A changed signature value. The replacement has to differ from what
+        // was there: ECDSA picks a fresh k every run, so overwriting the first
+        // base64 character with a constant leaves the signature untouched
+        // about one run in sixty-four, and the container then validates.
+        $brokenXml = preg_replace_callback(
+            '/(<ds:SignatureValue[^>]*>)([A-Za-z0-9+\/])/',
+            static fn(array $m): string => $m[1] . ($m[2] === 'A' ? 'B' : 'A'),
+            $signatureXml,
+            1,
+        );
         self::assertIsString($brokenXml);
+        self::assertNotSame($signatureXml, $brokenXml);
         $broken = (new ZipWriter())
             ->addStored('mimetype', Ns::MIME_ASICE)
             ->addDeflated('a.txt', 'original')
