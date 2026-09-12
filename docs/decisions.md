@@ -399,3 +399,64 @@ machine-readable form explicitly, and `pointersTo()` returns all of them. Of the
 
 Test lists name their territory `EE_T` rather than `EE`, so a territory code is
 validated as two letters with an optional suffix.
+
+## 2026-09-12 — Phase 5, archive timestamps
+
+### One word decided the whole construction
+
+The octet stream an archive timestamp covers is built in five steps, and the
+first one reads, in EN 319 132-1 clause 5.5.2.2, "take all the ds:Reference
+elements ... referencing whatever the signer wants to sign **including the
+SignedProperties element**".
+
+That "including" is the opposite of the signature timestamp's own rule, and
+leaving the SignedProperties reference out produces a stream that is entirely
+plausible — right length, right order, right canonicalisation — and digests to
+nothing. Four other guesses were tried first: inclusive canonicalisation
+instead of exclusive, dropping `ds:KeyInfo`, putting the data objects last, and
+including the archive timestamp in its own input. None matched, and none would
+have been distinguishable from the real mistake by reasoning alone.
+
+What settled it was reading the reference implementation. DSS's
+`XAdESTimestampMessageDigestBuilder::getArchiveTimestampMessageDigest()` quotes
+the clause in a comment directly above the loop that iterates every reference
+without exception.
+
+### The fixture is the specification
+
+The digidoc4j LTA container in `tests/fixtures/containers` is the only reason
+any of this can be trusted. `ArchiveTimestampDataTest` digests our stream and
+compares it with the imprint digidoc4j's timestamp authority was actually asked
+to stamp, and the two match to the byte. An archive timestamp has to be
+verifiable years later by software nobody has written yet, so agreement with
+another implementation is the only evidence worth having; our own tests
+agreeing with our own encoder would prove nothing at all.
+
+SiVa then reads a container we archive as `XAdES_BASELINE_LTA` and reports
+TOTAL-PASSED, which closes the loop from the other side.
+
+### Canonicalisation left unstated means inclusive
+
+`ds:CanonicalizationMethod` inside an archive timestamp is optional, and XML-DSig's
+default when it is absent is inclusive canonicalisation — not the exclusive form
+that every Estonian signature actually uses. A validator that assumed exclusive
+would reconstruct a different stream for such a signature and reject a perfectly
+good timestamp. allkiri reads the declared algorithm and falls back to inclusive,
+and always writes the element when producing one.
+
+### A broken archive timestamp does not condemn the signature
+
+An archive timestamp that fails to verify is reported as INDETERMINATE with
+NO_POE rather than TOTAL-FAILED, and the signature beneath it is still judged on
+its own merits. The distinction is real: the signature is valid today, and what
+is missing is the protection it was supposed to have for tomorrow. The one
+exception is an archive timestamp dated before something it covers, which is a
+contradiction rather than a gap and is reported as a failure.
+
+### Adding a constructor parameter in the middle breaks callers
+
+`SigningService` gained `$ltaExtender` next to `$ltExtender`, where it belongs,
+and every positional call passing a `SignatureBuilder` third then passed it as
+the wrong parameter. PHPStan caught it because the types differ; had both been
+nullable objects of compatible shape it would not have. Worth remembering for
+anything after 1.0, where the fix cannot be "update the callers".

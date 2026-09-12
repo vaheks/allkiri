@@ -5,10 +5,11 @@ digital signatures** with the ID-card family (via Web eID), Mobile-ID and
 Smart-ID, plus local keys for e-seals and tests. Produces and validates ASiC-E
 containers with XAdES-LT signatures, the format DigiDoc4 opens.
 
-> **Status: alpha.** All four eID means work, and production trust is taken
-> from the European list of trusted lists. Tested against the real Estonian
-> services; the ID card itself still needs the manual checklist run on
-> hardware. The API may still change. Do not depend on it before 1.0.
+> **Status: alpha.** All four eID means work, signatures reach XAdES-LTA, and
+> production trust is taken from the European list of trusted lists. Tested
+> against the real Estonian services; the ID card itself still needs the manual
+> checklist run on hardware. The API may still change. Do not depend on it
+> before 1.0.
 
 ## Why
 
@@ -39,8 +40,10 @@ file_put_contents('leping.asice', $allkiri->writer()->write($result->container))
 $report = $allkiri->validator()->validateFile('leping.asice');
 ```
 
-- **Signing** with a local key or e-seal, at level B, T or LT, with ECDSA
+- **Signing** with a local key or e-seal, at level B, T, LT or LTA, with ECDSA
   (P-256, P-384) or RSA (PKCS#1 or PSS).
+- **Archive timestamps**, so a signature outlasts the algorithms it was made
+  with. Applied at signing or years later, as many times as needed.
 - **Mobile-ID**, for signing in and for signing, with the verification code,
   typed outcomes for everything SK publishes, and sessions that survive between
   two HTTP requests. See [docs/mobile-id.md](docs/mobile-id.md).
@@ -74,8 +77,8 @@ Read [docs/signing.md](docs/signing.md), [docs/mobile-id.md](docs/mobile-id.md),
 | 2 | Mobile-ID: authentication and signing | done |
 | 3 | Smart-ID v3: authentication and signing, device-link flows | done |
 | 4 | Web eID: authentication and signing, production trust lists | done |
-| 5 | XAdES-LTA, validation polish | next |
-| 6 | Browser helper, demo app, 1.0 on Packagist | planned |
+| 5 | XAdES-LTA, validation polish | done |
+| 6 | Browser helper, demo app, 1.0 on Packagist | next |
 
 ## What it is measured against
 
@@ -100,7 +103,11 @@ Not our own tests alone:
   that are TOTAL-PASSED in SiVa.
 - **The live European list of trusted lists**: its signature verifies against
   the certificates the Official Journal publishes, and the Estonian authorities
-  behind every eID mean here are reached through it.
+  behind every eID mean here are reached through it. Latvian and Lithuanian
+  lists are reachable the same way.
+- **An archive timestamp digidoc4j made**: our computation of what it covers
+  digests to exactly the imprint its timestamp authority was asked to stamp, and
+  a container we archive is read as XAdES_BASELINE_LTA by SiVa.
 
 Both Estonian card PKIs are handled: IDEMIA cards (SK ID Solutions) and the
 Thales cards issued since November 2025 (Zetes).

@@ -137,3 +137,57 @@ $environment = Environment::production()->withOcspUrlOverrides([
 `Environment::production()` deliberately trusts nothing until you pin the
 Estonian trusted list's signing certificates. That pin is the trust decision;
 see [trust.md](trust.md).
+
+## Keeping a signature verifiable: archive timestamps
+
+An LT signature rests on the algorithms it was made with and on the
+certificates behind its timestamp and revocation answer. When SHA-256 weakens,
+or the timestamp authority's own certificate expires, there is no longer proof
+that the signature existed while all of that was still sound.
+
+An archive timestamp fixes that by re-stamping the whole assembly — the
+signature, the earlier timestamp, the certificates, the revocation data and the
+signed files themselves. The new proof carries the old one. It can be applied
+again later, each one covering all the others, so a signature can be carried
+forward indefinitely.
+
+Usually it happens long after signing:
+
+```php
+$container = $allkiri->reader()->readFile('leping.asice');
+$archived = $allkiri->signingService()->archive($container);
+
+file_put_contents('leping.asice', $allkiri->writer()->write($archived->container));
+```
+
+`archive()` takes every signature in the container by default, or one named
+signature file. The container must already be at LT: an archive timestamp over a
+signature with no revocation data would preserve something that was never
+verifiable.
+
+To archive at signing time instead, ask for the level:
+
+```php
+$options = new SigningOptions(SignatureLevel::LTA);
+```
+
+That is rarely what you want. An archive timestamp applied immediately protects
+against nothing that the signature timestamp does not already cover; its value
+is in being applied again as the years pass.
+
+### What it covers, and why that matters
+
+The octet stream an archive timestamp is computed over is defined by ETSI EN
+319 132-1 clause 5.5.2.2, and it has to be reproducible years later by software
+nobody has written yet. allkiri's construction is checked against a container
+digidoc4j produced: the stream digests to exactly the imprint its timestamp
+authority was asked to stamp. SiVa reads a container allkiri archives as
+`XAdES_BASELINE_LTA`.
+
+### Validation
+
+Archive timestamps are verified, not merely noticed. A broken one is reported as
+INDETERMINATE with NO_POE and the signature beneath it is still judged on its
+own merits, because that signature is valid today; what is missing is the
+protection it was meant to have for tomorrow. An archive timestamp dated before
+something it covers is a contradiction rather than a gap, and fails.

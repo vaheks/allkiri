@@ -149,6 +149,31 @@ final class ListOfListsLiveTest extends IntegrationTestCase
     }
 
     /**
+     * A signature made in another member state has to chain to that state's own
+     * authorities, which the same list of lists carries. Following more than
+     * one territory is how a relying party validates foreign signatures.
+     */
+    public function testOtherMemberStatesListsCanBeFollowedToo(): void
+    {
+        $store = new ListOfListsTrustStore($this->loader(), Environment::euListOfLists(['EE', 'LV', 'LT']));
+
+        $store->load();
+
+        $sources = [];
+        foreach ($store->anchors() as $anchor) {
+            $sources[$anchor->source] = true;
+        }
+
+        // Three lists were followed, and each contributed anchors of its own.
+        self::assertGreaterThanOrEqual(3, \count($sources), 'each territory should contribute anchors: ' . implode(', ', array_keys($sources)));
+
+        $names = implode(' | ', array_map(static fn($anchor): string => $anchor->certificate->subjectDn(), $store->anchors()));
+        self::assertStringContainsString('ESTEID2018', $names, 'the Estonian card authority');
+        self::assertMatchesRegularExpression('/C=LV|LATVIJ|Latvi/i', $names, 'a Latvian authority');
+        self::assertMatchesRegularExpression('/C=LT|Lietuv|Registr/i', $names, 'a Lithuanian authority');
+    }
+
+    /**
      * The parser should not be the reason a list fails: check it reads the real
      * document rather than only our fixtures.
      */

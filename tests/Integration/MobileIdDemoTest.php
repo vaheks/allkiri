@@ -236,6 +236,56 @@ final class MobileIdDemoTest extends IntegrationTestCase
     }
 
     /**
+     * The Phase 5 gate: an archive timestamp we made, judged by SiVa.
+     *
+     * Archive timestamps are the part of the format with the most room to get
+     * the covered octet stream wrong, and a wrong one is only found by software
+     * that did not build it. Our own validator agreeing proves little; SiVa
+     * reading the container as LTA proves the construction.
+     */
+    public function testAnArchivedContainerIsRecognisedAsLtaBySiva(): void
+    {
+        $configuration = $this->configuration();
+        $allkiri = $this->allkiri();
+        $signer = $allkiri->mobileIdSigner($configuration);
+
+        $container = AsicContainer::create(DataFile::fromString(
+            'allkiri.txt',
+            'Archive timestamp interop check ' . date(DATE_ATOM),
+        ));
+
+        $signing = $signer->start($container, new MobileIdIdentity(self::OK_PHONE, self::OK_CODE));
+        $status = (new MobileIdPoller($allkiri->mobileIdClient($configuration)))->wait($signing->session);
+        $lt = $signer->complete($container, $signing, $status);
+        self::assertSame(SignatureLevel::LT, $lt->level);
+
+        $archived = $allkiri->signingService()->archive($lt->container);
+        self::assertSame(SignatureLevel::LTA, $archived->level);
+
+        $bytes = (new AsicWriter())->write($archived->container);
+
+        $ours = $allkiri->validator()->validate($bytes, 'archived.asice')->signatures[0];
+        self::assertSame(SignatureLevel::LTA, $ours->format);
+        self::assertSame(
+            Indication::TotalPassed,
+            $ours->indication,
+            implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $ours->errors())),
+        );
+
+        $siva = new SivaClient(self::http(60), (string) Environment::demo()->sivaUrl);
+        $report = $siva->validate($bytes, 'archived.asice');
+
+        self::assertSame('XAdES_BASELINE_LTA', $report->signatures[0]->signatureFormat, 'SiVa should read the archive timestamp');
+        self::assertSame(
+            'TOTAL-PASSED',
+            $report->signatures[0]->indication,
+            implode('; ', $report->signatures[0]->errors),
+        );
+
+        self::saveArtefact('archived-' . self::OK_CODE . '.asice', $bytes);
+    }
+
+    /**
      * Keep the produced container when ALLKIRI_ARTEFACTS points somewhere, so
      * it can be opened in DigiDoc4 for the manual checklist.
      */
