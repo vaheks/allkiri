@@ -30,8 +30,11 @@ final class ZipReader
      * @throws InvalidContainerException
      * @return list<ZipEntry> in central-directory order, which is the order the entries were written
      */
-    public static function read(string $bytes): array
+    public static function read(string $bytes, ?InflationLimit $limit = null): array
     {
+        // The container's own size is what the ratio is measured against, so
+        // the budget belongs to the archive rather than to any one entry.
+        $limit ??= new InflationLimit(\strlen($bytes));
         $eocdOffset = self::findEndOfCentralDirectory($bytes);
         if (str_contains(substr($bytes, max(0, $eocdOffset - 20), 20), self::SIGNATURE_ZIP64_LOCATOR)) {
             throw new UnsupportedZipException('ZIP64 archives are not supported');
@@ -70,13 +73,13 @@ final class ZipReader
                 throw new UnsupportedZipException(\sprintf('Entry "%s" needs ZIP64', $name));
             }
 
-            $entries[] = self::readLocal($bytes, $central, $name, $centralExtra, $comment);
+            $entries[] = self::readLocal($bytes, $central, $name, $centralExtra, $comment, $limit);
         }
 
         return $entries;
     }
 
-    private static function readLocal(string $bytes, Fields $central, string $name, string $centralExtra, string $comment): ZipEntry
+    private static function readLocal(string $bytes, Fields $central, string $name, string $centralExtra, string $comment, InflationLimit $limit): ZipEntry
     {
         $offset = $central->get('localOffset');
         if (substr($bytes, $offset, 4) !== self::SIGNATURE_LOCAL) {
@@ -111,6 +114,7 @@ final class ZipReader
             $central->get('internalAttributes'),
             $central->get('versionMadeBy'),
             $central->get('versionNeeded'),
+            $limit,
         );
     }
 

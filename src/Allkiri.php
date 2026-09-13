@@ -77,6 +77,12 @@ final class Allkiri
         private readonly ValidationPolicy $policy = new ValidationPolicy(),
         private readonly NonceGenerator $nonces = new RandomNonceGenerator(),
         private readonly ?LoggerInterface $logger = null,
+        /**
+         * How containers are read, which is where the limit on how far a
+         * container may expand lives. The default refuses the same archives
+         * digidoc4j refuses; pass your own to change the thresholds.
+         */
+        private readonly AsicReader $reader = new AsicReader(),
     ) {}
 
     public function environment(): Environment
@@ -156,6 +162,7 @@ final class Allkiri
                 new SignatureValidator($this->trustStore(), $this->policy),
                 $this->clock,
                 $this->policy,
+                $this->reader,
             );
         }
 
@@ -249,7 +256,7 @@ final class Allkiri
 
     public function reader(): AsicReader
     {
-        return new AsicReader();
+        return $this->reader;
     }
 
     public function writer(): AsicWriter
