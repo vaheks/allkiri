@@ -175,6 +175,14 @@ carrying `message` or `error`, that text becomes the message, so your own
 wording reaches the page. A missing Web eID extension rejects with a message
 naming web-eid.js.
 
+An answer that cannot be read is an error too, immediately, quoting the start of
+what came back. This matters most while polling: a PHP notice ahead of your JSON,
+a proxy's error page, or an HTML login redirect in front of your endpoints would
+otherwise be taken for "not finished yet", and the loop would go on asking long
+after the session it was waiting for had been finished and consumed. The person
+then sees a failure with the wrong cause, minutes after the thing they did
+actually succeeded.
+
 What to show a person is your decision, and it should not be the message: these
 are for your logs. `docs/mobile-id.md` and `docs/smart-id.md` list the outcomes
 worth distinguishing.

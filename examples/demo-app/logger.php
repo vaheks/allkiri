@@ -21,7 +21,28 @@ use Psr\Log\AbstractLogger;
 
 final class FileLogger extends AbstractLogger
 {
-    public function __construct(private readonly string $path) {}
+    public function __construct(private readonly string $path)
+    {
+        // Checked once, here, rather than discovered on every line.
+        //
+        // A logger that cannot write emits a PHP warning per call, and with
+        // display_errors on a development machine that warning goes into the
+        // HTTP response body, ahead of the JSON. The browser then cannot read
+        // an answer it was given, which surfaces minutes later as an
+        // authentication that appears to fail when it actually succeeded.
+        // Refusing at boot costs one line and prevents all of that.
+        $directory = \dirname($path);
+        if (!is_dir($directory)) {
+            throw new \RuntimeException(\sprintf(
+                'ALLKIRI_LOG is "%s", but the directory "%s" does not exist. Create it, or point at a file somewhere that does.',
+                $path,
+                $directory,
+            ));
+        }
+        if (file_exists($path) ? !is_writable($path) : !is_writable($directory)) {
+            throw new \RuntimeException(\sprintf('ALLKIRI_LOG is "%s", which cannot be written to.', $path));
+        }
+    }
 
     /**
      * @param array<mixed> $context
