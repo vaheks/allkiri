@@ -525,3 +525,66 @@ application. A well-factored demo with a router, a container and six classes
 demonstrates good structure and hides the two lines that matter. Anything a real
 application must do differently — accounts, rate limiting, not echoing exception
 messages at people — is said plainly in the README rather than implemented.
+
+## 2026-09-13 — the Web eID validator's DER encoding
+
+### One authentication in 256 was refused, and it was not ours
+
+A CI run failed on one PHP version with "Token signature validation has failed".
+Running the test two hundred times reproduced it three times, so it was a rare
+value-dependent failure rather than a broken change.
+
+The cause is in `web-eid/web-eid-authtoken-validation-php`. A card returns an
+ECDSA signature as raw r‖s with each half padded to the width of the curve, so
+about one half in 256 begins with a zero byte. `AsnUtil::transcodeSignatureToDER`
+adds a leading zero when the first byte exceeds 0x7f, which is right, but never
+removes one that is already there, and DER requires integers in minimal form.
+OpenSSL refuses the result.
+
+Measured over six thousand signatures from the same key, the split is exact:
+
+| Leading zero followed by | Verified | Rejected |
+|---|---|---|
+| a byte above 0x7f (the zero is required) | 23 | 0 |
+| a byte of 0x7f or less (the zero is superfluous) | 0 | 23 |
+| no leading zero | 5954 | 0 |
+
+Two halves, one in 256 chance each, half of those superfluous, gives one in 256
+overall. The measured rate was 0.38 per cent.
+
+### It had already been found, and looking first would have been cheaper
+
+The first instinct was that a defect failing one login in 256 would have been
+noticed by now. That instinct was right. Issue #71 on their repository, opened
+2026-07-22, describes the same symptom from production: fails on the first try,
+succeeds on the second. Pull request #74 fixes it. Neither had moved in six
+weeks, and 1.3.1 is still the current release.
+
+The lesson is not about ECDSA. Before claiming a defect in someone else's
+library, read their issue tracker: it costs one search and it either saves the
+report or tells you what the maintainers already think.
+
+### The workaround, and how to know it can go
+
+`WebEidAuthenticator::withDerSignature()` re-encodes the signature with our own
+encoder before handing the token over. Their validator skips its own conversion
+when the signature already looks like DER, so the broken path is never entered.
+Only the encoding changes: the same r and s are verified against the same
+certificate over the same bytes, so nothing refused before is accepted now.
+
+`testASignatureWhoseHalfBeginsWithASuperfluousZeroIsAccepted` pins a real
+signature whose s half begins 00 7B. It fails with the workaround removed and
+passes with it, which is exactly the signal for deleting the workaround: when a
+release contains the upstream fix, take the workaround out and that test should
+stay green.
+
+### What it says about the dependency
+
+Keeping the official validator was argued on the grounds that authentication is
+the one place where being wrong is expensive. That still holds, but it is now
+tempered: the library is demonstrably wrong in the middle of what it exists to
+do, its fix has sat unreleased for six weeks, and this project already reaches
+past it for trust and revocation. The decision to replace it after 1.0 should be
+weighed again with that on the record, and any replacement must be measured
+against the Web eID project's own test vectors rather than against our reading of
+the specification.

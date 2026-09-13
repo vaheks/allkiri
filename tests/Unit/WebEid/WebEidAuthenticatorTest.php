@@ -120,6 +120,41 @@ final class WebEidAuthenticatorTest extends TestCase
         self::assertSame('PNOEE-38001085718', $identity->semanticsIdentifier());
     }
 
+    /**
+     * The case that broke roughly one authentication in 256, deterministically.
+     *
+     * A card pads r and s to the curve width, so a half beginning 0x00 is
+     * ordinary. The vendor validator's conversion to DER keeps that zero even
+     * when it is superfluous, which is not minimal-form DER, and OpenSSL refuses
+     * it. The signature below is a real one from the test card's key over this
+     * exact origin and challenge, whose s half begins 00 7B: the zero is
+     * unnecessary because 0x7B is under 0x80.
+     *
+     * See the workaround in WebEidAuthenticator, and
+     * https://github.com/web-eid/web-eid-authtoken-validation-php/issues/71.
+     * When that fix is released, this test should still pass with the
+     * workaround removed. That is how to know it can go.
+     */
+    public function testASignatureWhoseHalfBeginsWithASuperfluousZeroIsAccepted(): void
+    {
+        $challenge = $this->challenge();
+        // If this fails, the nonce generator changed and the signature below no
+        // longer covers this challenge. Regenerate it rather than deleting it.
+        self::assertSame('UEhXPxH7WCBTlMYFMcddA80LDktCj7+tXGw+l01hxjU=', $challenge->nonce);
+
+        $signature = base64_decode(
+            'ECH/aCo/x4qOHjyxTiW6/jXWbO05oOanOIejwLxDd5kVKjxuzemTiyt/2j/UF/iwAHtGTba85/nPvxHlI2is1aQejyqXB1xSfIc4/gr7xarq5EoHFuT+e+YzP437a9SL',
+            true,
+        );
+        self::assertIsString($signature);
+        self::assertSame("\x00", $signature[48], 'the s half should begin with a zero byte');
+        self::assertLessThan(0x80, \ord($signature[49]), 'and the byte after it should make that zero superfluous');
+
+        $identity = $this->authenticator()->validate(TestAuthToken::withSignature($signature), $challenge);
+
+        self::assertSame('38001085718', $identity->identityCode);
+    }
+
     public function testTheRevocationStatusIsChecked(): void
     {
         $challenge = $this->challenge();

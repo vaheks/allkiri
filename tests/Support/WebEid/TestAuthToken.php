@@ -53,6 +53,26 @@ final class TestAuthToken
     }
 
     /**
+     * A token carrying a signature you supply, for the cases where the exact
+     * bytes matter rather than the fact that they verify.
+     */
+    public static function withSignature(
+        string $rawSignature,
+        ?KeyPair $keyPair = null,
+        SignatureAlgorithm $algorithm = SignatureAlgorithm::ES384,
+    ): string {
+        $keyPair ??= TestPki::cardAuth();
+
+        return self::encode([
+            'unverifiedCertificate' => $keyPair->certificate->base64(),
+            'algorithm' => $algorithm->value,
+            'signature' => base64_encode($rawSignature),
+            'format' => self::FORMAT,
+            'appVersion' => 'https://web-eid.eu/web-eid-app/releases/v2.7.0',
+        ]);
+    }
+
+    /**
      * A token whose signature is valid in shape but not in fact.
      */
     public static function withCorruptSignature(string $origin, string $challenge, ?KeyPair $keyPair = null): string

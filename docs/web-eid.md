@@ -181,3 +181,22 @@ Journal has published a new set.
 There is no automated integration test for a card: that needs a physical card,
 a reader and a person. The checklist in
 [manual-testing.md](manual-testing.md) covers it.
+
+## A workaround you can delete one day
+
+Estonian cards sign with ECDSA, and the signature arrives as raw r‖s with each
+half padded to the width of the curve. About one half in 256 therefore begins
+with a zero byte, and the official validation library's conversion of that to
+DER keeps the zero even when it is superfluous, which is not valid DER. OpenSSL
+refuses it, so roughly one authentication in 256 fails although the signature is
+good. The person tries again and it works.
+
+`WebEidAuthenticator` re-encodes the signature itself before handing the token
+over, which avoids the broken path. Nothing else changes, and nothing that was
+refused before is accepted now.
+
+Remove it once a release of `web-eid/web-eid-authtoken-validation-php` contains
+the fix for
+[issue #71](https://github.com/web-eid/web-eid-authtoken-validation-php/issues/71),
+which is pull request #74 and unreleased as of 1.3.1. The regression test named
+in the code stays green either way, so removing the workaround is safe to try.

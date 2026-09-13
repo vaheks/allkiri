@@ -8,6 +8,7 @@ use Allkiri\Auth\AuthenticatedIdentity;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
+use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\NonceGenerator;
 use Allkiri\Crypto\Ocsp\CertificateRevokedException;
 use Allkiri\Crypto\Ocsp\OcspClient;
@@ -110,7 +111,7 @@ final class WebEidAuthenticator
 
         $validator = $this->validator();
         try {
-            $parsed = $validator->parse($authToken);
+            $parsed = $validator->parse(self::withDerSignature($authToken));
             $validator->validate($parsed, $challenge->nonce);
         } catch (\Throwable $exception) {
             // Deliberately broad. This is the boundary where a string from the
@@ -180,6 +181,59 @@ final class WebEidAuthenticator
 
         foreach ($result->verification->warnings as $warning) {
             $this->logger?->warning('Web eID revocation check: {warning}', ['warning' => $warning]);
+        }
+    }
+
+    // --- working around the vendor validator --------------------------------
+
+    /**
+     * Re-encode an ECDSA signature as DER before the vendor validator sees it.
+     *
+     * WORKAROUND. Remove this, and its test, once a release of
+     * web-eid/web-eid-authtoken-validation-php contains the fix for
+     * https://github.com/web-eid/web-eid-authtoken-validation-php/issues/71
+     * (pull request #74). Still unreleased in 1.3.1, the current version.
+     *
+     * A card returns the signature as raw r‖s, each half padded to the width of
+     * the curve, so about one half in 256 begins with a zero byte. The vendor's
+     * conversion to DER adds a leading zero when the first byte exceeds 0x7f but
+     * never removes one that is already there, and DER requires integers in
+     * minimal form. OpenSSL then rejects the encoding, so roughly one
+     * authentication in 256 fails although the signature is perfectly good. The
+     * person tries again and it works, which is why it went unnoticed for so
+     * long.
+     *
+     * Their validator skips its own conversion when the signature already looks
+     * like DER, so converting it ourselves, with the encoder the rest of this
+     * library uses, avoids the broken path entirely. Only the encoding changes:
+     * r and s are the same numbers, verified against the same certificate over
+     * the same bytes, so nothing that was refused before is accepted now.
+     *
+     * Anything unexpected is passed through untouched. This is not the place to
+     * repair a malformed token, and the validator will refuse it on its own.
+     */
+    private static function withDerSignature(string $authToken): string
+    {
+        $token = json_decode($authToken, true);
+        if (!\is_array($token)) {
+            return $authToken;
+        }
+        $algorithm = $token['algorithm'] ?? null;
+        $signature = $token['signature'] ?? null;
+        if (!\is_string($algorithm) || !\is_string($signature) || !str_starts_with($algorithm, 'ES')) {
+            return $authToken;
+        }
+        $raw = base64_decode($signature, true);
+        if ($raw === false || $raw === '' || EcdsaSignature::looksLikeDer($raw)) {
+            return $authToken;
+        }
+
+        try {
+            $token['signature'] = base64_encode(EcdsaSignature::rawToDer($raw));
+
+            return json_encode($token, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return $authToken;
         }
     }
 
