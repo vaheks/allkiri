@@ -120,6 +120,15 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- Worked around a defect in the official Web eID validation library that
+  refused roughly one ID-card authentication in 256. A card pads each half of an
+  ECDSA signature to the width of the curve, so a half beginning with a zero
+  byte is ordinary, and the library's conversion to DER keeps that zero even
+  when it is superfluous, which OpenSSL then refuses. The signature is now
+  re-encoded here before the validator sees it. Reported upstream as issue #71
+  and fixed in pull request #74, neither released; remove the workaround when
+  one is. The regression test stays green with or without it.
+
 - The browser helper no longer reads an answer it cannot parse as an empty one.
   A 200 whose body is not JSON is now an error naming the status and quoting
   what came back, and a polling loop refuses anything that is not an object.
