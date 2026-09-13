@@ -66,8 +66,10 @@
     }).then(function (response) {
       return response.text().then(function (text) {
         var payload = null;
+        var parsed = false;
         try {
           payload = text === '' ? null : JSON.parse(text);
+          parsed = true;
         } catch (e) {
           payload = null;
         }
@@ -79,9 +81,31 @@
           error.payload = payload;
           throw error;
         }
+        // An answer that cannot be read is an error, not an empty answer.
+        // Returning null here would let a polling loop read "I could not
+        // understand the server" as "not finished yet", and carry on asking
+        // until it gives up — long after the session it was waiting for was
+        // finished and consumed. A PHP notice, a proxy's error page or an
+        // HTML login redirect in front of your endpoints all land here.
+        if (!parsed) {
+          var unreadable = new Error(
+            'The server answered ' + response.status + ' but not with JSON: ' + excerpt(text)
+          );
+          unreadable.status = response.status;
+          unreadable.body = text;
+          throw unreadable;
+        }
         return payload;
       });
     });
+  }
+
+  /**
+   * Enough of an unreadable body to recognise it, on one line.
+   */
+  function excerpt(text) {
+    var flat = String(text).replace(/\s+/g, ' ').trim();
+    return flat.length > 120 ? flat.slice(0, 120) + '…' : flat;
   }
 
   // --- waiting for a person ------------------------------------------------
@@ -129,7 +153,12 @@
       }
 
       return post(url, undefined, settings).then(function (answer) {
-        if (answer && answer.done) {
+        // Same reasoning as the parse check in post(): only a real answer may
+        // be read as "not finished yet".
+        if (answer === null || typeof answer !== 'object') {
+          throw new Error('The server did not answer this poll with an object');
+        }
+        if (answer.done) {
           return answer;
         }
         if (settings.onTick) {

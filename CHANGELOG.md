@@ -120,6 +120,14 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The browser helper no longer reads an answer it cannot parse as an empty one.
+  A 200 whose body is not JSON is now an error naming the status and quoting
+  what came back, and a polling loop refuses anything that is not an object.
+  Previously a PHP notice ahead of the JSON, or a proxy's error page, was taken
+  for "not finished yet": the loop kept asking until the session it was waiting
+  for had been finished and consumed, and then reported that no session was in
+  progress. The authentication had succeeded.
+
 - Replacing a signature file in a container that was read from bytes now
   actually changes those bytes. The writer re-emits original ZIP entries
   verbatim, which is what keeps other signatures valid when one is appended; it

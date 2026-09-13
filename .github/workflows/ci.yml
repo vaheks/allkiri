@@ -57,6 +57,12 @@ jobs:
       - name: QR golden tests
         run: node tests/js/qr-golden.mjs
 
+      # What the helper does with answers it cannot read. A misconfigured log
+      # path once made a successful login look like a failed one, because an
+      # unparseable body was taken for "not finished yet".
+      - name: Browser helper contract
+        run: node tests/js/http-contract.mjs
+
       # The one that matters: everything this encoder makes is read back by a
       # decoder that had no hand in making it. A reversed generator polynomial
       # passes every structural check and scans as nothing.

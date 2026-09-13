@@ -135,6 +135,12 @@ with its placeholders intact, and the context as structured data. Keeping the
 template unfilled is what makes two thousand similar lines one query instead of a
 text search.
 
+It refuses to start if it cannot write, naming the path, rather than discovering
+it once per line. A logger that fails per call emits a PHP warning per call, and
+on a development machine with `display_errors` on that warning is written into
+the HTTP response body ahead of the JSON. The browser then cannot read an answer
+it was given, and a successful authentication surfaces as a failed one.
+
 In the demo it is switched on by pointing `ALLKIRI_LOG` at a file:
 
 ```bash
