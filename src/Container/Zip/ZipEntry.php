@@ -30,6 +30,8 @@ final readonly class ZipEntry
         public int $internalAttributes = 0,
         public int $versionMadeBy = 0x0314,
         public int $versionNeeded = 20,
+        /** Shared with the other entries of the same container; null means no limit. */
+        public ?InflationLimit $limit = null,
     ) {}
 
     public function isStored(): bool
@@ -58,6 +60,10 @@ final readonly class ZipEntry
         if ($this->method !== self::METHOD_DEFLATE) {
             throw new UnsupportedZipException(\sprintf('Entry "%s" uses unsupported compression method %d', $this->name, $this->method));
         }
+        if ($this->limit !== null) {
+            return $this->limit->inflate($this->name, $this->compressedData, $this->uncompressedSize);
+        }
+
         $inflated = @gzinflate($this->compressedData);
         if ($inflated === false) {
             throw new UnsupportedZipException(\sprintf('Entry "%s" could not be decompressed', $this->name));

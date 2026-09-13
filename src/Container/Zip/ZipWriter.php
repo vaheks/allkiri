@@ -16,6 +16,9 @@ use Allkiri\Exception\InvalidArgumentException;
  */
 final class ZipWriter
 {
+    private const UINT32_MAX = 0xFFFFFFFF;
+    private const UINT16_MAX = 0xFFFF;
+
     /**
      * A fixed MS-DOS timestamp (1980-01-01 00:00:00), so that two runs over
      * the same input produce byte-identical archives. ASiC-E does not use the
@@ -88,6 +91,7 @@ final class ZipWriter
         if ($this->entries === []) {
             throw new InvalidArgumentException('Cannot write an empty ZIP archive');
         }
+        self::refuseWhatThisFormatCannotHold($this->entries);
         $local = '';
         $central = '';
         $offset = 0;
@@ -121,6 +125,42 @@ final class ZipWriter
             $local .= $record;
         }
 
+        if (\strlen($local) > self::UINT32_MAX || \strlen($central) > self::UINT32_MAX) {
+            throw new UnsupportedZipException(\sprintf('The container would be %d bytes, which needs ZIP64', \strlen($local) + \strlen($central)));
+        }
+
         return $local . $central . "PK\x05\x06" . pack('vvvvVVv', 0, 0, \count($this->entries), \count($this->entries), \strlen($central), \strlen($local), 0);
+    }
+
+    /**
+     * Refuse what the fields cannot carry, rather than letting them wrap.
+     *
+     * Sizes are written as 32-bit and the entry count as 16-bit, so anything
+     * larger silently becomes a different number and the archive is quietly
+     * corrupt. ZIP64 exists for this and is deliberately not implemented: the
+     * reader refuses it too, and a signed container of four gigabytes is not
+     * something this library should be producing by accident. The point is to
+     * say so rather than to hand back rubbish.
+     *
+     * @param list<ZipEntry> $entries
+     */
+    private static function refuseWhatThisFormatCannotHold(array $entries): void
+    {
+        if (\count($entries) > self::UINT16_MAX) {
+            throw new UnsupportedZipException(\sprintf(
+                '%d entries is more than the %d a ZIP archive can hold without ZIP64',
+                \count($entries),
+                self::UINT16_MAX,
+            ));
+        }
+        foreach ($entries as $entry) {
+            if ($entry->uncompressedSize > self::UINT32_MAX || $entry->compressedSize > self::UINT32_MAX) {
+                throw new UnsupportedZipException(\sprintf(
+                    'Entry "%s" is %d bytes, which needs ZIP64',
+                    $entry->name,
+                    $entry->uncompressedSize,
+                ));
+            }
+        }
     }
 }

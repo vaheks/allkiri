@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Container;
 
+use Allkiri\Container\Zip\InflationLimit;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Xades\Ns;
@@ -21,11 +22,27 @@ final class AsicReader
     public const MANIFEST_ENTRY = 'META-INF/manifest.xml';
 
     /**
+     * @param int $compressionRatioThresholdBytes expansion below this is never questioned
+     * @param int $maxCompressionRatio            beyond it, the total may not exceed the
+     *                                            container's own size times this
+     */
+    public function __construct(
+        private readonly int $compressionRatioThresholdBytes = InflationLimit::DEFAULT_THRESHOLD_BYTES,
+        private readonly int $maxCompressionRatio = InflationLimit::DEFAULT_MAX_RATIO,
+    ) {}
+
+    /**
      * @throws InvalidContainerException when the bytes are not a readable ZIP
+     * @throws \Allkiri\Container\Zip\ZipBombException when it would expand out of
+     *                                                all proportion to its size
      */
     public function read(string $bytes): AsicContainer
     {
-        $entries = ZipReader::read($bytes);
+        $entries = ZipReader::read($bytes, new InflationLimit(
+            \strlen($bytes),
+            $this->compressionRatioThresholdBytes,
+            $this->maxCompressionRatio,
+        ));
         $findings = [];
 
         $this->checkMimetype($entries, $findings);

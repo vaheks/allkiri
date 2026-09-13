@@ -118,6 +118,19 @@ signatures with a local key, and the API the eID means will plug into.
   business meaning, and `examples/demo-app` shows the ten lines that does it.
   See docs/logging.md.
 
+- **A guard against containers that expand out of all proportion.** A few
+  hundred kilobytes can declare hundreds of megabytes, which a validator taking
+  uploads from strangers would dutifully hold. Reading now refuses that, with
+  digidoc4j's own rule and defaults so the two libraries refuse the same
+  archives: unquestioned up to a megabyte, and beyond it at most a hundred times
+  the container's own size. Both numbers are configurable, the refusal has its
+  own exception type, and a container that lies about its sizes is stopped part
+  way through decompressing rather than after.
+- **The ZIP writer refuses what the format cannot record**: more than 65535
+  files, or any file or container of four gigabytes or more. Those go into
+  32-bit and 16-bit fields, so previously they wrapped and produced a quietly
+  corrupt archive. The reader already said so; now the writer does too.
+
 ### Fixed
 
 - Worked around a defect in the official Web eID validation library that

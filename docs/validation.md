@@ -143,3 +143,46 @@ practice, but it is a remote service with its own policy, its own trust-list
 refresh cycle and its own clock. Nothing in allkiri's validation consults it,
 and making SiVa's answer a condition of accepting a signature is a dependency to
 take on deliberately. It also means sending the whole document to a third party.
+
+## Containers that are hostile rather than invalid
+
+A validator usually takes its input from a stranger, so some containers are not
+merely wrong but designed to hurt. The reader refuses those before the validator
+ever sees them, because the cost is paid during reading.
+
+**Expansion.** A few hundred kilobytes of zeros can declare hundreds of
+megabytes. Reading such a container held 406 MB of memory in under a second
+before this guard existed, which is a handful of uploads away from taking a
+server down. The rule is digidoc4j's, so the two libraries refuse the same
+archives: expansion is unquestioned up to a threshold, and beyond it the whole
+container may not exceed its own size times a ratio.
+
+| | Default |
+|---|---|
+| Ratio checked above | 1 MB unpacked |
+| Maximum unpacked to packed | 100 to 1 |
+
+Ordinary documents are nowhere near that. Text compresses about five to one, and
+PDFs and images barely compress at all. Change it when you know better:
+
+```php
+$allkiri = new Allkiri($environment, reader: new AsicReader(maxCompressionRatio: 500));
+```
+
+The refusal is a `ZipBombException`, which is separate from the other reasons a
+container cannot be read so that an application can tell a hostile upload from a
+broken one. The declared size is checked first because it costs nothing, and an
+archive that lies about it is stopped part way through decompressing, so the
+memory a refusal costs is bounded by the allowance rather than by the payload.
+
+**What is refused outright**: ZIP64 archives, multi-disk archives, encrypted
+entries, compression methods other than store and deflate, and entries whose
+data is truncated. The writer refuses the same shapes rather than producing
+them: more than 65535 files, or any file or container of four gigabytes or more,
+which the format cannot record without ZIP64.
+
+**What is not guarded here.** Total upload size is your decision, and it belongs
+in your application or your web server, where `upload_max_filesize` and
+`post_max_size` already live. Signing or validating holds roughly three to four
+times the file size in memory, so a 128 MB limit runs out at around 40 MB of
+input.
