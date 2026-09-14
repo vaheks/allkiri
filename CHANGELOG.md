@@ -151,8 +151,19 @@ signatures with a local key, and the API the eID means will plug into.
 - A stored `SmartIdSession` also keeps the certificate level it asked for and
   the person it was started for, as `certificateLevel` and
   `semanticsIdentifier`.
+- `SmartIdAuthenticator` takes an `OcspClient` as its third argument, and
+  `SmartIdConfiguration` has a `checkRevocation` flag with
+  `withoutRevocationCheck()`.
 
 ### Fixed
+
+- Smart-ID sign-in now checks that the authentication certificate has not been
+  revoked. SK's response verification guidance asks relying parties to, and
+  allkiri did not, so a revoked certificate still signed in. The certificate's
+  OCSP responder is asked, and sign-in is refused when the answer is revoked,
+  unknown or cannot be had. The check can be turned off for a test
+  environment, as the ID card's can. SK's Mobile-ID checklist does not ask for
+  revocation, and the Mobile-ID guide now says so.
 
 - Smart-ID sign-in now holds the answer to what the session asked for. Three
   things were wrong.

@@ -176,6 +176,10 @@ unless it belongs to *this* session on *this* service. It also refuses unless:
 - the certificate is at least the level the session asked for, and carries the
   certificate policies of the level the service reported;
 - the certificate is valid now and chains to a trust anchor;
+- the certificate has not been revoked, which its OCSP responder is asked. SK's
+  [response verification guidance](https://sk-eid.github.io/smart-id-documentation/rp-api/response_verification.html)
+  asks relying parties to check this. `SmartIdConfiguration::withoutRevocationCheck()`
+  turns it off, for a test environment whose responder cannot be reached;
 - the certificate names a person by personal code, passport or identity card
   number, never an organisation or nobody at all;
 - the account that answered is the one the session was started for, and the

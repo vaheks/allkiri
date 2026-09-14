@@ -220,6 +220,7 @@ final class Allkiri
         return new SmartIdAuthenticator(
             $this->smartIdClient($configuration),
             $this->chainBuilder(),
+            $this->ocspClient(),
             nonceGenerator: $this->nonces,
             clock: $this->clock,
         );

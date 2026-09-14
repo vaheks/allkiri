@@ -49,12 +49,37 @@ final class SmartIdAuthenticatorTest extends TestCase
 
     private SmartIdClient $client;
 
+    private \Allkiri\Tests\Support\Pki\MockOcspResponder $ocsp;
+
     protected function setUp(): void
     {
         $this->clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $this->answerWith(self::signer());
+    }
+
+    /**
+     * A fresh mock service that answers with this signer, and the responder
+     * that its certificate names.
+     *
+     * The mock HTTP client keeps the first route registered for a URL, so a
+     * test that wants another signer needs a client of its own.
+     */
+    private function answerWith(\Allkiri\Crypto\KeyPair $signer): void
+    {
         $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, self::signer());
+        $this->service = MockSmartIdService::register($this->http, $signer);
+        $this->ocsp = \Allkiri\Tests\Support\Pki\MockOcspResponder::register($this->http, $this->clock);
         $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+    }
+
+    private function ocspClient(): \Allkiri\Crypto\Ocsp\OcspClient
+    {
+        return new \Allkiri\Crypto\Ocsp\OcspClient(
+            $this->http,
+            $this->clock,
+            nonces: new \Allkiri\Tests\Support\Crypto\FixedNonceGenerator('ocsp'),
+            options: \Allkiri\Crypto\Ocsp\OcspVerificationOptions::forSigning(),
+        );
     }
 
     /** @var array<string, \Allkiri\Crypto\KeyPair> */
@@ -85,7 +110,7 @@ final class SmartIdAuthenticatorTest extends TestCase
 
     private function authenticator(?ChainBuilder $chainBuilder = null): SmartIdAuthenticator
     {
-        return new SmartIdAuthenticator($this->client, $chainBuilder ?? $this->trustedChainBuilder(), clock: $this->clock);
+        return new SmartIdAuthenticator($this->client, $chainBuilder ?? $this->trustedChainBuilder(), $this->ocspClient(), clock: $this->clock);
     }
 
     private function trustedChainBuilder(): ChainBuilder
@@ -306,7 +331,7 @@ final class SmartIdAuthenticatorTest extends TestCase
 
         $this->expectExceptionMessageMatches('/does not match this session/');
 
-        (new SmartIdAuthenticator($productionClient, $this->trustedChainBuilder(), clock: $this->clock))->complete($session, $status);
+        (new SmartIdAuthenticator($productionClient, $this->trustedChainBuilder(), $this->ocspClient(), clock: $this->clock))->complete($session, $status);
     }
 
     /**
@@ -534,9 +559,7 @@ final class SmartIdAuthenticatorTest extends TestCase
             'id-at-organizationName' => 'Allkiri OÜ',
             'id-at-commonName' => 'Allkiri test e-seal',
         ], self::policies(CertificateLevel::Qualified));
-        $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, $eSeal);
-        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $this->answerWith($eSeal);
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(self::identity(), self::interactions());
 
@@ -548,10 +571,8 @@ final class SmartIdAuthenticatorTest extends TestCase
     public function testALevelTheCallAsksForReplacesTheConfiguredOne(): void
     {
         // The configuration asks for QUALIFIED; this call asks for less.
-        $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, self::signer(CertificateLevel::Advanced));
+        $this->answerWith(self::signer(CertificateLevel::Advanced));
         $this->service->certificateLevel = CertificateLevel::Advanced;
-        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
         $authenticator = $this->authenticator();
 
         $session = $authenticator->startNotification(self::identity(), self::interactions(), CertificateLevel::Advanced);
@@ -607,9 +628,7 @@ final class SmartIdAuthenticatorTest extends TestCase
     public function testALevelTheCertificateDoesNotBearOutIsRefused(): void
     {
         // The committed certificate carries no certificate policies at all.
-        $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, TestPki::signerRsaPerson());
-        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $this->answerWith(TestPki::signerRsaPerson());
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(self::identity(), self::interactions());
 
@@ -620,9 +639,7 @@ final class SmartIdAuthenticatorTest extends TestCase
 
     public function testAnAdvancedCertificateReportedAsQualifiedIsRefused(): void
     {
-        $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, self::signer(CertificateLevel::Advanced));
-        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $this->answerWith(self::signer(CertificateLevel::Advanced));
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(self::identity(), self::interactions());
 
@@ -630,6 +647,53 @@ final class SmartIdAuthenticatorTest extends TestCase
 
         $authenticator->poll($session);
     }
+
+    // --- revocation ---------------------------------------------------------
+
+    public function testTheCertificatesRevocationStatusIsChecked(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $before = $this->ocsp->requests;
+        self::assertNotNull($authenticator->poll($session));
+
+        self::assertSame($before + 1, $this->ocsp->requests, 'the responder should have been asked');
+    }
+
+    public function testARevokedCertificateIsRefused(): void
+    {
+        $this->ocsp->revoke(self::signer()->certificate->serialNumber(), $this->clock->now()->modify('-1 day'));
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $this->expectExceptionMessage('The Smart-ID certificate has been revoked');
+
+        $authenticator->poll($session);
+    }
+
+    public function testACertificateTheResponderDoesNotKnowIsRefused(): void
+    {
+        $this->ocsp->unknown(self::signer()->certificate->serialNumber());
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $this->expectExceptionMessage('The OCSP responder does not recognise the Smart-ID certificate');
+
+        $authenticator->poll($session);
+    }
+
+    public function testRevocationCheckingCanBeTurnedOffDeliberately(): void
+    {
+        $this->ocsp->revoke(self::signer()->certificate->serialNumber(), $this->clock->now()->modify('-1 day'));
+        $this->client = new SmartIdClient($this->service->configuration()->withoutRevocationCheck(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        self::assertNotNull($authenticator->poll($session));
+    }
+
+    // --- the account that answered ------------------------------------------
 
     public function testAnAnswerFromAnotherAccountIsRefused(): void
     {

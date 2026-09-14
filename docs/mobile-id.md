@@ -145,6 +145,13 @@ On the way back, the library refuses the answer unless all of this holds:
   session was started for. An e-seal, an organisation certificate or a
   passport number is refused.
 
+Revocation is not checked. SK's checklist for Mobile-ID authentication asks for
+a certificate that is valid and issued by a trusted authority, and does not ask
+for a revocation check
+([SK's MID-REST documentation](https://github.com/SK-EID/MID), section 3.3.6).
+Smart-ID's guidance does ask for one, so Smart-ID sign-in makes it, and so does
+the ID card.
+
 ## Signing
 
 The certificate must be known before the digest is built, so signing fetches it
