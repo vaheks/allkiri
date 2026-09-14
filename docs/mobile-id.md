@@ -140,8 +140,7 @@ On the way back, the library refuses the answer unless all of this holds:
 - the signature verifies against the certificate the service returned, over the
   random challenge this session generated;
 - the certificate is valid at this moment;
-- it chains to a trust anchor, when the factory gave the authenticator a chain
-  builder (it does);
+- it chains to a trust anchor;
 - the identity code in the certificate is the one the session was started for.
 
 ## Signing

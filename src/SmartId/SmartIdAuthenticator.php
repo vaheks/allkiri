@@ -35,7 +35,7 @@ final class SmartIdAuthenticator
 
     public function __construct(
         private readonly SmartIdClient $client,
-        private readonly ?ChainBuilder $chainBuilder = null,
+        private readonly ChainBuilder $chainBuilder,
         private readonly NonceGenerator $nonceGenerator = new RandomNonceGenerator(),
         private readonly ClockInterface $clock = new SystemClock(),
         private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier(),
@@ -212,12 +212,10 @@ final class SmartIdAuthenticator
         if (!$certificate->isValidAt($now)) {
             throw new SmartIdException('The Smart-ID certificate is not valid at this moment');
         }
-        if ($this->chainBuilder !== null) {
-            try {
-                $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
-            } catch (TrustException $exception) {
-                throw new SmartIdException('The Smart-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
-            }
+        try {
+            $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
+        } catch (TrustException $exception) {
+            throw new SmartIdException('The Smart-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
         }
     }
 
