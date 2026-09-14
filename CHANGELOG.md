@@ -169,8 +169,30 @@ signatures with a local key, and the API the eID means will plug into.
   line gives only the service's answer, Web eID logs "authenticated
   PNOEE-[redacted]", and Smart-ID's debug line logs the URL without identity
   codes.
+- `CurlHttpClient` gives connecting ten seconds by default, or the whole
+  timeout when that is shorter; it used to give connecting the whole timeout.
+  It takes `connectTimeoutSeconds` and `maxResponseBytes` as new arguments
+  after the existing ones.
+- `CurlHttpClient` and `Psr18HttpClient` refuse an answer larger than
+  `HttpClient::DEFAULT_MAX_RESPONSE_BYTES`, 16 MiB, with a `TransportException`
+  that names the limit. `Psr18HttpClient` takes the limit as its fourth
+  argument, and a body that fails partway through is now a
+  `TransportException` too.
+- `MobileIdConfiguration`, `SmartIdConfiguration` and `SivaClient` refuse a URL
+  that is not HTTPS, except plain HTTP to `localhost`, `127.0.0.1` or `[::1]`.
+  Timestamp and OCSP URLs are not checked, because those services are plain
+  HTTP.
 
 ### Fixed
+
+- A server can no longer make the library hold an answer of any size. Both
+  HTTP clients read the whole body into memory with no limit, from every
+  service they call, including OCSP responders named inside the certificates
+  being validated, so a single oversized answer could exhaust a PHP worker. An
+  unreachable host also held a worker for the full timeout, because connecting
+  was given all of it. And a Mobile-ID, Smart-ID or SiVa URL mistyped as
+  `http://` was accepted, sending the relying-party identifier, identity codes
+  or whole containers in clear text.
 
 - Identity codes no longer reach logs through failed calls.
   `LoggingHttpClient` removed them from the URL it logged, but logged the

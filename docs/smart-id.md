@@ -35,6 +35,11 @@ In production the relying-party identifier and name come with your SK contract:
 $configuration = SmartIdConfiguration::production($_ENV['SID_UUID'], $_ENV['SID_NAME']);
 ```
 
+A service URL of your own, such as a mock, must be HTTPS. Plain HTTP is
+accepted only to `localhost`, `127.0.0.1` or `[::1]`, because requests carry the
+relying-party identifier and the person being asked for, and the configuration
+refuses anything else.
+
 The scheme name (`smart-id` or `smart-id-demo`) is not decoration. It is part of
 what an authentication signs and part of every device link's authentication
 code, so a demo configuration pointed at production fails verification instead

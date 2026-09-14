@@ -92,7 +92,16 @@ final class Allkiri
 
     public function httpClient(): HttpClient
     {
-        return $this->http ?? new CurlHttpClient($this->environment->httpTimeoutSeconds);
+        return $this->http ?? $this->curlClient($this->environment->httpTimeoutSeconds);
+    }
+
+    /**
+     * The built-in client, for when none was given. Built per use, so that a
+     * long poll can have the timeout it needs.
+     */
+    private function curlClient(int $timeoutSeconds): CurlHttpClient
+    {
+        return new CurlHttpClient($timeoutSeconds);
     }
 
     /**
@@ -182,7 +191,7 @@ final class Allkiri
         // poll timeout, so the HTTP client must be willing to wait longer than
         // that. Only the shared client is reused; the default one is rebuilt
         // with a timeout that fits.
-        $http = $this->http ?? new CurlHttpClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
+        $http = $this->http ?? $this->curlClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
 
         return new MobileIdClient($configuration, $http, $this->logger);
     }
@@ -210,7 +219,7 @@ final class Allkiri
      */
     public function smartIdClient(SmartIdConfiguration $configuration): SmartIdClient
     {
-        $http = $this->http ?? new CurlHttpClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
+        $http = $this->http ?? $this->curlClient(max($this->environment->httpTimeoutSeconds, $configuration->httpTimeoutSeconds()));
 
         return new SmartIdClient($configuration, $http, $this->logger);
     }

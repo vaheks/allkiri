@@ -21,11 +21,17 @@ final class SivaClient
     public const POLICY_QES = 'POLv4';
     public const POLICY_ADES = 'POLv3';
 
+    /**
+     * @param string $url the validation endpoint: https://, or http:// to this machine only
+     */
     public function __construct(
         private readonly HttpClient $http,
         private readonly string $url,
         private readonly string $signaturePolicy = self::POLICY_QES,
-    ) {}
+    ) {
+        // The whole container goes to this URL.
+        HttpRequest::requireHttps($url, 'The SiVa URL');
+    }
 
     /**
      * @throws SivaException

@@ -77,4 +77,50 @@ final class HttpRequestTest extends TestCase
         self::assertSame($expected, HttpRequest::get($url)->redactedUrl());
         self::assertSame($expected, HttpRequest::withoutIdentities($url));
     }
+
+    // --- service URLs -------------------------------------------------------
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function acceptedServiceUrls(): iterable
+    {
+        yield 'https' => ['https://mid.sk.ee/mid-api'];
+        yield 'an upper-case scheme' => ['HTTPS://rp-api.smart-id.com/v3'];
+        yield 'http to localhost' => ['http://localhost:8080/mid-api'];
+        yield 'http to 127.0.0.1' => ['http://127.0.0.1/smart-id-rp/v3'];
+        yield 'http to [::1]' => ['http://[::1]:9000/V3/validate'];
+    }
+
+    #[DataProvider('acceptedServiceUrls')]
+    public function testAServiceUrlIsHttpsOrThisMachine(string $url): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        HttpRequest::requireHttps($url, 'The service URL');
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function refusedServiceUrls(): iterable
+    {
+        yield 'http anywhere else' => ['http://mid.sk.ee/mid-api'];
+        yield 'a host that begins with localhost' => ['http://localhost.evil.test/mid-api'];
+        yield 'another loopback address' => ['http://127.0.0.2/mid-api'];
+        yield 'localhost as the user name' => ['http://localhost@evil.test/mid-api'];
+        yield 'no host' => ['https:///mid-api'];
+        yield 'no scheme' => ['mid.sk.ee/mid-api'];
+        yield 'another scheme' => ['ftp://localhost/mid-api'];
+        yield 'nothing' => [''];
+    }
+
+    #[DataProvider('refusedServiceUrls')]
+    public function testAnyOtherServiceUrlIsRefused(string $url): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The service URL must be an https:// URL');
+
+        HttpRequest::requireHttps($url, 'The service URL');
+    }
 }

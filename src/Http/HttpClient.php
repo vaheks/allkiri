@@ -15,13 +15,23 @@ namespace Allkiri\Http;
 interface HttpClient
 {
     /**
+     * The largest answer the built-in clients accept unless told otherwise.
+     *
+     * 16 MiB is three times the largest national trusted list the European list
+     * of lists linked to in September 2026 (Germany's, 5.4 MB). Everything else
+     * allkiri fetches is measured in kilobytes.
+     */
+    public const DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+
+    /**
      * Send the request and return whatever the server answered.
      *
      * Non-2xx statuses are returned, not thrown; callers decide what a
      * failure means for their protocol.
      *
-     * @throws TransportException when no HTTP response could be obtained
-     *                            (DNS, connection, TLS, timeout, pinning)
+     * @throws TransportException when no usable HTTP response could be obtained
+     *                            (DNS, connection, TLS, timeout, pinning, or an
+     *                            answer larger than the client accepts)
      */
     public function send(HttpRequest $request): HttpResponse;
 }

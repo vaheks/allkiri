@@ -200,6 +200,12 @@ To use Symfony's HTTP client instead of the built-in one, wrap it:
 new Allkiri($environment, new \Allkiri\Http\Psr18HttpClient($psr18Client, $requestFactory, $streamFactory));
 ```
 
+The adapter refuses an answer larger than 16 MiB, or the limit you pass as its
+fourth argument. That bounds the copy allkiri makes, not the body the PSR-18
+client may already have read into memory before returning it, so set a limit
+on the client too if a hostile server is part of your threat model. The
+built-in cURL client bounds the download itself.
+
 Symfony sessions do not lock by default, so the polling concern above does not
 arise.
 

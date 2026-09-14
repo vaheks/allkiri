@@ -33,6 +33,11 @@ $configuration = MobileIdConfiguration::production(
 The demo service answers only for [SK's published test
 numbers](https://github.com/SK-EID/MID/wiki/Test-number-for-automated-testing-in-DEMO).
 
+A service URL of your own, such as a mock, must be HTTPS. Plain HTTP is
+accepted only to `localhost`, `127.0.0.1` or `[::1]`, because every request
+carries the relying-party identifier and the person's phone number and identity
+code, and the configuration refuses anything else.
+
 ### Display text
 
 The text appears on the phone above the verification code. It is measured in

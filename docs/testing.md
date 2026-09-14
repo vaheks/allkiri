@@ -6,6 +6,12 @@ composer check   # coding standard, static analysis, unit tests
 
 Everything runs offline. No eID hardware, no accounts, no network.
 
+A few HTTP client tests need a real socket, to see what cURL does with an
+answer that is too large. `tests/Support/Http/LocalHttpServer` starts PHP's
+built-in web server for them on 127.0.0.1, on a port the operating system
+picks, and stops it when the test class is done. That is still offline: nothing
+leaves the machine.
+
 ## How that is possible
 
 `tests/fixtures/pki` holds a committed test PKI: a CA, three signers (ECDSA

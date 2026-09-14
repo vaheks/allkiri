@@ -185,6 +185,27 @@ fits instead of reusing the environment's 30-second default, which a 60-second
 poll would otherwise outlive. The configuration also refuses a poll timeout
 above 60 seconds, because the service silently substitutes its own maximum.
 
+### Connecting gets less time than answering
+
+`CurlHttpClient` gave connecting the whole timeout, so an unreachable host held
+a worker for 30 seconds, and for longer behind a long poll. Connecting, TLS
+included, now gets ten seconds by default, or the whole timeout when that is
+shorter. That is ample for SK's services and still fails a dead host quickly.
+The whole-call timeout is unchanged, because a long poll rightly takes as long
+as it asked for.
+
+### An answer has a size limit
+
+Nothing allkiri fetches is large. The largest national trusted list the European
+list of lists linked to in September 2026 was Germany's, at 5.4 MB, and
+everything else is kilobytes. Both built-in clients refuse an answer over
+16 MiB, three times that, instead of buffering whatever a server sends; OCSP
+responder URLs come from certificates, so the server is not always one you
+chose. cURL is given the limit, which refuses an announced length before the
+body is read, and the body is counted as it arrives for an answer that
+announces none. An answer over the limit is refused rather than truncated,
+because part of a trusted list is not a smaller valid one.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry

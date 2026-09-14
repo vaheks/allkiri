@@ -11,6 +11,9 @@ final readonly class HttpRequest
     /** What an identity code in a URL is replaced with wherever the URL is shown. */
     public const REDACTED = '[redacted]';
 
+    /** The only hosts a service URL may reach over plain HTTP. */
+    private const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+
     /**
      * @param non-empty-string      $method
      * @param non-empty-string      $url
@@ -93,6 +96,36 @@ final readonly class HttpRequest
         }
 
         return implode('/', $parts);
+    }
+
+    /**
+     * Refuse a service URL that is not HTTPS.
+     *
+     * For the services that receive relying-party credentials, identity codes
+     * or whole documents: Mobile-ID, Smart-ID and SiVa. Plain HTTP is allowed
+     * only to this machine, for a mock service or a tunnel, and a host name
+     * that merely begins with "localhost" is not this machine. Timestamp and
+     * OCSP URLs are not checked: those services are plain HTTP by design, and
+     * what they answer is signed.
+     *
+     * @param string $what what the URL is for, which the message starts with
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function requireHttps(string $url, string $what): void
+    {
+        $parts = parse_url($url);
+        $scheme = \is_array($parts) ? strtolower($parts['scheme'] ?? '') : '';
+        $host = \is_array($parts) ? strtolower($parts['host'] ?? '') : '';
+        if ($host !== '' && ($scheme === 'https' || ($scheme === 'http' && \in_array($host, self::LOOPBACK_HOSTS, true)))) {
+            return;
+        }
+
+        throw new InvalidArgumentException(\sprintf(
+            '%s must be an https:// URL, or http:// to localhost, 127.0.0.1 or [::1], not "%s"',
+            $what,
+            self::withoutIdentities($url),
+        ));
     }
 
     /**

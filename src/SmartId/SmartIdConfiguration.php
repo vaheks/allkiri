@@ -6,6 +6,7 @@ namespace Allkiri\SmartId;
 
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\Http\HttpRequest;
 
 /**
  * Who we are to Smart-ID, and what we ask of it.
@@ -49,6 +50,9 @@ final readonly class SmartIdConfiguration
         public bool $shareDeviceIpAddress = false,
         public bool $checkRevocation = true,
     ) {
+        // The relying-party identifier and the people being asked for go to
+        // this URL.
+        HttpRequest::requireHttps($url, 'The Smart-ID service URL');
         if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $relyingPartyUuid) !== 1) {
             throw new InvalidArgumentException('The relying party identifier must be a lower-case UUID in 8-4-4-4-12 form');
         }
