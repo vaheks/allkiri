@@ -298,6 +298,22 @@ final class WebEidAuthenticatorTest extends TestCase
         $this->authenticator()->validate(TestAuthToken::modified(self::ORIGIN, $challenge->nonce, $field, $value), $challenge);
     }
 
+    public function testACertificateNestedTooDeeplyIsRefusedBeforeTheValidatorReadsIt(): void
+    {
+        // Inside the vendor validator, phpseclib would exhaust memory on this,
+        // fatally, before any of our own code had read the certificate.
+        $certificate = \Allkiri\Tests\Support\Crypto\DeepDer::inBasicConstraints(
+            \Allkiri\Tests\Support\Pki\TestPki::ca()->certificate,
+            \Allkiri\Tests\Support\Crypto\DeepDer::nested(20_000),
+        );
+        $challenge = $this->challenge();
+
+        $this->expectException(WebEidException::class);
+        $this->expectExceptionMessage('DER nests deeper than 64 levels');
+
+        $this->authenticator()->validate(TestAuthToken::modified(self::ORIGIN, $challenge->nonce, 'unverifiedCertificate', base64_encode($certificate)), $challenge);
+    }
+
     public function testSomethingThatIsNotATokenIsRefused(): void
     {
         $challenge = $this->challenge();

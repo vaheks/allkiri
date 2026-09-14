@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\Crypto;
 
+use Allkiri\Crypto\Asn1\Asn1Exception;
+use Allkiri\Crypto\Asn1\NestingGuard;
 use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\RSA;
@@ -58,6 +60,13 @@ final class Certificate
 
     public static function fromDer(string $der): self
     {
+        // phpseclib decodes the extension values and the public key again on
+        // their own, and its decoder exhausts memory, fatally, on deep nesting.
+        try {
+            NestingGuard::check($der);
+        } catch (Asn1Exception $e) {
+            throw new CertificateException('Not a DER-encoded X.509 certificate: ' . $e->getMessage(), 0, $e);
+        }
         $x509 = new X509();
         $parsed = $x509->loadX509($der, X509::FORMAT_DER);
         if (!\is_array($parsed) || !isset($parsed['tbsCertificate'])) {

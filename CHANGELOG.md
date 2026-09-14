@@ -168,6 +168,26 @@ signatures with a local key, and the API the eID means will plug into.
   A manifest that lists one file twice is a failing finding, and the writer no
   longer produces two entries with one name.
 
+- DER nested thousands of levels deep no longer takes a PHP process down.
+  phpseclib's decoder copies each level's content, so its memory grows with the
+  square of the depth. About 80 KB of nested SEQUENCEs exhausted a 128 MB limit,
+  which is a fatal error rather than an exception. Such DER reached it from
+  three places:
+  - uploaded containers: embedded certificates, OCSP responses and timestamp
+    tokens;
+  - responses from the network;
+  - anyone attempting an ID-card sign-in, whose certificate the Web eID
+    validation library decodes before allkiri sees it.
+
+  Nesting deeper than 64 levels is now refused before phpseclib is given the
+  bytes. That includes certificate extension values and public keys, which
+  phpseclib decodes a second time, so a certificate that looks shallow is
+  refused too. The check follows phpseclib's own decoder step for step, so
+  nothing it accepted before is refused for any other reason, except crafted
+  input too intricate to walk within a budget proportional to its size. A test
+  holds the check and phpseclib's decoder to agreement on known quirks and on
+  three thousand generated inputs.
+
 - Worked around a defect in the official Web eID validation library that
   refused roughly one ID-card authentication in 256. A card pads each half of an
   ECDSA signature to the width of the curve, so a half beginning with a zero

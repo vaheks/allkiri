@@ -6,6 +6,8 @@ namespace Allkiri\WebEid;
 
 use Allkiri\Auth\AuthenticatedIdentity;
 use Allkiri\Clock\SystemClock;
+use Allkiri\Crypto\Asn1\Asn1Exception;
+use Allkiri\Crypto\Asn1\NestingGuard;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\EcdsaSignature;
@@ -109,6 +111,7 @@ final class WebEidAuthenticator
             ));
         }
 
+        self::refuseDeeplyNestedCertificate($authToken);
         $validator = $this->validator();
         try {
             $parsed = $validator->parse(self::withDerSignature($authToken));
@@ -234,6 +237,29 @@ final class WebEidAuthenticator
             return json_encode($token, JSON_THROW_ON_ERROR);
         } catch (\Throwable) {
             return $authToken;
+        }
+    }
+
+    /**
+     * Refuse a token whose certificate nests deeper than any certificate does.
+     *
+     * The vendor validator hands the certificate to phpseclib before anything
+     * here reads it, and phpseclib's decoder exhausts memory on deeply nested
+     * DER. That is a fatal error, which the catch in validate() cannot turn into
+     * a refused login. The bytes are taken the way phpseclib takes them.
+     */
+    private static function refuseDeeplyNestedCertificate(string $authToken): void
+    {
+        $token = json_decode($authToken, true);
+        $certificate = \is_array($token) ? ($token['unverifiedCertificate'] ?? null) : null;
+        if (!\is_string($certificate) || $certificate === '') {
+            return;
+        }
+
+        try {
+            NestingGuard::check(\phpseclib3\File\ASN1::extractBER($certificate));
+        } catch (Asn1Exception $exception) {
+            throw new WebEidException('The Web eID token was refused: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

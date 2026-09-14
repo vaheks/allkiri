@@ -413,6 +413,32 @@ final class ValidationTest extends TestCase
         self::assertStringContainsString('more than one entry named "a.txt"', $report->containerFindings[0]->message);
     }
 
+    public function testAnOcspResponseNestedTooDeeplyIsReportedRatherThanFatal(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(
+            AsicContainer::create(DataFile::fromString('a.txt', 'original')),
+            LocalKeySigner::fromKeyPair(TestPki::signerEc256()),
+        );
+        $signatureXml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        // About 80 KB, which exhausted a 128 MB memory limit inside phpseclib.
+        $nested = base64_encode(\Allkiri\Tests\Support\Crypto\DeepDer::nested(20_000));
+        $hostileXml = preg_replace('#(<xades:EncapsulatedOCSPValue>)[^<]+#', '${1}' . $nested, $signatureXml, 1, $replaced);
+        self::assertSame(1, $replaced);
+        $hostile = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('a.txt', 'original')
+            ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original')])->toXml())
+            ->addDeflated('META-INF/signatures0.xml', (string) $hostileXml)
+            ->build();
+
+        $signature = self::validator($fixture)->validate($hostile)->signatures[0];
+
+        self::assertNotSame(Indication::TotalPassed, $signature->indication);
+        self::assertContains(FindingCodes::REVOCATION_INVALID, $signature->codes());
+        self::assertStringContainsString('DER nests deeper than 64 levels', implode("\n", array_map(static fn($f): string => $f->message, $signature->findings)));
+    }
+
     public function testATwoSignatureContainerReportsBoth(): void
     {
         $fixture = new SigningFixture();
