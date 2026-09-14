@@ -315,6 +315,18 @@ final class SmartIdValueObjectsTest extends TestCase
         new SmartIdConfiguration(SmartIdConfiguration::DEMO_URL, SmartIdConfiguration::DEMO_RELYING_PARTY_UUID, 'DEMO', 'smart-id-staging');
     }
 
+    /**
+     * Every request carries the relying-party identifier, and most name the
+     * person being asked for.
+     */
+    public function testAServiceUrlThatIsNotHttpsIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The Smart-ID service URL must be an https:// URL');
+
+        new SmartIdConfiguration('http://sid.demo.sk.ee/smart-id-rp/v3', SmartIdConfiguration::DEMO_RELYING_PARTY_UUID, 'DEMO', SmartIdConfiguration::SCHEME_DEMO);
+    }
+
     public function testARelyingPartyNameLongerThanTheServiceAllowsIsRefused(): void
     {
         $this->expectException(InvalidArgumentException::class);

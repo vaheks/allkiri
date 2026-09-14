@@ -19,9 +19,21 @@ use Allkiri\Exception\InvalidArgumentException;
  * configured (an empty `curl.cainfo`, common on Windows) will fail every
  * HTTPS request with curl error 60; either set `curl.cainfo` in php.ini or
  * pass a bundle path as `$caBundlePath`.
+ *
+ * Two limits keep a slow or oversized answer from holding a worker. Connecting
+ * gets at most ten seconds by default, so an unreachable host fails quickly
+ * even when a long poll needs a long overall timeout. And an answer larger
+ * than `$maxResponseBytes` is refused: as soon as its length is announced, or
+ * as soon as that many bytes have arrived when it is not.
  */
 final class CurlHttpClient implements HttpClient
 {
+    /** The connect timeout when none is given, unless the whole timeout is shorter. */
+    private const DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
+
+    /** cURL takes the size limit as a C long, which is 32 bits on Windows. */
+    private const LARGEST_RESPONSE_LIMIT = 2_147_483_647;
+
     /** @var non-empty-string */
     private readonly string $userAgent;
 
@@ -31,24 +43,39 @@ final class CurlHttpClient implements HttpClient
     /** @var non-empty-string|null */
     private readonly ?string $caBundle;
 
+    private readonly int $connectTimeoutSeconds;
+
     /**
-     * @param list<string> $pinnedPublicKeys base64 SHA-256 hashes of the
-     *                                       servers' SubjectPublicKeyInfo, with
-     *                                       or without the "sha256//" prefix
-     * @param string|null  $caBundlePath     a PEM file of trusted certificate
-     *                                       authorities, for builds where PHP
-     *                                       has none configured (`curl.cainfo`
-     *                                       empty, common on Windows); the
-     *                                       system store is used when null
+     * @param list<string> $pinnedPublicKeys      base64 SHA-256 hashes of the
+     *                                            servers' SubjectPublicKeyInfo, with
+     *                                            or without the "sha256//" prefix
+     * @param string|null  $caBundlePath          a PEM file of trusted certificate
+     *                                            authorities, for builds where PHP
+     *                                            has none configured (`curl.cainfo`
+     *                                            empty, common on Windows); the
+     *                                            system store is used when null
+     * @param int|null     $connectTimeoutSeconds how long establishing the connection
+     *                                            may take, TLS included; ten seconds,
+     *                                            or the whole timeout when that is
+     *                                            shorter, when null
+     * @param int          $maxResponseBytes      the largest answer accepted
      */
     public function __construct(
         private readonly int $timeoutSeconds = 30,
         string $userAgent = Allkiri::USER_AGENT,
         array $pinnedPublicKeys = [],
         ?string $caBundlePath = null,
+        ?int $connectTimeoutSeconds = null,
+        private readonly int $maxResponseBytes = HttpClient::DEFAULT_MAX_RESPONSE_BYTES,
     ) {
         if ($timeoutSeconds < 1) {
             throw new InvalidArgumentException('Timeout must be at least one second');
+        }
+        if ($connectTimeoutSeconds !== null && ($connectTimeoutSeconds < 1 || $connectTimeoutSeconds > $timeoutSeconds)) {
+            throw new InvalidArgumentException(\sprintf('The connect timeout must be between one second and the whole timeout of %d seconds', $timeoutSeconds));
+        }
+        if ($maxResponseBytes < 1 || $maxResponseBytes > self::LARGEST_RESPONSE_LIMIT) {
+            throw new InvalidArgumentException(\sprintf('The response limit must be between one byte and %d bytes', self::LARGEST_RESPONSE_LIMIT));
         }
         if ($userAgent === '') {
             throw new InvalidArgumentException('User agent must not be empty');
@@ -59,6 +86,7 @@ final class CurlHttpClient implements HttpClient
         $this->userAgent = $userAgent;
         $this->caBundle = $caBundlePath;
         $this->pinnedPublicKeyOption = $pinnedPublicKeys === [] ? null : self::pinnedPublicKeyOption($pinnedPublicKeys);
+        $this->connectTimeoutSeconds = $connectTimeoutSeconds ?? min(self::DEFAULT_CONNECT_TIMEOUT_SECONDS, $timeoutSeconds);
     }
 
     public function send(HttpRequest $request): HttpResponse
@@ -70,14 +98,17 @@ final class CurlHttpClient implements HttpClient
 
         try {
             $responseHeaders = [];
+            $body = new BoundedBody($this->maxResponseBytes);
             $options = [
                 CURLOPT_URL => $request->url,
                 CURLOPT_CUSTOMREQUEST => $request->method,
-                CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HEADER => false,
                 CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_CONNECTTIMEOUT => $this->timeoutSeconds,
+                CURLOPT_CONNECTTIMEOUT => $this->connectTimeoutSeconds,
                 CURLOPT_TIMEOUT => $this->timeoutSeconds,
+                // Refuses an announced length before any of the body is read.
+                // The write function below catches an answer that announces none.
+                CURLOPT_MAXFILESIZE => $this->maxResponseBytes,
                 CURLOPT_USERAGENT => $this->userAgent,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
@@ -93,6 +124,8 @@ final class CurlHttpClient implements HttpClient
 
                     return \strlen($line);
                 },
+                // Taking fewer bytes than were offered makes cURL abort the transfer.
+                CURLOPT_WRITEFUNCTION => static fn(\CurlHandle $unused, string $chunk): int => $body->append($chunk) ? \strlen($chunk) : 0,
             ];
             if ($request->body !== '' || $request->method === 'POST') {
                 $options[CURLOPT_POSTFIELDS] = $request->body;
@@ -107,13 +140,16 @@ final class CurlHttpClient implements HttpClient
                 throw new TransportException('curl_setopt_array() rejected the request options: ' . curl_error($handle));
             }
 
-            $body = curl_exec($handle);
-            if (!\is_string($body)) {
+            $completed = curl_exec($handle);
+            if ($body->exceeded() || curl_errno($handle) === CURLE_FILESIZE_EXCEEDED) {
+                throw TransportException::responseTooLarge($request, $this->maxResponseBytes);
+            }
+            if ($completed === false) {
                 throw new TransportException(\sprintf('%s %s failed: %s (curl error %d)', $request->method, $request->redactedUrl(), curl_error($handle), curl_errno($handle)));
             }
             $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
-            return new HttpResponse(\is_int($status) ? $status : 0, $responseHeaders, $body);
+            return new HttpResponse(\is_int($status) ? $status : 0, $responseHeaders, $body->bytes());
         } finally {
             curl_close($handle);
         }

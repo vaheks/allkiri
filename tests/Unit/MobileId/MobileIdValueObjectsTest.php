@@ -189,6 +189,18 @@ final class MobileIdValueObjectsTest extends TestCase
         new MobileIdConfiguration(MobileIdConfiguration::DEMO_URL, 'not-a-uuid', 'DEMO');
     }
 
+    /**
+     * Every request carries the relying-party identifier and a person's phone
+     * number and identity code.
+     */
+    public function testConfigurationRefusesAServiceUrlThatIsNotHttps(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The Mobile-ID service URL must be an https:// URL');
+
+        new MobileIdConfiguration('http://tsp.demo.sk.ee/mid-api', MobileIdConfiguration::DEMO_RELYING_PARTY_UUID, 'DEMO');
+    }
+
     public function testConfigurationRefusesADisplayTextThatWouldBeTruncated(): void
     {
         $this->expectException(InvalidArgumentException::class);

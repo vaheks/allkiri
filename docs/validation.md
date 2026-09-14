@@ -101,7 +101,8 @@ $sivaReport = $siva->validate($bytes, 'leping.asice');
 ```
 
 It sends the whole container, so do not point it at a service you would not
-show the document to.
+show the document to. For the same reason the URL must be HTTPS; plain HTTP is
+accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 
 ## Known differences from SiVa
 

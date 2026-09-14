@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\MobileId;
 
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\Http\HttpRequest;
 
 /**
  * Who we are to SK, and what the person sees on their phone.
@@ -45,6 +46,9 @@ final readonly class MobileIdConfiguration
         public int $pollTimeoutMs = 10_000,
         public int $sessionTimeoutSeconds = 120,
     ) {
+        // The relying-party identifier, phone numbers and identity codes go to
+        // this URL.
+        HttpRequest::requireHttps($url, 'The Mobile-ID service URL');
         if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $relyingPartyUuid) !== 1) {
             throw new InvalidArgumentException('The relying party identifier must be a lower-case UUID in 8-4-4-4-12 form');
         }
