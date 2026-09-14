@@ -13,6 +13,12 @@ use Allkiri\Container\InvalidContainerException;
  * ext-zip would read the contents but not answer the questions an ASiC-E
  * validator must ask: which entry comes first, whether it is stored, whether
  * it carries extra fields.
+ *
+ * An archive that different readers could read differently is refused rather
+ * than read one way: two entries with one name, or an entry whose local header
+ * names it differently from the central directory. A validator that checks
+ * one file while DigiDoc4 or an unzip tool shows another has reported on the
+ * wrong document.
  */
 final class ZipReader
 {
@@ -48,6 +54,7 @@ final class ZipReader
         }
 
         $entries = [];
+        $names = [];
         $offset = $eocd->get('centralOffset');
         for ($i = 0; $i < $eocd->get('count'); ++$i) {
             if (substr($bytes, $offset, 4) !== self::SIGNATURE_CENTRAL) {
@@ -65,6 +72,14 @@ final class ZipReader
             $centralExtra = substr($bytes, $offset + 46 + $nameLength, $extraLength);
             $comment = substr($bytes, $offset + 46 + $nameLength + $extraLength, $commentLength);
             $offset += 46 + $nameLength + $extraLength + $commentLength;
+
+            // libdigidocpp refuses this too. Readers disagree about which of
+            // two entries with one name counts: allkiri kept the last, a
+            // streaming reader sees the first.
+            if (isset($names[$name])) {
+                throw new InvalidContainerException(\sprintf('The archive holds more than one entry named "%s"', $name));
+            }
+            $names[$name] = true;
 
             if (($central->get('flags') & 0x01) !== 0) {
                 throw new UnsupportedZipException(\sprintf('Entry "%s" is encrypted', $name));
@@ -90,6 +105,12 @@ final class ZipReader
             substr($bytes, $offset + 4, 26),
             \sprintf('local header of "%s"', $name),
         );
+        // A reader that walks the local headers, as a streaming one does, would
+        // see this name rather than the one the central directory gives.
+        $localName = substr($bytes, $offset + 30, $local->get('nameLength'));
+        if ($localName !== $name) {
+            throw new InvalidContainerException(\sprintf('Entry "%s" is named "%s" in its local header', $name, $localName));
+        }
         $compressedSize = $central->get('compressedSize');
         $dataOffset = $offset + 30 + $local->get('nameLength') + $local->get('extraLength');
         $data = substr($bytes, $dataOffset, $compressedSize);

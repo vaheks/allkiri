@@ -398,6 +398,21 @@ final class ValidationTest extends TestCase
         self::assertNull($signature->info->claimedSigningTime);
     }
 
+    public function testAnArchiveThatReadersCouldReadDifferentlyIsNotAContainer(): void
+    {
+        $sound = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('a.txt', 'checked')
+            ->addStored('b.txt', 'shown')
+            ->build();
+
+        $report = self::validator(new SigningFixture())->validate(str_replace('b.txt', 'a.txt', $sound));
+
+        self::assertFalse($report->isValid());
+        self::assertSame(FindingCodes::NOT_A_CONTAINER, $report->containerFindings[0]->code);
+        self::assertStringContainsString('more than one entry named "a.txt"', $report->containerFindings[0]->message);
+    }
+
     public function testATwoSignatureContainerReportsBoth(): void
     {
         $fixture = new SigningFixture();

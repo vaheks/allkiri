@@ -91,6 +91,15 @@ final class ZipWriter
         if ($this->entries === []) {
             throw new InvalidArgumentException('Cannot write an empty ZIP archive');
         }
+        // The reader refuses two entries with one name, because readers do not
+        // agree on which of them counts, so the writer does not make one.
+        $names = [];
+        foreach ($this->entries as $entry) {
+            if (isset($names[$entry->name])) {
+                throw new InvalidArgumentException(\sprintf('The archive already holds an entry named "%s"', $entry->name));
+            }
+            $names[$entry->name] = true;
+        }
         self::refuseWhatThisFormatCannotHold($this->entries);
         $local = '';
         $central = '';

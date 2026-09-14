@@ -156,6 +156,18 @@ signatures with a local key, and the API the eID means will plug into.
   checked as well. The entities are still expanded once, within those limits,
   before the document is refused. External entities were never loaded.
 
+- A container holding two entries with one name is now refused. The reader kept
+  the last one, so a tool that takes the first would show a different document
+  under a signature reported as valid, and appending a signature carried both
+  copies forward. libdigidocpp refuses the same archives. Also refused now:
+  - an entry whose local header names it differently from the central
+    directory, since a streaming reader sees that name instead;
+  - an entry whose content does not match its CRC-32, which goes further than
+    libdigidocpp or digidoc4j check.
+
+  A manifest that lists one file twice is a failing finding, and the writer no
+  longer produces two entries with one name.
+
 - Worked around a defect in the official Web eID validation library that
   refused roughly one ID-card authentication in 256. A card pads each half of an
   ECDSA signature to the width of the curve, so a half beginning with a zero

@@ -77,6 +77,11 @@ final class AsicReader
             $findings[] = new StructuralFinding(StructuralFinding::MANIFEST_MISSING, 'The container has no META-INF/manifest.xml');
             $manifest = new Manifest([]);
         }
+        // digidoc4j and libdigidocpp both refuse a manifest that gives one
+        // file two media types to choose from.
+        foreach ($manifest->duplicatePaths() as $path) {
+            $findings[] = new StructuralFinding(StructuralFinding::MANIFEST_DUPLICATE_ENTRY, \sprintf('The manifest lists "%s" more than once', $path));
+        }
 
         $dataFiles = [];
         foreach ($contents as $name => $content) {

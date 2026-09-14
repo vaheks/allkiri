@@ -97,6 +97,7 @@ final class ContainerValidator
                 StructuralFinding::MIMETYPE_WRONG_CONTENT => Finding::error(FindingCodes::MIMETYPE_INVALID, $structural->message, Indication::TotalFailed, SubIndication::FormatFailure),
                 StructuralFinding::MANIFEST_MISSING,
                 StructuralFinding::MANIFEST_ENTRY_MISSING_FILE,
+                StructuralFinding::MANIFEST_DUPLICATE_ENTRY,
                 StructuralFinding::FILE_MISSING_MANIFEST_ENTRY => Finding::error(FindingCodes::MANIFEST_MISMATCH, $structural->message, Indication::TotalFailed, SubIndication::FormatFailure),
                 StructuralFinding::NO_SIGNATURE_FILES => Finding::error(FindingCodes::NO_SIGNATURES, $structural->message, Indication::TotalFailed, SubIndication::FormatFailure),
                 StructuralFinding::NO_DATA_FILES => Finding::error(FindingCodes::MANIFEST_MISMATCH, $structural->message, Indication::TotalFailed, SubIndication::FormatFailure),
