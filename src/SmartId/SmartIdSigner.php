@@ -119,6 +119,7 @@ final class SmartIdSigner
      */
     public function startDeviceLink(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, ?SigningOptions $options = null, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSigningSession
     {
+        SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $interactions = $interactions->forDeviceLink();
         $certificate = $this->certificate($documentNumber, $level);
         $dataToBeSigned = $this->signingService->prepare($container, $certificate->certificate, $this->options($options));
@@ -144,6 +145,9 @@ final class SmartIdSigner
                 $response->sessionSecret,
                 $response->deviceLinkBase,
                 $dataToBeSigned->createdAt,
+                // Every link's authentication code covers it, so the links
+                // built from a restored session need it too.
+                $initialCallbackUrl,
             ),
             $dataToBeSigned,
         );

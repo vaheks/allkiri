@@ -11,8 +11,8 @@ use Allkiri\Exception\InvalidArgumentException;
  *
  * Everything the answer will be checked against is in here, which is why it
  * has to be stored rather than rebuilt: the challenge that was sent, the exact
- * interaction list that was sent, and for a device-link session the token and
- * secret that mint its links.
+ * interaction list that was sent, the callback URL a same-device flow returns
+ * to, and for a device-link session the token and secret that mint its links.
  *
  * It serialises to JSON for a session store or a database row. **A device-link
  * session contains the session secret, so the serialised form must stay on the
@@ -21,14 +21,22 @@ use Allkiri\Exception\InvalidArgumentException;
  */
 final readonly class SmartIdSession implements \JsonSerializable
 {
-    public const VERSION = 1;
+    public const VERSION = 2;
+
+    /**
+     * Sessions stored before the callback URL was kept. They are still read, so
+     * that a deploy does not end the sessions in flight; they live two minutes.
+     */
+    private const VERSION_1 = 1;
 
     public const TYPE_AUTHENTICATION = 'auth';
     public const TYPE_SIGNATURE = 'sign';
 
     /**
-     * @param string      $challenge        the rpChallenge for an authentication, or the digest for a signature, raw bytes
-     * @param string|null $verificationCode the code to show; notification flows get it from the service, device-link flows compute it
+     * @param string      $challenge          the rpChallenge for an authentication, or the digest for a signature, raw bytes
+     * @param string|null $verificationCode   the code to show; notification flows get it from the service, device-link flows compute it
+     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back; the app signs it, and every
+     *                                        link's authentication code covers it
      */
     public function __construct(
         public string $sessionId,
@@ -41,6 +49,7 @@ final readonly class SmartIdSession implements \JsonSerializable
         public ?string $sessionSecret = null,
         public ?string $deviceLinkBase = null,
         public ?\DateTimeImmutable $startedAt = null,
+        public ?string $initialCallbackUrl = null,
     ) {
         if ($sessionId === '') {
             throw new InvalidArgumentException('A Smart-ID session needs an identifier');
@@ -50,6 +59,26 @@ final readonly class SmartIdSession implements \JsonSerializable
         }
         if ($challenge === '') {
             throw new InvalidArgumentException('A Smart-ID session needs the challenge or digest it was started with');
+        }
+        self::requireUsableCallbackUrl($initialCallbackUrl);
+    }
+
+    /**
+     * Refuse a callback URL that would make what the app signs ambiguous.
+     *
+     * The URL is one of the pipe-separated fields of the signed payload and of
+     * every link's authentication code, so a "|" inside it would shift the
+     * fields after it.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function requireUsableCallbackUrl(?string $initialCallbackUrl): void
+    {
+        if ($initialCallbackUrl === null) {
+            return;
+        }
+        if ($initialCallbackUrl === '' || str_contains($initialCallbackUrl, '|')) {
+            throw new InvalidArgumentException('The callback URL must not be empty or contain "|", which separates the fields the app signs');
         }
     }
 
@@ -72,6 +101,10 @@ final readonly class SmartIdSession implements \JsonSerializable
     /**
      * Build a link for this session. Device-link sessions only.
      *
+     * A Web2App or App2App link carries the callback URL the session was
+     * started with, because its authentication code covers it. A QR link
+     * carries none, as the protocol requires: the person is on another device.
+     *
      * @param string   $scheme         the configuration's scheme name
      * @param int|null $elapsedSeconds seconds since the session started; QR links only.
      *                                 Computed from `startedAt` when omitted.
@@ -82,7 +115,6 @@ final readonly class SmartIdSession implements \JsonSerializable
         string $linkType = DeviceLink::TYPE_QR,
         string $language = 'eng',
         ?int $elapsedSeconds = null,
-        ?string $initialCallbackUrl = null,
         ?\DateTimeImmutable $now = null,
     ): DeviceLink {
         if (!$this->isDeviceLink() || $this->sessionToken === null || $this->deviceLinkBase === null) {
@@ -99,7 +131,7 @@ final readonly class SmartIdSession implements \JsonSerializable
             $this->interactions->encoded,
             $this->challengeBase64(),
             $language,
-            $initialCallbackUrl,
+            $linkType === DeviceLink::TYPE_QR ? null : $this->initialCallbackUrl,
         );
     }
 
@@ -132,6 +164,7 @@ final readonly class SmartIdSession implements \JsonSerializable
             'sessionSecret' => $this->sessionSecret,
             'deviceLinkBase' => $this->deviceLinkBase,
             'startedAt' => $this->startedAt?->format(DATE_ATOM),
+            'initialCallbackUrl' => $this->initialCallbackUrl,
         ];
     }
 
@@ -140,7 +173,8 @@ final readonly class SmartIdSession implements \JsonSerializable
      */
     public static function fromArray(array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
+        $version = $data['version'] ?? null;
+        if ($version !== self::VERSION && $version !== self::VERSION_1) {
             throw new InvalidArgumentException('Unsupported Smart-ID session version');
         }
         $challenge = base64_decode(self::string($data, 'challenge'), true);
@@ -160,6 +194,8 @@ final readonly class SmartIdSession implements \JsonSerializable
             self::optional($data, 'sessionSecret'),
             self::optional($data, 'deviceLinkBase'),
             \is_string($startedAt) ? new \DateTimeImmutable($startedAt) : null,
+            // Only version 2 has anything to read here.
+            $version === self::VERSION ? self::optional($data, 'initialCallbackUrl') : null,
         );
     }
 

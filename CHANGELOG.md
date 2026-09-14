@@ -142,8 +142,24 @@ signatures with a local key, and the API the eID means will plug into.
   `semanticsIdentifier()` keeps the identifier's own type and country: a
   passport is `PASEE-…` or `PASFI-…`, never `PNOEE-…`. The JSON form is now
   version 2, with an `identifierType` field.
+- A stored `SmartIdSession` is version 2 and keeps `initialCallbackUrl`.
+  Version 1 sessions are still read, so a deploy does not end sessions in
+  flight. `SmartIdSession::deviceLink()` no longer takes the callback URL; it
+  uses the stored one for Web2App and App2App links and none for QR links. A
+  Web2App or App2App answer now needs the callback's `userChallengeVerifier`
+  in `poll()`.
 
 ### Fixed
+
+- Smart-ID sign-in through Web2App or App2App with a callback URL can succeed.
+  The signed payload's tenth field is the callback URL for those flows, but
+  allkiri always left it empty, and the session did not even keep the URL to
+  put there. Every such sign-in completed on the phone and was then refused as
+  "does not match this session". The unit tests agreed with the bug because the
+  mock service built its payload with the same class. The payload is now checked
+  against the worked example in SK's specification, digest included. A callback
+  URL containing "|", which would shift the signed fields, is refused before
+  Smart-ID is asked.
 
 - The Mobile-ID and Smart-ID authenticators can no longer be built without a
   trust check. Constructed without a chain builder, as a dependency injection

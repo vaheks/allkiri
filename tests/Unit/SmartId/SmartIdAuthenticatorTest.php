@@ -193,6 +193,48 @@ final class SmartIdAuthenticatorTest extends TestCase
         self::assertSame(self::IDENTITY_CODE, $identity->identityCode);
     }
 
+    /**
+     * The app signs the callback URL of a same-device flow, so the session has
+     * to remember it across the two requests. It used to be sent and then
+     * forgotten, and every Web2App or App2App sign-in with one was refused.
+     */
+    public function testAWeb2AppSignInWithACallbackUrlVerifiesAfterARestore(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: 'https://rp.example.test/back?value=RrKjjT4a');
+
+        $restored = SmartIdSession::fromJson(json_encode($session, JSON_THROW_ON_ERROR));
+        $identity = $authenticator->poll($restored, 'user-challenge-' . $restored->challenge);
+
+        self::assertSame('https://rp.example.test/back?value=RrKjjT4a', $restored->initialCallbackUrl);
+        self::assertNotNull($identity);
+        self::assertSame(self::IDENTITY_CODE, $identity->identityCode);
+    }
+
+    public function testASameDeviceAnswerWithoutTheCallbacksVerifierIsRefused(): void
+    {
+        $this->service->flowType = FlowType::App2App;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: 'https://rp.example.test/back');
+
+        $this->expectExceptionMessage('Smart-ID answered through App2App, which needs the userChallengeVerifier its callback returned');
+
+        $authenticator->poll($session);
+    }
+
+    public function testACallbackUrlThatWouldShiftTheSignedFieldsIsRefusedBeforeSmartIdIsAsked(): void
+    {
+        try {
+            $this->authenticator()->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: 'https://rp.example.test/back|Web2App');
+            self::fail('A callback URL containing "|" was accepted');
+        } catch (\Allkiri\Exception\InvalidArgumentException $exception) {
+            self::assertStringContainsString('must not be empty or contain "|"', $exception->getMessage());
+        }
+
+        self::assertSame([], $this->service->received, 'nothing was sent to Smart-ID');
+    }
+
     public function testAUserChallengeVerifierFromAnotherSessionIsRefused(): void
     {
         $this->service->flowType = FlowType::Web2App;
@@ -284,9 +326,11 @@ final class SmartIdAuthenticatorTest extends TestCase
     }
 
     /**
-     * The eleven parts of the payload, in the order the protocol fixes.
+     * The eleven parts of the payload, in the order the protocol fixes. The
+     * callback URL's place is checked against SK's own example in
+     * AcspV2PayloadTest.
      */
-    public function testThePayloadHasElevenPartsWithAReservedEmptyOne(): void
+    public function testThePayloadHasElevenPartsInTheProtocolsOrder(): void
     {
         $payload = new AcspV2Payload(
             'smart-id-demo',
@@ -312,8 +356,32 @@ final class SmartIdAuthenticatorTest extends TestCase
         self::assertSame('', $parts[6], 'no brokered relying party');
         self::assertSame('digest', $parts[7]);
         self::assertSame('displayTextAndPIN', $parts[8]);
-        self::assertSame('', $parts[9], 'the tenth part is reserved and empty');
+        self::assertSame('', $parts[9], 'a QR code signs no callback URL');
         self::assertSame('QR', $parts[10]);
+    }
+
+    /**
+     * A deploy must not end the sign-ins in flight, so a session stored in the
+     * format before the callback URL was kept still restores and completes.
+     */
+    public function testASessionStoredBeforeTheCallbackUrlWasKeptStillCompletes(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        // What version 1 wrote: the same keys, without the callback URL.
+        $stored = $session->jsonSerialize();
+        unset($stored['initialCallbackUrl']);
+        $stored['version'] = 1;
+        $restored = SmartIdSession::fromArray($stored);
+
+        self::assertNull($restored->initialCallbackUrl);
+        self::assertSame($session->challenge, $restored->challenge);
+        self::assertNotNull($authenticator->poll($restored));
+
+        $stored['version'] = 3;
+        $this->expectExceptionMessage('Unsupported Smart-ID session version');
+        SmartIdSession::fromArray($stored);
     }
 
     // --- refusals -----------------------------------------------------------

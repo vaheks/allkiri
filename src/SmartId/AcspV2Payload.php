@@ -10,23 +10,26 @@ namespace Allkiri\SmartId;
  * The app does not sign the challenge alone. It signs a pipe-joined string
  * naming the scheme, the protocol, both sides' random values, the relying
  * party, a digest of the dialogues that were offered, the one the app actually
- * showed, and how the person got there. Verifying the signature over exactly
- * this string is what ties the answer to *this* session on *this* service: a
- * signature lifted from a demo session, or from a session started by someone
- * else, will not verify here even though it is a perfectly good signature.
+ * showed, where a same-device flow returns, and how the person got there.
+ * Verifying the signature over exactly this string is what ties the answer to
+ * *this* session on *this* service: a signature lifted from a demo session, or
+ * from a session started by someone else, will not verify here even though it
+ * is a perfectly good signature.
  *
- * The order of the eleven parts is fixed by the protocol. The tenth is
- * reserved and empty.
+ * The order of the eleven parts is fixed by the protocol. The tenth is the
+ * callback URL of a Web2App or App2App flow, and empty for a QR code or a
+ * notification.
  */
 final readonly class AcspV2Payload
 {
     public const PROTOCOL = 'ACSP_V2';
 
     /**
-     * @param string      $serverRandom    base64, from the session status
-     * @param string      $rpChallenge     base64, as it was sent
-     * @param string|null $userChallenge   base64url, from the session status; device-link flows only
+     * @param string      $serverRandom             base64, from the session status
+     * @param string      $rpChallenge              base64, as it was sent
+     * @param string|null $userChallenge            base64url, from the session status; device-link flows only
      * @param string|null $brokeredRelyingPartyName set only when acting for another relying party
+     * @param string|null $initialCallbackUrl       the session's callback URL; signed only for Web2App and App2App
      */
     public function __construct(
         public string $scheme,
@@ -38,6 +41,7 @@ final readonly class AcspV2Payload
         public string $interactionsDigest,
         public InteractionType $interactionTypeUsed,
         public FlowType $flowType,
+        public ?string $initialCallbackUrl = null,
     ) {}
 
     /**
@@ -45,6 +49,8 @@ final readonly class AcspV2Payload
      */
     public function bytes(): string
     {
+        $sameDevice = $this->flowType === FlowType::Web2App || $this->flowType === FlowType::App2App;
+
         return implode('|', [
             $this->scheme,
             self::PROTOCOL,
@@ -55,7 +61,7 @@ final readonly class AcspV2Payload
             $this->brokeredRelyingPartyName === null ? '' : base64_encode($this->brokeredRelyingPartyName),
             $this->interactionsDigest,
             $this->interactionTypeUsed->value,
-            '',
+            $sameDevice ? ($this->initialCallbackUrl ?? '') : '',
             $this->flowType->value,
         ]);
     }
@@ -94,6 +100,7 @@ final readonly class AcspV2Payload
             $session->interactions->digest(),
             $status->interactionTypeUsed,
             $status->flowType,
+            $session->initialCallbackUrl,
         );
     }
 }
