@@ -150,6 +150,28 @@ final class AsicContainerTest extends TestCase
         self::assertContains(StructuralFinding::NO_DATA_FILES, $emptyCodes);
     }
 
+    public function testAManifestListingAFileTwiceIsAFatalFinding(): void
+    {
+        $manifest = new Manifest([
+            ['fullPath' => 'a.txt', 'mediaType' => 'text/plain'],
+            ['fullPath' => 'a.txt', 'mediaType' => 'application/pdf'],
+            ['fullPath' => 'a.txt', 'mediaType' => 'text/html'],
+        ]);
+        $bytes = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('a.txt', 'x')
+            ->addDeflated('META-INF/manifest.xml', $manifest->toXml())
+            ->build();
+
+        $duplicates = array_values(array_filter(
+            (new AsicReader())->read($bytes)->fatalFindings(),
+            static fn(StructuralFinding $f): bool => $f->code === StructuralFinding::MANIFEST_DUPLICATE_ENTRY,
+        ));
+
+        self::assertCount(1, $duplicates, 'one finding per path, however often it is repeated');
+        self::assertStringContainsString('"a.txt"', $duplicates[0]->message);
+    }
+
     public function testNonZipAndUnsupportedZipsAreRejected(): void
     {
         try {

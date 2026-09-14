@@ -95,6 +95,23 @@ final readonly class Manifest
         return array_map(static fn(array $e): string => $e['fullPath'], $this->entries);
     }
 
+    /**
+     * @return list<string> every path listed more than once, each named once
+     */
+    public function duplicatePaths(): array
+    {
+        $seen = [];
+        $duplicates = [];
+        foreach ($this->paths() as $path) {
+            if (isset($seen[$path]) && !\in_array($path, $duplicates, true)) {
+                $duplicates[] = $path;
+            }
+            $seen[$path] = true;
+        }
+
+        return $duplicates;
+    }
+
     private static function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');

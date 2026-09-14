@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\Container\Zip;
 
+use Allkiri\Container\InvalidContainerException;
+
 /**
  * One entry of a ZIP archive, with the bytes exactly as they appear in the
  * file so an existing entry can be copied into a new archive untouched.
@@ -51,8 +53,25 @@ final readonly class ZipEntry
 
     /**
      * The entry's content, inflating it when necessary.
+     *
+     * @throws InvalidContainerException when the content does not match the
+     *                                   CRC-32 the archive records for it
      */
     public function content(): string
+    {
+        $content = $this->uncompressed();
+        // The signature digests still cover what is signed, so this is about
+        // corruption rather than forgery. But an archive that disagrees with
+        // itself is not one to report on. libdigidocpp does not look, and
+        // digidoc4j only does when it reads from a stream.
+        if (crc32($content) !== $this->crc32) {
+            throw new InvalidContainerException(\sprintf('Entry "%s" is corrupt: its content does not match its CRC-32', $this->name));
+        }
+
+        return $content;
+    }
+
+    private function uncompressed(): string
     {
         if ($this->method === self::METHOD_STORE) {
             return $this->compressedData;

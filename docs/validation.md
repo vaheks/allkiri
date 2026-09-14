@@ -193,6 +193,21 @@ data is truncated. The writer refuses the same shapes rather than producing
 them: more than 65535 files, or any file or container of four gigabytes or more,
 which the format cannot record without ZIP64.
 
+**An archive that readers could read differently.** Two entries with one name
+are refused, data files and `META-INF` entries alike. Readers do not agree on
+which of the two counts, so a validator that checked one while DigiDoc4 or an
+unzip tool shows the other would have reported on the wrong document.
+libdigidocpp refuses the same archives. Also refused:
+
+- an entry whose local header gives a different name from the central
+  directory, since that name is what a streaming reader sees;
+- an entry whose content does not match its CRC-32, which goes further than
+  libdigidocpp or digidoc4j check.
+
+All of these are an `InvalidContainerException`, reported as
+`NOT_A_CONTAINER`. A manifest that lists one file twice is a failing
+`MANIFEST_MISMATCH`.
+
 **What is not guarded here.** Total upload size is your decision, and it belongs
 in your application or your web server, where `upload_max_filesize` and
 `post_max_size` already live. Signing or validating holds roughly three to four
