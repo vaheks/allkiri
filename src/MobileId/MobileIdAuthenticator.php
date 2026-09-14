@@ -37,7 +37,7 @@ final class MobileIdAuthenticator
 
     public function __construct(
         private readonly MobileIdClient $client,
-        private readonly ?ChainBuilder $chainBuilder = null,
+        private readonly ChainBuilder $chainBuilder,
         private readonly HashAlgorithm $hashAlgorithm = HashAlgorithm::SHA256,
         private readonly NonceGenerator $nonceGenerator = new RandomNonceGenerator(),
         private readonly ClockInterface $clock = new SystemClock(),
@@ -139,12 +139,10 @@ final class MobileIdAuthenticator
         if (!$certificate->isValidAt($now)) {
             throw new MobileIdException('The Mobile-ID certificate is not valid at this moment');
         }
-        if ($this->chainBuilder !== null) {
-            try {
-                $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
-            } catch (TrustException $exception) {
-                throw new MobileIdException('The Mobile-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
-            }
+        try {
+            $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
+        } catch (TrustException $exception) {
+            throw new MobileIdException('The Mobile-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
         }
 
         $identity = AuthenticatedIdentity::fromCertificate($certificate);

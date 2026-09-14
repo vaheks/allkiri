@@ -59,7 +59,7 @@ final class SmartIdAuthenticatorTest extends TestCase
 
     private function authenticator(?ChainBuilder $chainBuilder = null): SmartIdAuthenticator
     {
-        return new SmartIdAuthenticator($this->client, $chainBuilder, clock: $this->clock);
+        return new SmartIdAuthenticator($this->client, $chainBuilder ?? $this->trustedChainBuilder(), clock: $this->clock);
     }
 
     private function trustedChainBuilder(): ChainBuilder
@@ -238,7 +238,7 @@ final class SmartIdAuthenticatorTest extends TestCase
 
         $this->expectExceptionMessageMatches('/does not match this session/');
 
-        (new SmartIdAuthenticator($productionClient, null, clock: $this->clock))->complete($session, $status);
+        (new SmartIdAuthenticator($productionClient, $this->trustedChainBuilder(), clock: $this->clock))->complete($session, $status);
     }
 
     /**

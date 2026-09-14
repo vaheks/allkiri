@@ -131,7 +131,21 @@ signatures with a local key, and the API the eID means will plug into.
   32-bit and 16-bit fields, so previously they wrapped and produced a quietly
   corrupt archive. The reader already said so; now the writer does too.
 
+### Changed
+
+- `MobileIdAuthenticator` and `SmartIdAuthenticator` require a `ChainBuilder` as
+  their second argument. It was optional, and without one the trust check was
+  skipped. The `Allkiri` factory always passed one, so only code that constructs
+  the authenticators directly has to change.
+
 ### Fixed
+
+- The Mobile-ID and Smart-ID authenticators can no longer be built without a
+  trust check. Constructed without a chain builder, as a dependency injection
+  container easily does, they believed any certificate whose key had signed the
+  challenge, including one from a test PKI or one the caller had issued, and
+  said nothing. The class documentation and the Smart-ID guide promised the check
+  unconditionally.
 
 - A signature's signed properties can no longer be altered while the signature
   still verifies. A same-document reference was resolved to the first element

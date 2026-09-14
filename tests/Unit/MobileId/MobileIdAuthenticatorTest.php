@@ -55,7 +55,7 @@ final class MobileIdAuthenticatorTest extends TestCase
 
     private function authenticator(?ChainBuilder $chainBuilder = null, HashAlgorithm $hash = HashAlgorithm::SHA256): MobileIdAuthenticator
     {
-        return new MobileIdAuthenticator($this->client, $chainBuilder, $hash, clock: $this->clock);
+        return new MobileIdAuthenticator($this->client, $chainBuilder ?? $this->trustedChainBuilder(), $hash, clock: $this->clock);
     }
 
     private static function identity(): MobileIdIdentity
