@@ -32,8 +32,9 @@ final readonly class SmartIdConfiguration
     public const HTTP_TIMEOUT_MARGIN_SECONDS = 5;
 
     /**
-     * @param string $scheme      `smart-id` or `smart-id-demo`; must match the URL
+     * @param string        $scheme               `smart-id` or `smart-id-demo`; must match the URL
      * @param HashAlgorithm $signingHashAlgorithm the digest the app signs when signing
+     * @param bool          $checkRevocation      whether sign-in asks the certificate's OCSP responder
      */
     public function __construct(
         public string $url,
@@ -45,6 +46,7 @@ final readonly class SmartIdConfiguration
         public int $pollTimeoutMs = 10_000,
         public int $sessionTimeoutSeconds = 120,
         public bool $shareDeviceIpAddress = false,
+        public bool $checkRevocation = true,
     ) {
         if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $relyingPartyUuid) !== 1) {
             throw new InvalidArgumentException('The relying party identifier must be a lower-case UUID in 8-4-4-4-12 form');
@@ -108,17 +110,17 @@ final readonly class SmartIdConfiguration
 
     public function withCertificateLevel(CertificateLevel $level): self
     {
-        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $level, $this->signingHashAlgorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $this->shareDeviceIpAddress);
+        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $level, $this->signingHashAlgorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $this->shareDeviceIpAddress, $this->checkRevocation);
     }
 
     public function withSigningHashAlgorithm(HashAlgorithm $algorithm): self
     {
-        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $algorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $this->shareDeviceIpAddress);
+        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $algorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $this->shareDeviceIpAddress, $this->checkRevocation);
     }
 
     public function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): self
     {
-        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $this->signingHashAlgorithm, $pollTimeoutMs, $sessionTimeoutSeconds, $this->shareDeviceIpAddress);
+        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $this->signingHashAlgorithm, $pollTimeoutMs, $sessionTimeoutSeconds, $this->shareDeviceIpAddress, $this->checkRevocation);
     }
 
     /**
@@ -129,6 +131,19 @@ final readonly class SmartIdConfiguration
      */
     public function withDeviceIpAddress(bool $share = true): self
     {
-        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $this->signingHashAlgorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $share);
+        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $this->signingHashAlgorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $share, $this->checkRevocation);
+    }
+
+    /**
+     * Turn off the revocation check at sign-in.
+     *
+     * Only for a test environment whose responder cannot be reached. SK asks
+     * relying parties to check that a Smart-ID authentication certificate has
+     * not been revoked, and a revoked certificate is exactly the one somebody
+     * who should no longer sign in would present.
+     */
+    public function withoutRevocationCheck(): self
+    {
+        return new self($this->url, $this->relyingPartyUuid, $this->relyingPartyName, $this->scheme, $this->certificateLevel, $this->signingHashAlgorithm, $this->pollTimeoutMs, $this->sessionTimeoutSeconds, $this->shareDeviceIpAddress, false);
     }
 }

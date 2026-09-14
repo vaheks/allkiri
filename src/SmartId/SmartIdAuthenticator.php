@@ -9,6 +9,9 @@ use Allkiri\Auth\UnidentifiableCertificateException;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\NonceGenerator;
+use Allkiri\Crypto\Ocsp\CertificateRevokedException;
+use Allkiri\Crypto\Ocsp\OcspClient;
+use Allkiri\Crypto\Ocsp\OcspException;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\RandomNonceGenerator;
 use Allkiri\Trust\ChainBuilder;
@@ -28,7 +31,8 @@ use Psr\Clock\ClockInterface;
  *   whoever scans identifies themselves.
  *
  * Nothing about the person is believed until the returned signature verifies
- * over the exact payload this session implies.
+ * over the exact payload this session implies, and the certificate chains to a
+ * trusted authority and has not been revoked.
  */
 final class SmartIdAuthenticator
 {
@@ -38,6 +42,7 @@ final class SmartIdAuthenticator
     public function __construct(
         private readonly SmartIdClient $client,
         private readonly ChainBuilder $chainBuilder,
+        private readonly OcspClient $ocspClient,
         private readonly NonceGenerator $nonceGenerator = new RandomNonceGenerator(),
         private readonly ClockInterface $clock = new SystemClock(),
         private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier(),
@@ -236,7 +241,8 @@ final class SmartIdAuthenticator
     {
         // A session stored before the level was kept is judged against the
         // configuration, as it would have been when it started.
-        $requested = $session->certificateLevel ?? $this->client->configuration()->certificateLevel;
+        $configuration = $this->client->configuration();
+        $requested = $session->certificateLevel ?? $configuration->certificateLevel;
         $actual = $status->certificateLevel
             ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'Smart-ID authenticated without saying what level of certificate answered');
         if (!$requested->isSatisfiedBy($actual)) {
@@ -263,9 +269,31 @@ final class SmartIdAuthenticator
             throw new SmartIdException('The Smart-ID certificate is not valid at this moment');
         }
         try {
-            $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
+            $chain = $this->chainBuilder->build($certificate, [], $now, [ServiceType::CaQc, ServiceType::CaPkc]);
         } catch (TrustException $exception) {
             throw new SmartIdException('The Smart-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
+        }
+
+        // SK's guidance for verifying an answer asks relying parties to check
+        // that the certificate has not been revoked.
+        if (!$configuration->checkRevocation) {
+            return;
+        }
+        try {
+            $this->ocspClient->fetch($certificate, $chain->issuerOfLeaf());
+        } catch (CertificateRevokedException $exception) {
+            // A revoked certificate, or one the responder has never heard of,
+            // is a final answer about the certificate. A responder that could
+            // not be reached is a problem of ours, and is reported as such.
+            throw new SmartIdException(
+                $exception->reason === CertificateRevokedException::REASON_REVOKED
+                    ? 'The Smart-ID certificate has been revoked'
+                    : 'The OCSP responder does not recognise the Smart-ID certificate',
+                0,
+                $exception,
+            );
+        } catch (OcspException $exception) {
+            throw new SmartIdException('The Smart-ID certificate\'s revocation status could not be established: ' . $exception->getMessage(), 0, $exception);
         }
     }
 
