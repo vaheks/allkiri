@@ -42,6 +42,7 @@ final class Asn1
         if ($der === '') {
             throw new Asn1Exception('Empty DER');
         }
+        NestingGuard::check($der);
         Oids::register();
         $decoded = PhpseclibAsn1::decodeBER($der);
         $root = \is_array($decoded) ? ($decoded[0] ?? null) : null;

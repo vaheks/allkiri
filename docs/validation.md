@@ -208,6 +208,18 @@ All of these are an `InvalidContainerException`, reported as
 `NOT_A_CONTAINER`. A manifest that lists one file twice is a failing
 `MANIFEST_MISMATCH`.
 
+**Nesting.** ASN.1 structures are refused when they nest more than 64 levels
+deep. That covers certificates, OCSP responses and timestamp tokens, whether
+they come from a container or from the network. phpseclib, which decodes them,
+copies each level's content, so twenty thousand levels in about 80 KB exhaust a
+128 MB memory limit. That is a fatal error, which no application can catch.
+
+The check follows phpseclib's own decoder step for step. It also covers the
+certificate extension values and public keys that phpseclib decodes a second
+time. Apart from this depth limit, it refuses nothing phpseclib accepts, except
+crafted input too intricate to walk within a budget proportional to its size.
+Real structures nest a few dozen levels at most.
+
 **What is not guarded here.** Total upload size is your decision, and it belongs
 in your application or your web server, where `upload_max_filesize` and
 `post_max_size` already live. Signing or validating holds roughly three to four
