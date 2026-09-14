@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\WebEid;
 
 use Allkiri\Auth\AuthenticatedIdentity;
+use Allkiri\Auth\UnidentifiableCertificateException;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Crypto\Asn1\Asn1Exception;
 use Allkiri\Crypto\Asn1\NestingGuard;
@@ -134,7 +135,11 @@ final class WebEidAuthenticator
         $certificate = $this->toCertificate($parsed->getUnverifiedCertificate());
         $this->verifyTrust($certificate, $now);
 
-        $identity = AuthenticatedIdentity::fromCertificate($certificate);
+        try {
+            $identity = AuthenticatedIdentity::fromCertificate($certificate);
+        } catch (UnidentifiableCertificateException $exception) {
+            throw new WebEidException('The card certificate does not name a person: ' . $exception->getMessage(), 0, $exception);
+        }
         $this->logger?->info('Web eID authenticated {identity}', ['identity' => $identity->semanticsIdentifier()]);
 
         return $identity;

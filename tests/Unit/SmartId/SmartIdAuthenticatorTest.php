@@ -433,6 +433,19 @@ final class SmartIdAuthenticatorTest extends TestCase
         $authenticator->poll($session);
     }
 
+    public function testAnESealCertificateIsRefusedBecauseItNamesNoPerson(): void
+    {
+        $this->http = new MockHttpClient();
+        $this->service = MockSmartIdService::register($this->http, TestPki::signerRsa());
+        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $this->expectExceptionMessageMatches('/The Smart-ID certificate does not name a person/');
+
+        $authenticator->poll($session);
+    }
+
     public function testACertificateFromAnUnknownAuthorityIsRefused(): void
     {
         $authenticator = $this->authenticator(new ChainBuilder(new InMemoryTrustStore([])));

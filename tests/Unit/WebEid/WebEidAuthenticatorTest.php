@@ -337,20 +337,21 @@ final class WebEidAuthenticatorTest extends TestCase
     }
 
     /**
-     * A certificate that cannot do client authentication must not be accepted
-     * as one, which is what keeps a signing certificate out of a login.
+     * The e-seal certificate has digitalSignature and no extended key usage at
+     * all, which the Web eID specification treats as usable for client
+     * authentication, so its purpose alone does not keep it out. What does is
+     * that it names no person: it used to sign in as identity code "" and
+     * account key "PNOEE-", which every such certificate would have shared.
      */
-    public function testACertificateWithoutTheAuthenticationPurposeIsRefused(): void
+    public function testAnESealCertificateIsRefusedBecauseItNamesNoPerson(): void
     {
         $challenge = $this->challenge();
-        // The e-seal certificate carries no client-authentication purpose.
         $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, TestPki::signerRsa(), SignatureAlgorithm::RS256);
 
-        $identity = $this->authenticator()->validate($token, $challenge);
+        $this->expectException(WebEidException::class);
+        $this->expectExceptionMessage('does not name a person');
 
-        // It has digitalSignature and no extended key usage at all, which the
-        // specification treats as usable for client authentication.
-        self::assertNotSame('', $identity->certificate->subjectDn());
+        $this->authenticator()->validate($token, $challenge);
     }
 
     public function testACardCertificateOutsideItsValidityIsRefused(): void

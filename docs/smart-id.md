@@ -163,6 +163,8 @@ unless it belongs to *this* session on *this* service. It also refuses unless:
 - the PSS parameters are the ones the declared signature method describes;
 - the certificate is at least the level requested;
 - the certificate is valid now and chains to a trust anchor;
+- the certificate names a person by personal code, passport or identity card
+  number, never an organisation or nobody at all;
 - a user challenge verifier, if you supplied one, matches.
 
 ## Signing
