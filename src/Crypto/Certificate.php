@@ -345,6 +345,26 @@ final class Certificate
     }
 
     /**
+     * @return list<string> certificate policy OIDs in dotted form, in the order the certificate lists them
+     */
+    public function policies(): array
+    {
+        $value = $this->x509->getExtension('id-ce-certificatePolicies');
+        if (!\is_array($value)) {
+            return [];
+        }
+        $oids = [];
+        foreach ($value as $policy) {
+            $identifier = \is_array($policy) ? ($policy['policyIdentifier'] ?? null) : null;
+            if (\is_string($identifier)) {
+                $oids[] = ASN1::getOID($identifier);
+            }
+        }
+
+        return $oids;
+    }
+
+    /**
      * @param string $usage a dotted OID or one of the id-kp-* names
      */
     public function hasExtendedKeyUsage(string $usage): bool

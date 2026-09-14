@@ -148,8 +148,25 @@ signatures with a local key, and the API the eID means will plug into.
   uses the stored one for Web2App and App2App links and none for QR links. A
   Web2App or App2App answer now needs the callback's `userChallengeVerifier`
   in `poll()`.
+- A stored `SmartIdSession` also keeps the certificate level it asked for and
+  the person it was started for, as `certificateLevel` and
+  `semanticsIdentifier`.
 
 ### Fixed
+
+- Smart-ID sign-in now holds the answer to what the session asked for. Three
+  things were wrong.
+  - The certificate level came from the unsigned part of the answer and was
+    compared with the configuration's level, not the call's. A call asking
+    for QUALIFIED under an ADVANCED configuration accepted an ADVANCED answer,
+    and a level nothing in the certificate bore out was believed.
+  - A missing level was not refused.
+  - The account that answered was never compared with the one asked for.
+
+  The level a session asks for is now stored and enforced, and a missing level
+  is refused. The certificate must carry the certificate policies of the level
+  reported, as SK's own client requires. The document number, the person asked
+  for and the certificate must all agree.
 
 - Smart-ID sign-in through Web2App or App2App with a callback URL can succeed.
   The signed payload's tenth field is the callback URL for those flows, but

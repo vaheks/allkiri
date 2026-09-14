@@ -56,6 +56,15 @@ Ask for `Qscd` when you want a qualified electronic signature. The service
 answers a `Qscd` request with a certificate it reports as `QUALIFIED`, which the
 library treats as satisfying it.
 
+A level passed to `startNotification()`, `startDeviceLink()` or
+`startAnonymous()` replaces the configured one for that session. The session
+remembers it, and the answer must satisfy it. The service reports the level
+beside the signature rather than inside what was signed. So, as SK's own client
+does, the library also requires the certificate to carry that level's
+certificate policies:
+- for qualified, SK's `1.3.6.1.4.1.10015.17.2` and ETSI's `0.4.0.2042.1.2`;
+- for advanced, `1.3.6.1.4.1.10015.17.1` and `0.4.0.2042.1.1`.
+
 ### Interactions
 
 An interaction is a dialogue you would like the app to show. You give a list in
@@ -164,10 +173,13 @@ that from the stored session and verifies over it, so an answer is refused
 unless it belongs to *this* session on *this* service. It also refuses unless:
 
 - the PSS parameters are the ones the declared signature method describes;
-- the certificate is at least the level requested;
+- the certificate is at least the level the session asked for, and carries the
+  certificate policies of the level the service reported;
 - the certificate is valid now and chains to a trust anchor;
 - the certificate names a person by personal code, passport or identity card
   number, never an organisation or nobody at all;
+- the account that answered is the one the session was started for, and the
+  certificate belongs to that account;
 - a user challenge verifier, if you supplied one, matches.
 
 ## Signing
