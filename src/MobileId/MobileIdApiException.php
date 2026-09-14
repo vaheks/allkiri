@@ -44,7 +44,7 @@ final class MobileIdApiException extends MobileIdException
             default => [$status >= 500 ? self::REASON_SERVER_ERROR : self::REASON_BAD_REQUEST, 'the service answered unexpectedly'],
         };
 
-        return new self($reason, \sprintf('Mobile-ID at %s answered HTTP %d: %s%s', $url, $status, $explanation, self::detail($body)), $status);
+        return new self($reason, \sprintf('Mobile-ID at %s answered HTTP %d: %s%s', \Allkiri\Http\HttpRequest::withoutIdentities($url), $status, $explanation, self::detail($body)), $status);
     }
 
     private static function detail(string $body): string

@@ -80,7 +80,9 @@ $allkiri = new Allkiri(Environment::production(), $http, logger: $logger);
 Each call produces one record: method, URL, status, elapsed milliseconds, and the
 size of each body. A call that throws is logged at warning level with the elapsed
 time and the exception, and then rethrown untouched, which is usually the most
-interesting line in the file.
+interesting line in the file. The exception's message names the URL without
+identity codes too, so a logger that prints the exception does not undo the
+rule below.
 
 Two rules are built in, because getting them wrong is expensive rather than
 untidy.
@@ -107,7 +109,9 @@ certificates, and the digests of documents people signed. It belongs in a
 debugging session with a retention period, not in your permanent application log.
 Bodies are still truncated, still have credentials removed, and anything that is
 not text, such as a timestamp token or an OCSP response, is recorded as its size
-and media type rather than as bytes.
+and media type rather than as bytes. The whole URL goes on the log line only: a
+failed call's exception is the one your application sees, and its message stays
+redacted.
 
 ## What the library logs itself
 
@@ -119,8 +123,37 @@ decisions, and most of it is worth alerting on rather than merely storing. The
 warnings especially: a trusted list nobody has refreshed is a problem that starts
 quietly.
 
+None of these lines names a person. Web eID's says what kind of identity signed
+in, `PNOEE-[redacted]`, and Mobile-ID's line for someone without a certificate
+gives only what the service answered. Which person it was belongs in your audit
+trail.
+
 Pass the same logger to both and the three layers interleave in one file, which
 is what the demo does.
+
+## Exceptions that name a person
+
+Exceptions reach your error log whether or not any of the above is set up, so
+their messages follow the same rule. Every message that names a URL shows it
+without identity codes: the cURL and PSR-18 transports, and the Mobile-ID,
+Smart-ID, SiVa, timestamp, OCSP and trusted-list errors built on them. A PSR-18
+client's own exception is named in the message rather than chained, because
+Guzzle and Symfony put the whole URL into it.
+`CertificateNotFoundException` does not name the person either; the identity it
+was about is on its `identity` property, for code that needs it.
+
+A few messages still name a person, because naming them is the diagnosis:
+
+- **Sign-in answered by someone else.** Mobile-ID and Smart-ID refuse an answer
+  from a person, account or certificate other than the one the session was
+  started for, and the message names both sides.
+- **Certificate errors.** Chain building, revocation and OCSP errors quote the
+  certificate's subject. For a personal certificate that is the person's name
+  and identity code.
+
+If your error log must not hold personal data, catch `AllkiriException` where
+it leaves the library and log its class, and its reason where it has one,
+instead of the message.
 
 ## Where it goes
 

@@ -20,6 +20,7 @@ use Allkiri\MobileId\MobileIdSession;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\MobileId\MockMobileIdService;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\RecordingLogger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -62,14 +63,34 @@ final class MobileIdClientTest extends TestCase
         ], $service->received[0]);
     }
 
-    public function testSaysSoWhenThePersonHasNoMobileId(): void
+    /**
+     * Whether someone has Mobile-ID is personal data, so neither the log nor
+     * the message names them. The application still has the identity, on the
+     * exception.
+     */
+    public function testSaysSoWhenThePersonHasNoMobileIdWithoutNamingThem(): void
     {
-        [$client, $service] = self::client();
+        $http = new MockHttpClient();
+        $service = MockMobileIdService::register($http);
         $service->certificateFound = false;
+        $logger = new RecordingLogger();
+        $client = new MobileIdClient($service->configuration(), $http, $logger);
 
-        $this->expectException(CertificateNotFoundException::class);
+        try {
+            $client->certificate(self::identity());
+            self::fail('Expected a CertificateNotFoundException');
+        } catch (CertificateNotFoundException $exception) {
+            self::assertEquals(self::identity(), $exception->identity);
+            self::assertSame('NOT_FOUND', $exception->result);
+            self::assertStringContainsString('NOT_FOUND', $exception->getMessage());
+            self::assertStringNotContainsString(self::IDENTITY_CODE, $exception->getMessage());
+            self::assertStringNotContainsString('37200000766', $exception->getMessage());
+        }
 
-        $client->certificate(self::identity());
+        $transcript = $logger->transcript();
+        self::assertStringContainsString('Mobile-ID has no certificate: NOT_FOUND', $transcript);
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $transcript);
+        self::assertStringNotContainsString('37200000766', $transcript);
     }
 
     // --- starting a session -------------------------------------------------

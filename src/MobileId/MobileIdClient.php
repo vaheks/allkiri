@@ -53,10 +53,11 @@ final class MobileIdClient
         $result = $this->stringField($body, 'result');
         if ($result !== 'OK') {
             // NOT_FOUND is the documented answer; anything else is still "no
-            // certificate", and the reason belongs in the message.
-            $this->logger?->info('Mobile-ID has no certificate for {identity}: {result}', ['identity' => (string) $identity, 'result' => $result]);
+            // certificate", and the reason belongs in the message. The person
+            // does not: whether someone has Mobile-ID is personal data.
+            $this->logger?->info('Mobile-ID has no certificate: {result}', ['result' => $result]);
 
-            throw new CertificateNotFoundException($identity);
+            throw new CertificateNotFoundException($identity, $result);
         }
 
         return $this->certificateFrom($body, 'cert');
@@ -173,7 +174,7 @@ final class MobileIdClient
         } catch (TransportException $exception) {
             throw new MobileIdApiException(
                 MobileIdApiException::REASON_TRANSPORT,
-                \sprintf('Mobile-ID at %s could not be reached: %s', $request->url, $exception->getMessage()),
+                \sprintf('Mobile-ID at %s could not be reached: %s', $request->redactedUrl(), $exception->getMessage()),
                 null,
                 $exception,
             );
@@ -193,7 +194,7 @@ final class MobileIdClient
         if (!\is_array($decoded)) {
             throw new MobileIdApiException(
                 MobileIdApiException::REASON_MALFORMED_RESPONSE,
-                \sprintf('Mobile-ID at %s answered with something that is not a JSON object', $url),
+                \sprintf('Mobile-ID at %s answered with something that is not a JSON object', HttpRequest::withoutIdentities($url)),
                 $response->status,
             );
         }

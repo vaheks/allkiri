@@ -36,7 +36,17 @@ final class Psr18HttpClient implements HttpClient
         try {
             $psrResponse = $this->client->sendRequest($psrRequest);
         } catch (ClientExceptionInterface $e) {
-            throw new TransportException(\sprintf('%s %s failed: %s', $request->method, $request->url, $e->getMessage()), 0, $e);
+            // Guzzle and Symfony put the whole URL, identity codes included, into
+            // their own messages, and most loggers print a chained exception as
+            // well. So the URL is scrubbed from the message, and the original is
+            // named rather than chained.
+            throw new TransportException(\sprintf(
+                '%s %s failed: %s (%s)',
+                $request->method,
+                $request->redactedUrl(),
+                str_replace([$request->url, (string) $psrRequest->getUri()], $request->redactedUrl(), $e->getMessage()),
+                get_debug_type($e),
+            ));
         }
 
         $headers = [];

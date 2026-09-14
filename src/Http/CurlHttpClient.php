@@ -109,7 +109,7 @@ final class CurlHttpClient implements HttpClient
 
             $body = curl_exec($handle);
             if (!\is_string($body)) {
-                throw new TransportException(\sprintf('%s %s failed: %s (curl error %d)', $request->method, $request->url, curl_error($handle), curl_errno($handle)));
+                throw new TransportException(\sprintf('%s %s failed: %s (curl error %d)', $request->method, $request->redactedUrl(), curl_error($handle), curl_errno($handle)));
             }
             $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 

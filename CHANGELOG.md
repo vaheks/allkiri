@@ -156,8 +156,35 @@ signatures with a local key, and the API the eID means will plug into.
   `withoutRevocationCheck()`.
 - `WebEidConfiguration::MOBILE_ID_POLICY_PREFIX` is replaced by
   `MOBILE_ID_POLICIES`, the exact certificate policy OIDs refused by default.
+- `LoggingHttpClient::withoutIdentities()` is now
+  `HttpRequest::withoutIdentities()`, beside the new
+  `HttpRequest::redactedUrl()`.
+- `CertificateNotFoundException` no longer names the phone number and identity
+  code in its message. They are on its new `identity` property, and what the
+  service answered is on `result`.
+- `Psr18HttpClient` no longer chains the PSR-18 client's exception as
+  `previous`, because Guzzle and Symfony put the whole URL into its message.
+  The message names that exception's class instead.
+- The library's own log lines name nobody. Mobile-ID's "has no certificate"
+  line gives only the service's answer, Web eID logs "authenticated
+  PNOEE-[redacted]", and Smart-ID's debug line logs the URL without identity
+  codes.
 
 ### Fixed
+
+- Identity codes no longer reach logs through failed calls.
+  `LoggingHttpClient` removed them from the URL it logged, but logged the
+  failure's message and exception beside it, and the cURL and PSR-18
+  transports put the whole URL into that message. A refused connection to
+  `/v3/signature/certificate/PNOEE-…` therefore carried the code into any log
+  that printed the error, and the Mobile-ID and Smart-ID status errors repeated
+  the URL in messages applications log themselves. The library's own logger
+  named people outright: the phone number and identity code of someone without
+  Mobile-ID, everyone Web eID signed in, and every Smart-ID request path at
+  debug level. Every message the library builds around a URL now shows it
+  without identity codes, and its log lines name nobody. `docs/logging.md`
+  lists the exception messages that still name a person, because naming the
+  certificate is the diagnosis.
 
 - Passwords, private key material, Smart-ID session secrets and relying-party
   identifiers are marked `#[\SensitiveParameter]`. A stack trace in an error log

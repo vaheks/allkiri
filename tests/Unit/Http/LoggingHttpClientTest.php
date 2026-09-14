@@ -4,20 +4,37 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Http;
 
+use Allkiri\Http\CurlHttpClient;
 use Allkiri\Http\HttpClient;
 use Allkiri\Http\HttpRequest;
 use Allkiri\Http\LoggingHttpClient;
+use Allkiri\Http\Psr18HttpClient;
 use Allkiri\Http\TransportException;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\RecordingLogger;
+use GuzzleHttp\Psr7\HttpFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Client\ClientExceptionInterface;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LogLevel;
 
 #[CoversClass(LoggingHttpClient::class)]
 final class LoggingHttpClientTest extends TestCase
 {
     private const MID = 'https://tsp.demo.sk.ee/mid-api';
+
+    private const IDENTITY_CODE = '50001029996';
+
+    /**
+     * Port 9 on the loopback address is never listening, so no network is
+     * needed. Linux refuses the connection at once; Windows retries until the
+     * timeout, which is why the clients below allow one second. The path names
+     * a person, the way a Smart-ID certificate request does.
+     */
+    private const REFUSED_URL = 'http://127.0.0.1:9/v3/signature/certificate/PNOEE-' . self::IDENTITY_CODE . '-MOCK-Q';
 
     private RecordingLogger $logger;
 
@@ -45,6 +62,17 @@ final class LoggingHttpClientTest extends TestCase
     private static function answering(string $contentType, string $body, int $status = 200): MockHttpClient
     {
         return (new MockHttpClient())->respond('http', $status, $contentType, $body);
+    }
+
+    private function failedSend(HttpClient $client): TransportException
+    {
+        try {
+            $client->send(HttpRequest::get(self::REFUSED_URL));
+        } catch (TransportException $e) {
+            return $e;
+        }
+
+        self::fail('the transport failure should have been rethrown');
     }
 
     // --- what is always logged ----------------------------------------------
@@ -80,26 +108,62 @@ final class LoggingHttpClientTest extends TestCase
     /**
      * A call that never comes back is the most interesting line in the log, and
      * the exception still has to reach the caller unchanged.
+     *
+     * A real cURL failure, because the transport's own message is what used to
+     * carry the identity code: the logged URL was redacted, and the logged
+     * error and exception beside it were not.
      */
-    public function testAFailedCallIsLoggedAsAWarningAndRethrown(): void
+    public function testAFailedCallIsLoggedAsAWarningAndRethrownWithoutAnIdentityCode(): void
     {
-        $inner = (new MockHttpClient())->on('https://', static function (): never {
-            throw new TransportException('connection timed out');
-        });
-        $client = $this->client($inner);
-
-        try {
-            $client->send(HttpRequest::get(self::MID . '/x'));
-            self::fail('the transport failure should have been rethrown');
-        } catch (TransportException $e) {
-            self::assertSame('connection timed out', $e->getMessage());
-        }
+        $thrown = $this->failedSend($this->client(new CurlHttpClient(timeoutSeconds: 1)));
 
         $record = $this->logger->last();
         self::assertSame(LogLevel::WARNING, $record['level']);
-        self::assertSame('connection timed out', $record['context']['error']);
-        self::assertInstanceOf(TransportException::class, $record['context']['exception']);
+        self::assertSame($thrown, $record['context']['exception']);
+        self::assertSame($thrown->getMessage(), $record['context']['error']);
         self::assertStringContainsString('failed after', $this->logger->lastLine());
+
+        self::assertStringContainsString('/v3/signature/certificate/PNOEE-[redacted]', $thrown->getMessage());
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $thrown->getMessage());
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $this->logger->transcript());
+    }
+
+    /**
+     * Guzzle and Symfony put the whole URL into their own exceptions, and a
+     * logger prints a chained exception too. So the adapter scrubs the message
+     * and does not chain.
+     */
+    public function testAPsr18ClientsOwnMessageLeavesNoIdentityCodeEither(): void
+    {
+        $psr = new class implements ClientInterface {
+            public function sendRequest(RequestInterface $request): ResponseInterface
+            {
+                // What Guzzle says when a connection is refused.
+                throw new class ('cURL error 7: Failed to connect to 127.0.0.1 port 9: Connection refused (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for ' . $request->getUri()) extends \RuntimeException implements ClientExceptionInterface {};
+            }
+        };
+        $factory = new HttpFactory();
+
+        $thrown = $this->failedSend($this->client(new Psr18HttpClient($psr, $factory, $factory)));
+
+        self::assertNull($thrown->getPrevious());
+        self::assertStringContainsString('Connection refused', $thrown->getMessage());
+        self::assertStringContainsString('PNOEE-[redacted]', $thrown->getMessage());
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $this->logger->transcript());
+    }
+
+    /**
+     * Asking for personal data puts the whole URL on the log line, where it was
+     * asked for. The exception is the one the application sees whatever the
+     * switch says, and it stays redacted.
+     */
+    public function testWithPersonalDataOnlyTheLogLineCarriesTheWholeUrl(): void
+    {
+        $thrown = $this->failedSend($this->client(new CurlHttpClient(timeoutSeconds: 1), personalData: true));
+
+        self::assertSame(self::REFUSED_URL, $this->logger->last()['context']['url']);
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $this->logged('error'));
+        self::assertStringNotContainsString(self::IDENTITY_CODE, $thrown->getMessage());
     }
 
     public function testTheLevelIsConfigurable(): void

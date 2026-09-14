@@ -42,7 +42,7 @@ final class SivaClient
         try {
             $response = $this->http->send(HttpRequest::post($this->url, 'application/json', $body, ['Accept' => 'application/json']));
         } catch (TransportException $e) {
-            throw new SivaException('Could not reach SiVa at ' . $this->url . ': ' . $e->getMessage(), 0, $e);
+            throw new SivaException('Could not reach SiVa at ' . HttpRequest::withoutIdentities($this->url) . ': ' . $e->getMessage(), 0, $e);
         }
         if (!$response->isSuccess()) {
             throw new SivaException(\sprintf('SiVa answered HTTP %d: %s', $response->status, mb_substr($response->body, 0, 500)));

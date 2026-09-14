@@ -18,6 +18,7 @@ use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdEndResult;
 use Allkiri\SmartId\SmartIdSessionStatus;
 use Allkiri\Tests\Support\Http\MockHttpClient;
+use Allkiri\Tests\Support\RecordingLogger;
 use Allkiri\Tests\Support\SmartId\MockSmartIdService;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -250,7 +251,38 @@ final class SmartIdClientTest extends TestCase
             self::assertSame($status, $exception->status);
             self::assertStringContainsString($expectedText, $exception->getMessage());
             self::assertStringContainsString('nope', $exception->getMessage());
+            // The request path names the account, and the message names the path.
+            self::assertStringContainsString('/signature/certificate/PNOEE-[redacted]', $exception->getMessage());
+            self::assertStringNotContainsString('40504040001', $exception->getMessage());
         }
+    }
+
+    public function testAnAccountWithNoUsableCertificateIsNotNamedInTheMessage(): void
+    {
+        $http = new MockHttpClient();
+        $http->respond(MockSmartIdService::URL, 200, 'application/json', '{"state":"DOCUMENT_UNUSABLE"}');
+        $client = new SmartIdClient($this->service->configuration(), $http);
+
+        try {
+            $client->certificateByDocumentNumber(new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER));
+            self::fail('Expected a SmartIdApiException');
+        } catch (SmartIdApiException $exception) {
+            self::assertSame(SmartIdApiException::REASON_ACCOUNT_NOT_FOUND, $exception->reason);
+            self::assertStringContainsString('PNOEE-[redacted] (state DOCUMENT_UNUSABLE)', $exception->getMessage());
+            self::assertStringNotContainsString('40504040001', $exception->getMessage());
+        }
+    }
+
+    public function testTheDebugLineNamesNoAccount(): void
+    {
+        $logger = new RecordingLogger();
+        $client = new SmartIdClient($this->service->configuration(), $this->http, $logger);
+
+        $client->certificateByDocumentNumber(new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER));
+
+        $transcript = $logger->transcript();
+        self::assertStringContainsString('Smart-ID POST ' . MockSmartIdService::URL . '/signature/certificate/PNOEE-[redacted]', $transcript);
+        self::assertStringNotContainsString('40504040001', $transcript);
     }
 
     /**

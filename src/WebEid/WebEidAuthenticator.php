@@ -140,7 +140,11 @@ final class WebEidAuthenticator
         } catch (UnidentifiableCertificateException $exception) {
             throw new WebEidException('The card certificate does not name a person: ' . $exception->getMessage(), 0, $exception);
         }
-        $this->logger?->info('Web eID authenticated {identity}', ['identity' => $identity->semanticsIdentifier()]);
+        // Which person signed in is the application's to record. This says what
+        // kind of identity it was without naming them.
+        $this->logger?->info('Web eID authenticated {identity}', [
+            'identity' => \sprintf('%s%s-%s', $identity->identifierType->value, $identity->country, \Allkiri\Http\HttpRequest::REDACTED),
+        ]);
 
         return $identity;
     }

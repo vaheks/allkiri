@@ -35,13 +35,19 @@ use Psr\Log\LogLevel;
  * identity codes, phone numbers and certificates, with whatever retention and
  * access rules that implies.
  *
+ * A failed call is logged with the exception's message and the exception
+ * itself, as thrown. Neither carries an identity code, because every transport
+ * and service error in the library names its URL through
+ * {@see HttpRequest::redactedUrl()}. A client of your own should do the same,
+ * since its messages reach this log unchanged whatever `personalData` says.
+ *
  * An audit trail of who signed what belongs a layer above this: the library's
  * two-step API makes every stage an explicit call in the application, which is
  * where the identity and the business meaning are. See docs/logging.md.
  */
 final class LoggingHttpClient implements HttpClient
 {
-    public const REDACTED = '[redacted]';
+    public const REDACTED = HttpRequest::REDACTED;
 
     /**
      * Keys whose values are credentials. Matched case-insensitively, at any
@@ -66,7 +72,7 @@ final class LoggingHttpClient implements HttpClient
 
     public function send(HttpRequest $request): HttpResponse
     {
-        $url = $this->personalData ? $request->url : self::withoutIdentities($request->url);
+        $url = $this->personalData ? $request->url : $request->redactedUrl();
         $startedAt = microtime(true);
 
         try {
@@ -142,33 +148,6 @@ final class LoggingHttpClient implements HttpClient
         $redacted = json_encode(self::redactValue($decoded), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return $redacted === false ? self::REDACTED : $redacted;
-    }
-
-    /**
-     * Remove the identity codes that some Smart-ID paths carry.
-     *
-     * `/v3/signature/certificate/PNOEE-50001029996-MOCK-Q` names a person and a
-     * device. The scheme and country are kept, because they say which service
-     * was called without saying who was called about.
-     */
-    public static function withoutIdentities(string $url): string
-    {
-        $parts = explode('/', $url);
-        foreach ($parts as $index => $part) {
-            // ETSI EN 319 412-1 semantics identifiers and SK document numbers:
-            // three letters, a country, then the person.
-            if (preg_match('/^([A-Z]{3}[A-Z]{2})-.+$/', $part, $matches) === 1) {
-                $parts[$index] = $matches[1] . '-' . self::REDACTED;
-
-                continue;
-            }
-            // A bare national identity number, which older interfaces take.
-            if (preg_match('/^\d{11}$/', $part) === 1) {
-                $parts[$index] = self::REDACTED;
-            }
-        }
-
-        return implode('/', $parts);
     }
 
     private static function redactValue(mixed $value): mixed

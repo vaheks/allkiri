@@ -12,6 +12,7 @@ use Allkiri\Tests\Support\Crypto\FixedNonceGenerator;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\Pki\MockOcspResponder;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\RecordingLogger;
 use Allkiri\Tests\Support\WebEid\TestAuthToken;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\CompositeTrustStore;
@@ -25,6 +26,7 @@ use Allkiri\WebEid\WebEidException;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 #[CoversNothing]
 final class WebEidAuthenticatorTest extends TestCase
@@ -50,7 +52,7 @@ final class WebEidAuthenticatorTest extends TestCase
         );
     }
 
-    private function authenticator(?WebEidConfiguration $configuration = null, ?TrustStore $trustStore = null): WebEidAuthenticator
+    private function authenticator(?WebEidConfiguration $configuration = null, ?TrustStore $trustStore = null, ?LoggerInterface $logger = null): WebEidAuthenticator
     {
         $trustStore ??= $this->trustStore;
 
@@ -61,6 +63,7 @@ final class WebEidAuthenticatorTest extends TestCase
             new ChainBuilder($trustStore),
             new FixedNonceGenerator('web-eid-challenge-nonce-of-32-by'),
             $this->clock,
+            $logger,
         );
     }
 
@@ -118,6 +121,23 @@ final class WebEidAuthenticatorTest extends TestCase
         self::assertSame('JOEORG', $identity->surname);
         self::assertSame('EE', $identity->country);
         self::assertSame('PNOEE-38001085718', $identity->semanticsIdentifier());
+    }
+
+    /**
+     * Which person signed in is the application's to record. The library's own
+     * line says what kind of identity it was and nothing more.
+     */
+    public function testTheLogSaysSomeoneSignedInWithoutNamingThem(): void
+    {
+        $logger = new RecordingLogger();
+        $challenge = $this->challenge();
+        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce);
+
+        $this->authenticator(logger: $logger)->validate($token, $challenge);
+
+        $transcript = $logger->transcript();
+        self::assertStringContainsString('Web eID authenticated PNOEE-[redacted]', $transcript);
+        self::assertStringNotContainsString('38001085718', $transcript);
     }
 
     /**
