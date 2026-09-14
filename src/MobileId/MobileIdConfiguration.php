@@ -36,6 +36,7 @@ final readonly class MobileIdConfiguration
      */
     public function __construct(
         public string $url,
+        #[\SensitiveParameter]
         public string $relyingPartyUuid,
         public string $relyingPartyName,
         public MobileIdLanguage $language = MobileIdLanguage::Estonian,
@@ -92,7 +93,7 @@ final readonly class MobileIdConfiguration
         return new self(self::DEMO_URL, self::DEMO_RELYING_PARTY_UUID, self::DEMO_RELYING_PARTY_NAME, $language, $displayText);
     }
 
-    public static function production(string $relyingPartyUuid, string $relyingPartyName, string $displayText = '', MobileIdLanguage $language = MobileIdLanguage::Estonian): self
+    public static function production(#[\SensitiveParameter] string $relyingPartyUuid, string $relyingPartyName, string $displayText = '', MobileIdLanguage $language = MobileIdLanguage::Estonian): self
     {
         return new self(self::PRODUCTION_URL, $relyingPartyUuid, $relyingPartyName, $language, $displayText);
     }

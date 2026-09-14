@@ -16,6 +16,7 @@ final readonly class DeviceLinkSessionResponse
     public function __construct(
         public string $sessionId,
         public string $sessionToken,
+        #[\SensitiveParameter]
         public string $sessionSecret,
         public string $deviceLinkBase,
     ) {}
@@ -23,7 +24,7 @@ final readonly class DeviceLinkSessionResponse
     /**
      * @param array<string, mixed> $body
      */
-    public static function fromArray(array $body): self
+    public static function fromArray(#[\SensitiveParameter] array $body): self
     {
         foreach (['sessionID', 'sessionToken', 'sessionSecret', 'deviceLinkBase'] as $key) {
             if (!\is_string($body[$key] ?? null) || $body[$key] === '') {

@@ -38,6 +38,7 @@ final readonly class SmartIdConfiguration
      */
     public function __construct(
         public string $url,
+        #[\SensitiveParameter]
         public string $relyingPartyUuid,
         public string $relyingPartyName,
         public string $scheme,
@@ -82,7 +83,7 @@ final readonly class SmartIdConfiguration
         );
     }
 
-    public static function production(string $relyingPartyUuid, string $relyingPartyName): self
+    public static function production(#[\SensitiveParameter] string $relyingPartyUuid, string $relyingPartyName): self
     {
         return new self(self::PRODUCTION_URL, $relyingPartyUuid, $relyingPartyName, self::SCHEME_PRODUCTION);
     }

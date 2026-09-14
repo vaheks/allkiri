@@ -23,7 +23,7 @@ final class LocalKeySigner implements Signer
         return new self($keyPair->privateKey, $keyPair->certificate);
     }
 
-    public static function fromPkcs12(string $pkcs12, string $password): self
+    public static function fromPkcs12(#[\SensitiveParameter] string $pkcs12, #[\SensitiveParameter] string $password): self
     {
         return self::fromKeyPair(PrivateKey::fromPkcs12($pkcs12, $password));
     }
