@@ -244,6 +244,7 @@ final class MockSmartIdService
 
         $interactions = $body['interactions'] ?? null;
         $relyingPartyName = $body['relyingPartyName'] ?? null;
+        $initialCallbackUrl = $body['initialCallbackUrl'] ?? null;
 
         $this->sessions[$sessionId] = new MockSession(
             $type,
@@ -255,6 +256,7 @@ final class MockSmartIdService
             },
             \is_string($interactions) ? $interactions : '',
             \is_string($relyingPartyName) ? $relyingPartyName : '',
+            \is_string($initialCallbackUrl) ? $initialCallbackUrl : null,
         );
 
         return $sessionId;
@@ -309,6 +311,7 @@ final class MockSmartIdService
             base64_encode(hash('sha256', $session->interactions, true)),
             $used,
             $this->flowType,
+            $session->initialCallbackUrl,
         );
 
         $signature = [

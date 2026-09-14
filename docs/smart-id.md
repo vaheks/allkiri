@@ -145,8 +145,11 @@ and send the person to it.
 > links the app will accept. Send the finished link, never the secret. The
 > serialised session contains it, so keep that server-side too.
 
-If you gave an `initialCallbackUrl`, the app returns a `userChallengeVerifier`
-through it. Pass it to `poll()` and the library checks it against the session:
+If you gave an `initialCallbackUrl`, the session keeps it: the app signs it, and
+the authentication code of every Web2App and App2App link built from the session
+covers it. A QR link carries none. The app returns a `userChallengeVerifier`
+through the callback. Pass it to `poll()`, where a Web2App or App2App answer is
+refused without it, and the library checks it against the session:
 
 ```php
 $identity = $authenticator->poll($session, $_GET['userChallengeVerifier']);

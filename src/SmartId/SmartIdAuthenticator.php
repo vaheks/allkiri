@@ -73,26 +73,34 @@ final class SmartIdAuthenticator
      * Start an authentication anyone can answer by scanning.
      *
      * The person is not named; who they are comes back in the certificate.
+     *
+     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back.
+     *                                        The session keeps it, because the app signs it.
      */
     public function startAnonymous(Interactions $interactions, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSession
     {
+        SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $interactions = $interactions->forDeviceLink();
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
         $response = $this->client->startAnonymousDeviceLinkAuthentication($challenge, $interactions, $level, $initialCallbackUrl);
 
-        return $this->deviceLinkSession($response, $challenge, $interactions, null);
+        return $this->deviceLinkSession($response, $challenge, $interactions, null, $initialCallbackUrl);
     }
 
     /**
      * Start a device-link authentication for a person who is already known.
+     *
+     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back.
+     *                                        The session keeps it, because the app signs it.
      */
     public function startDeviceLink(SemanticsIdentifier|DocumentNumber $subject, Interactions $interactions, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSession
     {
+        SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $interactions = $interactions->forDeviceLink();
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
         $response = $this->client->startDeviceLinkAuthentication($subject, $challenge, $interactions, $level, $initialCallbackUrl);
 
-        return $this->deviceLinkSession($response, $challenge, $interactions, $subject instanceof DocumentNumber ? $subject->value : null);
+        return $this->deviceLinkSession($response, $challenge, $interactions, $subject instanceof DocumentNumber ? $subject->value : null, $initialCallbackUrl);
     }
 
     // --- finishing ----------------------------------------------------------
@@ -101,7 +109,7 @@ final class SmartIdAuthenticator
      * Ask once whether the person is done. Null means they are not yet.
      *
      * @param string|null $userChallengeVerifier the value a Web2App or App2App
-     *                                          callback returned, when one was used
+     *                                          callback returned; required for those flows
      *
      * @throws SmartIdSessionException when they refused, or could not be reached
      */
@@ -117,7 +125,8 @@ final class SmartIdAuthenticator
 
     /**
      * Block until the person answers. Suitable for a console tool or a worker,
-     * not for a web request.
+     * not for a web request, and not for Web2App or App2App, whose answer
+     * arrives through a callback.
      */
     public function authenticate(SmartIdSession $session, ?SmartIdPoller $poller = null): AuthenticatedIdentity
     {
@@ -185,11 +194,20 @@ final class SmartIdAuthenticator
     /**
      * A Web2App or App2App callback returns a verifier whose digest must equal
      * the user challenge the service reported. It is what ties the browser that
-     * came back to the app that answered.
+     * came back to the app that answered, so for those flows it is required:
+     * without it, an answer shows only that somebody approved the session, not
+     * that they are the person in this browser.
      */
     private function verifyUserChallenge(SmartIdSessionStatus $status, ?string $userChallengeVerifier): void
     {
         if ($userChallengeVerifier === null) {
+            if ($status->flowType === FlowType::Web2App || $status->flowType === FlowType::App2App) {
+                throw new SmartIdException(\sprintf(
+                    'Smart-ID answered through %s, which needs the userChallengeVerifier its callback returned; pass it to poll()',
+                    $status->flowType->value,
+                ));
+            }
+
             return;
         }
         if ($status->userChallenge === null) {
@@ -224,7 +242,7 @@ final class SmartIdAuthenticator
         }
     }
 
-    private function deviceLinkSession(DeviceLinkSessionResponse $response, string $challenge, Interactions $interactions, ?string $documentNumber): SmartIdSession
+    private function deviceLinkSession(DeviceLinkSessionResponse $response, string $challenge, Interactions $interactions, ?string $documentNumber, ?string $initialCallbackUrl): SmartIdSession
     {
         return new SmartIdSession(
             $response->sessionId,
@@ -239,6 +257,7 @@ final class SmartIdAuthenticator
             $response->sessionSecret,
             $response->deviceLinkBase,
             $this->now(),
+            $initialCallbackUrl,
         );
     }
 

@@ -20,6 +20,7 @@ final class MockSession
         public readonly HashAlgorithm $hashAlgorithm,
         public readonly string $interactions,
         public readonly string $relyingPartyName,
+        public readonly ?string $initialCallbackUrl = null,
     ) {}
 
     /**

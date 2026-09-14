@@ -229,6 +229,41 @@ final class SmartIdSignerTest extends TestCase
         self::assertSame(Indication::TotalPassed, $this->validate((new AsicWriter())->write($result->container)));
     }
 
+    public function testASigningSessionStoredBeforeTheCallbackUrlWasKeptStillSigns(): void
+    {
+        $container = self::container();
+        $signing = $this->signer->startNotification($container, self::documentNumber(), self::interactions());
+        $this->service->expectToSign($signing->dataToBeSigned->signedInfoCanonical);
+
+        // What version 1 wrote: the same session keys, without the callback URL.
+        $stored = json_decode(json_encode($signing, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($stored);
+        $session = $signing->session->jsonSerialize();
+        unset($session['initialCallbackUrl']);
+        $session['version'] = 1;
+        $stored['session'] = $session;
+
+        $result = $this->signer->poll($container, SmartIdSigningSession::fromArray($stored));
+
+        self::assertNotNull($result);
+        self::assertSame(Indication::TotalPassed, $this->validate((new AsicWriter())->write($result->container)));
+    }
+
+    public function testASigningSessionKeepsItsCallbackUrlForTheLinks(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $callback = 'https://rp.example.test/signed?value=abc';
+        $signing = $this->signer->startDeviceLink(self::container(), self::documentNumber(), self::interactions(), initialCallbackUrl: $callback);
+        $restored = SmartIdSigningSession::fromJson(json_encode($signing, JSON_THROW_ON_ERROR));
+        $configuration = $this->service->configuration();
+
+        self::assertSame($callback, $restored->session->initialCallbackUrl);
+        $web2App = $restored->session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64(), \Allkiri\SmartId\DeviceLink::TYPE_WEB2APP);
+        self::assertSame($callback, explode('|', $web2App->payload('unprotected'))[6], 'the authentication code covers the callback');
+        $qr = $restored->session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64());
+        self::assertSame('', explode('|', $qr->payload('unprotected'))[6], 'a QR link carries none');
+    }
+
     public function testASignatureCanBeAppendedToAnAlreadySignedContainer(): void
     {
         $container = self::container();
