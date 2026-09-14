@@ -16,20 +16,38 @@ use Allkiri\Exception\InvalidArgumentException;
 final readonly class WebEidConfiguration
 {
     /**
-     * The Mobile-ID certificate policy. Disallowed by default so that a
-     * Mobile-ID certificate cannot be presented through Web eID: a site that
-     * asked for a card should be answered by a card, and the two means have
-     * different assurance and different revocation behaviour.
+     * The certificate policies of Mobile-ID certificates. Refused by default so
+     * that a Mobile-ID certificate cannot be presented through Web eID: a site
+     * that asked for a card should be answered by a card, and the two means
+     * have different assurance and different revocation behaviour.
+     *
+     * - `1.3.6.1.4.1.10015.1.3`: the Estonian Mobile-ID certificate policy.
+     * - `1.3.6.1.4.1.10015.18.1`: the Mobile-ID policy SK has issued under since
+     *   2022, in Estonia and Lithuania.
+     * - `1.3.6.1.4.1.10015.1.3.1` to `.3`: named by the Web eID library, which
+     *   refuses them anyway. They are kept so that this list says everything
+     *   refused.
+     *
+     * Policies are compared exactly, never by prefix.
      */
-    public const MOBILE_ID_POLICY_PREFIX = '1.3.6.1.4.1.10015.1.3';
+    public const MOBILE_ID_POLICIES = [
+        '1.3.6.1.4.1.10015.1.3',
+        '1.3.6.1.4.1.10015.1.3.1',
+        '1.3.6.1.4.1.10015.1.3.2',
+        '1.3.6.1.4.1.10015.1.3.3',
+        '1.3.6.1.4.1.10015.18.1',
+    ];
 
     /**
-     * @param list<string> $disallowedCertificatePolicies certificate policy OIDs to refuse
+     * @param list<string> $disallowedCertificatePolicies certificate policy OIDs to refuse, compared exactly. They are
+     *                                                    added to the Web eID library's own refusals, which already
+     *                                                    include the Estonian Mobile-ID policies, so an empty list
+     *                                                    does not admit Mobile-ID certificates.
      */
     public function __construct(
         public WebEidOrigin $origin,
         public int $challengeTtlSeconds = 300,
-        public array $disallowedCertificatePolicies = [self::MOBILE_ID_POLICY_PREFIX],
+        public array $disallowedCertificatePolicies = self::MOBILE_ID_POLICIES,
         public bool $checkRevocation = true,
     ) {
         if ($challengeTtlSeconds < 1) {
@@ -53,7 +71,12 @@ final readonly class WebEidConfiguration
     }
 
     /**
-     * @param list<string> $policies
+     * Replace the policies refused on top of the Web eID library's own.
+     *
+     * The library's refusal of the Estonian Mobile-ID policies stays in force
+     * whatever this list says, so an empty list does not admit them.
+     *
+     * @param list<string> $policies certificate policy OIDs, compared exactly
      */
     public function withDisallowedCertificatePolicies(array $policies): self
     {

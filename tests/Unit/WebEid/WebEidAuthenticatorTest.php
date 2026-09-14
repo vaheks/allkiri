@@ -354,6 +354,72 @@ final class WebEidAuthenticatorTest extends TestCase
         $this->authenticator()->validate($token, $challenge);
     }
 
+    // --- certificate policies ------------------------------------------------
+
+    /**
+     * The test PKI's card key, in a certificate that carries this policy.
+     */
+    private static function cardWithPolicy(string $policy): \Allkiri\Crypto\KeyPair
+    {
+        return \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::cardAuth(), [
+            'id-at-countryName' => 'EE',
+            'id-at-commonName' => 'JOEORG,JAAK-KRISTJAN,38001085718',
+            'id-at-givenName' => 'JAAK-KRISTJAN',
+            'id-at-surname' => 'JOEORG',
+            'id-at-serialNumber' => 'PNOEE-38001085718',
+        ], [
+            'id-ce-extKeyUsage' => [['id-kp-clientAuth'], false],
+            'id-ce-certificatePolicies' => [[['policyIdentifier' => $policy]], false],
+        ]);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function mobileIdPolicies(): iterable
+    {
+        yield 'the Estonian Mobile-ID policy' => ['1.3.6.1.4.1.10015.1.3'];
+        yield 'the policy SK has issued Mobile-ID under since 2022' => ['1.3.6.1.4.1.10015.18.1'];
+    }
+
+    #[DataProvider('mobileIdPolicies')]
+    public function testAMobileIdCertificateIsRefusedByDefault(string $policy): void
+    {
+        $challenge = $this->challenge();
+        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, self::cardWithPolicy($policy));
+
+        $this->expectException(WebEidException::class);
+        $this->expectExceptionMessage('Disallowed user certificate policy');
+
+        $this->authenticator()->validate($token, $challenge);
+    }
+
+    public function testAnEmptyListDoesNotAdmitMobileId(): void
+    {
+        $challenge = $this->challenge();
+        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, self::cardWithPolicy('1.3.6.1.4.1.10015.1.3.2'));
+        $configuration = WebEidConfiguration::forOrigin(self::ORIGIN)->withDisallowedCertificatePolicies([]);
+
+        $this->expectException(WebEidException::class);
+        $this->expectExceptionMessage('Disallowed user certificate policy');
+
+        $this->authenticator($configuration)->validate($token, $challenge);
+    }
+
+    public function testAnyOtherPolicyIsRefusedOnlyWhenListed(): void
+    {
+        $card = self::cardWithPolicy('1.3.6.1.4.1.99999.1');
+        $challenge = $this->challenge();
+
+        $identity = $this->authenticator()->validate(TestAuthToken::create(self::ORIGIN, $challenge->nonce, $card), $challenge);
+        self::assertSame('PNOEE-38001085718', $identity->semanticsIdentifier(), 'an unlisted policy signs in');
+
+        $configuration = WebEidConfiguration::forOrigin(self::ORIGIN)->withDisallowedCertificatePolicies(['1.3.6.1.4.1.99999.1']);
+        $this->expectExceptionMessage('Disallowed user certificate policy');
+
+        $this->authenticator($configuration)->validate(TestAuthToken::create(self::ORIGIN, $challenge->nonce, $card), $challenge);
+    }
+
     public function testACardCertificateOutsideItsValidityIsRefused(): void
     {
         $challenge = $this->challenge();

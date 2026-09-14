@@ -154,8 +154,18 @@ signatures with a local key, and the API the eID means will plug into.
 - `SmartIdAuthenticator` takes an `OcspClient` as its third argument, and
   `SmartIdConfiguration` has a `checkRevocation` flag with
   `withoutRevocationCheck()`.
+- `WebEidConfiguration::MOBILE_ID_POLICY_PREFIX` is replaced by
+  `MOBILE_ID_POLICIES`, the exact certificate policy OIDs refused by default.
 
 ### Fixed
+
+- Web eID sign-in refuses Mobile-ID certificates issued under the policy SK has
+  used since 2022, `1.3.6.1.4.1.10015.18.1`. allkiri named
+  `1.3.6.1.4.1.10015.1.3` as a prefix, but the Web eID library compares
+  policies exactly, so the prefix added nothing and neither refused the newer
+  policy. The default is now the exact list. The documentation says that an
+  empty list does not admit the Mobile-ID policies the library refuses on its
+  own.
 
 - Smart-ID sign-in now checks that the authentication certificate has not been
   revoked. SK's response verification guidance asks relying parties to, and

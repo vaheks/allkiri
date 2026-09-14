@@ -94,9 +94,17 @@ A token is refused unless:
   keeps its type and country in `semanticsIdentifier()`: a passport is
   `PASEE-…`, never the same account as a personal code `PNOEE-…`.
 
-Mobile-ID certificates are disallowed by default, so a Mobile-ID certificate
-cannot be presented through Web eID. A site that asked for a card should be
-answered by a card.
+Mobile-ID certificates are refused by their certificate policies, so a Mobile-ID
+certificate cannot be presented through Web eID. A site that asked for a card
+should be answered by a card. Two policies are refused, listed in
+`WebEidConfiguration::MOBILE_ID_POLICIES`:
+- `1.3.6.1.4.1.10015.1.3`, the Estonian Mobile-ID policy;
+- `1.3.6.1.4.1.10015.18.1`, the one SK has issued under since 2022.
+
+Policies are compared exactly, not by prefix.
+`withDisallowedCertificatePolicies()` replaces allkiri's list. The Web eID library
+refuses the Estonian Mobile-ID policies on its own as well, so an empty list does
+not admit them.
 
 ## Signing a container
 
