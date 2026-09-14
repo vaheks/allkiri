@@ -27,6 +27,22 @@ enum CertificateLevel: string
         return $actual->weight() >= $this->weight();
     }
 
+    /**
+     * The certificate policies SK puts in a Smart-ID authentication certificate
+     * of this level: its own, and the ETSI one. QC statements do not tell the
+     * levels apart, so these are what bear a reported level out.
+     *
+     * @see https://www.skidsolutions.eu/resources/profiles/ SK-CPR-SMART-ID, section 2.2.3
+     *
+     * @return list<string>
+     */
+    public function authenticationPolicies(): array
+    {
+        return $this === self::Advanced
+            ? ['1.3.6.1.4.1.10015.17.1', '0.4.0.2042.1.1']
+            : ['1.3.6.1.4.1.10015.17.2', '0.4.0.2042.1.2'];
+    }
+
     private function weight(): int
     {
         return $this === self::Advanced ? 1 : 2;

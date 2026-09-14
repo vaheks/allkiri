@@ -12,7 +12,8 @@ use Allkiri\Exception\InvalidArgumentException;
  * Everything the answer will be checked against is in here, which is why it
  * has to be stored rather than rebuilt: the challenge that was sent, the exact
  * interaction list that was sent, the callback URL a same-device flow returns
- * to, and for a device-link session the token and secret that mint its links.
+ * to, the certificate level and the account or person that were asked for,
+ * and for a device-link session the token and secret that mint its links.
  *
  * It serialises to JSON for a session store or a database row. **A device-link
  * session contains the session secret, so the serialised form must stay on the
@@ -24,8 +25,9 @@ final readonly class SmartIdSession implements \JsonSerializable
     public const VERSION = 2;
 
     /**
-     * Sessions stored before the callback URL was kept. They are still read, so
-     * that a deploy does not end the sessions in flight; they live two minutes.
+     * Sessions stored before the callback URL, the requested level and the
+     * person asked for were kept. They are still read, so that a deploy does
+     * not end the sessions in flight; they live two minutes.
      */
     private const VERSION_1 = 1;
 
@@ -33,10 +35,13 @@ final readonly class SmartIdSession implements \JsonSerializable
     public const TYPE_SIGNATURE = 'sign';
 
     /**
-     * @param string      $challenge          the rpChallenge for an authentication, or the digest for a signature, raw bytes
-     * @param string|null $verificationCode   the code to show; notification flows get it from the service, device-link flows compute it
-     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back; the app signs it, and every
-     *                                        link's authentication code covers it
+     * @param string                   $challenge           the rpChallenge for an authentication, or the digest for a signature, raw bytes
+     * @param string|null              $verificationCode    the code to show; notification flows get it from the service, device-link flows compute it
+     * @param string|null              $documentNumber      the account the session was started for, when it was started for one
+     * @param string|null              $initialCallbackUrl  where a Web2App or App2App flow sends the person back; the app signs it, and every
+     *                                                      link's authentication code covers it
+     * @param CertificateLevel|null    $certificateLevel    the level the session asked for; null for a session stored before it was kept
+     * @param SemanticsIdentifier|null $semanticsIdentifier the person the session was started for, when it was started for a person
      */
     public function __construct(
         public string $sessionId,
@@ -50,6 +55,8 @@ final readonly class SmartIdSession implements \JsonSerializable
         public ?string $deviceLinkBase = null,
         public ?\DateTimeImmutable $startedAt = null,
         public ?string $initialCallbackUrl = null,
+        public ?CertificateLevel $certificateLevel = null,
+        public ?SemanticsIdentifier $semanticsIdentifier = null,
     ) {
         if ($sessionId === '') {
             throw new InvalidArgumentException('A Smart-ID session needs an identifier');
@@ -59,6 +66,9 @@ final readonly class SmartIdSession implements \JsonSerializable
         }
         if ($challenge === '') {
             throw new InvalidArgumentException('A Smart-ID session needs the challenge or digest it was started with');
+        }
+        if ($documentNumber !== null && $semanticsIdentifier !== null) {
+            throw new InvalidArgumentException('A Smart-ID session is started for an account or for a person, not both');
         }
         self::requireUsableCallbackUrl($initialCallbackUrl);
     }
@@ -165,6 +175,8 @@ final readonly class SmartIdSession implements \JsonSerializable
             'deviceLinkBase' => $this->deviceLinkBase,
             'startedAt' => $this->startedAt?->format(DATE_ATOM),
             'initialCallbackUrl' => $this->initialCallbackUrl,
+            'certificateLevel' => $this->certificateLevel?->value,
+            'semanticsIdentifier' => $this->semanticsIdentifier === null ? null : (string) $this->semanticsIdentifier,
         ];
     }
 
@@ -182,6 +194,10 @@ final readonly class SmartIdSession implements \JsonSerializable
             throw new InvalidArgumentException('The stored Smart-ID challenge is not base64');
         }
         $startedAt = $data['startedAt'] ?? null;
+        // Only version 2 has anything to read in these.
+        $v2 = $version === self::VERSION;
+        $level = $v2 ? self::optional($data, 'certificateLevel') : null;
+        $semanticsIdentifier = $v2 ? self::optional($data, 'semanticsIdentifier') : null;
 
         return new self(
             self::string($data, 'sessionId'),
@@ -194,8 +210,11 @@ final readonly class SmartIdSession implements \JsonSerializable
             self::optional($data, 'sessionSecret'),
             self::optional($data, 'deviceLinkBase'),
             \is_string($startedAt) ? new \DateTimeImmutable($startedAt) : null,
-            // Only version 2 has anything to read here.
-            $version === self::VERSION ? self::optional($data, 'initialCallbackUrl') : null,
+            $v2 ? self::optional($data, 'initialCallbackUrl') : null,
+            $level === null
+                ? null
+                : CertificateLevel::tryFrom($level) ?? throw new InvalidArgumentException(\sprintf('Unknown stored Smart-ID certificate level "%s"', $level)),
+            $semanticsIdentifier === null ? null : SemanticsIdentifier::parse($semanticsIdentifier),
         );
     }
 

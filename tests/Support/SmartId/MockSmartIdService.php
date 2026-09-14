@@ -39,6 +39,9 @@ final class MockSmartIdService
 
     public const DOCUMENT_NUMBER = 'PNOEE-40504040001-MOCK-Q';
 
+    /** The account an authentication answers from, when not the default one. */
+    public ?string $documentNumberOverride = null;
+
     public SmartIdEndResult $endResult = SmartIdEndResult::Ok;
 
     public ?InteractionType $refusedInteraction = null;
@@ -325,7 +328,7 @@ final class MockSmartIdService
 
         return [
             'state' => 'COMPLETE',
-            'result' => ['endResult' => 'OK', 'documentNumber' => self::DOCUMENT_NUMBER],
+            'result' => ['endResult' => 'OK', 'documentNumber' => $this->documentNumberOverride ?? self::DOCUMENT_NUMBER],
             'signatureProtocol' => AcspV2Payload::PROTOCOL,
             'signature' => $signature,
             'cert' => ['value' => $this->signer->certificate->base64(), 'certificateLevel' => $this->certificateLevel->value],

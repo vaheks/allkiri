@@ -7,6 +7,7 @@ namespace Allkiri\SmartId;
 use Allkiri\Auth\AuthenticatedIdentity;
 use Allkiri\Auth\UnidentifiableCertificateException;
 use Allkiri\Clock\SystemClock;
+use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\NonceGenerator;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\RandomNonceGenerator;
@@ -50,9 +51,12 @@ final class SmartIdAuthenticator
      *
      * Show `$session->verificationCode` immediately: it is what lets them see
      * that the request on their phone is the one they started here.
+     *
+     * @param CertificateLevel|null $level the level to require; the configuration's when null
      */
     public function startNotification(SemanticsIdentifier|DocumentNumber $subject, Interactions $interactions, ?CertificateLevel $level = null): SmartIdSession
     {
+        $level ??= $this->client->configuration()->certificateLevel;
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
         $sessionId = $this->client->startNotificationAuthentication($subject, $challenge, $interactions, $level);
 
@@ -66,6 +70,8 @@ final class SmartIdAuthenticator
             VerificationCode::forData($challenge),
             $subject instanceof DocumentNumber ? $subject->value : null,
             startedAt: $this->now(),
+            certificateLevel: $level,
+            semanticsIdentifier: $subject instanceof SemanticsIdentifier ? $subject : null,
         );
     }
 
@@ -74,33 +80,37 @@ final class SmartIdAuthenticator
      *
      * The person is not named; who they are comes back in the certificate.
      *
-     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back.
-     *                                        The session keeps it, because the app signs it.
+     * @param CertificateLevel|null $level              the level to require; the configuration's when null
+     * @param string|null           $initialCallbackUrl where a Web2App or App2App flow sends the person back.
+     *                                                  The session keeps it, because the app signs it.
      */
     public function startAnonymous(Interactions $interactions, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSession
     {
         SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
+        $level ??= $this->client->configuration()->certificateLevel;
         $interactions = $interactions->forDeviceLink();
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
         $response = $this->client->startAnonymousDeviceLinkAuthentication($challenge, $interactions, $level, $initialCallbackUrl);
 
-        return $this->deviceLinkSession($response, $challenge, $interactions, null, $initialCallbackUrl);
+        return $this->deviceLinkSession($response, $challenge, $interactions, null, $initialCallbackUrl, $level);
     }
 
     /**
      * Start a device-link authentication for a person who is already known.
      *
-     * @param string|null $initialCallbackUrl where a Web2App or App2App flow sends the person back.
-     *                                        The session keeps it, because the app signs it.
+     * @param CertificateLevel|null $level              the level to require; the configuration's when null
+     * @param string|null           $initialCallbackUrl where a Web2App or App2App flow sends the person back.
+     *                                                  The session keeps it, because the app signs it.
      */
     public function startDeviceLink(SemanticsIdentifier|DocumentNumber $subject, Interactions $interactions, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSession
     {
         SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
+        $level ??= $this->client->configuration()->certificateLevel;
         $interactions = $interactions->forDeviceLink();
         $challenge = $this->nonceGenerator->generate(self::CHALLENGE_BYTES);
         $response = $this->client->startDeviceLinkAuthentication($subject, $challenge, $interactions, $level, $initialCallbackUrl);
 
-        return $this->deviceLinkSession($response, $challenge, $interactions, $subject instanceof DocumentNumber ? $subject->value : null, $initialCallbackUrl);
+        return $this->deviceLinkSession($response, $challenge, $interactions, $subject, $initialCallbackUrl, $level);
     }
 
     // --- finishing ----------------------------------------------------------
@@ -180,13 +190,16 @@ final class SmartIdAuthenticator
             throw new SmartIdException('The Smart-ID signature does not match this session; it proves nothing');
         }
 
-        $this->verifyCertificate($certificate, $status);
+        $this->verifyCertificate($certificate, $session, $status);
 
         try {
-            return AuthenticatedIdentity::fromCertificate($certificate);
+            $identity = AuthenticatedIdentity::fromCertificate($certificate);
         } catch (UnidentifiableCertificateException $exception) {
             throw new SmartIdException('The Smart-ID certificate does not name a person: ' . $exception->getMessage(), 0, $exception);
         }
+        $this->verifyAccount($session, $status, $identity);
+
+        return $identity;
     }
 
     // --- checks -------------------------------------------------------------
@@ -219,15 +232,29 @@ final class SmartIdAuthenticator
         }
     }
 
-    private function verifyCertificate(\Allkiri\Crypto\Certificate $certificate, SmartIdSessionStatus $status): void
+    private function verifyCertificate(Certificate $certificate, SmartIdSession $session, SmartIdSessionStatus $status): void
     {
-        $requested = $this->client->configuration()->certificateLevel;
-        $actual = $status->certificateLevel;
-        if ($actual !== null && !$requested->isSatisfiedBy($actual)) {
+        // A session stored before the level was kept is judged against the
+        // configuration, as it would have been when it started.
+        $requested = $session->certificateLevel ?? $this->client->configuration()->certificateLevel;
+        $actual = $status->certificateLevel
+            ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'Smart-ID authenticated without saying what level of certificate answered');
+        if (!$requested->isSatisfiedBy($actual)) {
             throw new SmartIdException(\sprintf(
                 'Smart-ID returned a %s certificate where %s was requested',
                 $actual->value,
                 $requested->value,
+            ));
+        }
+
+        // The level is reported beside the signature, not inside what was
+        // signed, so it is believed only as far as the certificate bears it out.
+        $missing = array_values(array_diff($actual->authenticationPolicies(), $certificate->policies()));
+        if ($missing !== []) {
+            throw new SmartIdException(\sprintf(
+                'Smart-ID reported a %s certificate, but the certificate lacks the policies of one: %s',
+                $actual->value,
+                implode(', ', $missing),
             ));
         }
 
@@ -242,8 +269,51 @@ final class SmartIdAuthenticator
         }
     }
 
-    private function deviceLinkSession(DeviceLinkSessionResponse $response, string $challenge, Interactions $interactions, ?string $documentNumber, ?string $initialCallbackUrl): SmartIdSession
+    /**
+     * The account that answered must be the one the session asked for, and the
+     * certificate must belong to that account.
+     *
+     * The identity returned is read from the verified certificate either way.
+     * This matters to an application that trusts its own input, for instance
+     * one that shows "signed in as" the code the person typed.
+     */
+    private function verifyAccount(SmartIdSession $session, SmartIdSessionStatus $status, AuthenticatedIdentity $identity): void
     {
+        $documentNumber = $status->documentNumber
+            ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'Smart-ID authenticated without naming the account that answered');
+        if ($session->documentNumber !== null && $session->documentNumber !== $documentNumber->value) {
+            throw new SmartIdException(\sprintf(
+                'Smart-ID answered from account %s but the session was started for %s',
+                $documentNumber->value,
+                $session->documentNumber,
+            ));
+        }
+
+        $account = (string) $documentNumber->semanticsIdentifier();
+        if ($session->semanticsIdentifier !== null && (string) $session->semanticsIdentifier !== $account) {
+            throw new SmartIdException(\sprintf(
+                'Smart-ID answered for %s but the session was started for %s',
+                $account,
+                $session->semanticsIdentifier,
+            ));
+        }
+        if ($identity->semanticsIdentifier() !== $account) {
+            throw new SmartIdException(\sprintf(
+                'The Smart-ID certificate belongs to %s but the account that answered belongs to %s',
+                $identity->semanticsIdentifier(),
+                $account,
+            ));
+        }
+    }
+
+    private function deviceLinkSession(
+        DeviceLinkSessionResponse $response,
+        string $challenge,
+        Interactions $interactions,
+        SemanticsIdentifier|DocumentNumber|null $subject,
+        ?string $initialCallbackUrl,
+        CertificateLevel $level,
+    ): SmartIdSession {
         return new SmartIdSession(
             $response->sessionId,
             SmartIdSession::TYPE_AUTHENTICATION,
@@ -252,12 +322,14 @@ final class SmartIdAuthenticator
             // Nothing is pushed, so the code is derived from the challenge the
             // app will see rather than handed to us.
             VerificationCode::forData($challenge),
-            $documentNumber,
+            $subject instanceof DocumentNumber ? $subject->value : null,
             $response->sessionToken,
             $response->sessionSecret,
             $response->deviceLinkBase,
             $this->now(),
             $initialCallbackUrl,
+            $level,
+            $subject instanceof SemanticsIdentifier ? $subject : null,
         );
     }
 

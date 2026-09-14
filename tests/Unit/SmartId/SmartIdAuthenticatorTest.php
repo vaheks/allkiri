@@ -53,8 +53,34 @@ final class SmartIdAuthenticatorTest extends TestCase
     {
         $this->clock = new FrozenClock('2026-03-01T10:00:00Z');
         $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http);
+        $this->service = MockSmartIdService::register($this->http, self::signer());
         $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+    }
+
+    /** @var array<string, \Allkiri\Crypto\KeyPair> */
+    private static array $signers = [];
+
+    /**
+     * The test PKI's Smart-ID person, with the certificate policies SK puts in
+     * an authentication certificate of this level.
+     */
+    private static function signer(CertificateLevel $level = CertificateLevel::Qualified): \Allkiri\Crypto\KeyPair
+    {
+        return self::$signers[$level->value] ??= \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::signerRsaPerson(), [
+            'id-at-countryName' => 'EE',
+            'id-at-commonName' => 'MARY ANN,OCONNEZ-SUSLIK TESTNUMBER',
+            'id-at-givenName' => 'MARY ANN',
+            'id-at-surname' => 'OCONNEZ-SUSLIK TESTNUMBER',
+            'id-at-serialNumber' => 'PNOEE-' . self::IDENTITY_CODE,
+        ], self::policies($level));
+    }
+
+    /**
+     * @return array<string, array{mixed, bool}>
+     */
+    private static function policies(CertificateLevel $level): array
+    {
+        return ['id-ce-certificatePolicies' => [array_map(static fn(string $oid): array => ['policyIdentifier' => $oid], $level->authenticationPolicies()), false]];
     }
 
     private function authenticator(?ChainBuilder $chainBuilder = null): SmartIdAuthenticator
@@ -503,8 +529,13 @@ final class SmartIdAuthenticatorTest extends TestCase
 
     public function testAnESealCertificateIsRefusedBecauseItNamesNoPerson(): void
     {
+        $eSeal = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::signerRsa(), [
+            'id-at-countryName' => 'EE',
+            'id-at-organizationName' => 'Allkiri OÜ',
+            'id-at-commonName' => 'Allkiri test e-seal',
+        ], self::policies(CertificateLevel::Qualified));
         $this->http = new MockHttpClient();
-        $this->service = MockSmartIdService::register($this->http, TestPki::signerRsa());
+        $this->service = MockSmartIdService::register($this->http, $eSeal);
         $this->client = new SmartIdClient($this->service->configuration(), $this->http);
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(self::identity(), self::interactions());
@@ -512,6 +543,135 @@ final class SmartIdAuthenticatorTest extends TestCase
         $this->expectExceptionMessageMatches('/The Smart-ID certificate does not name a person/');
 
         $authenticator->poll($session);
+    }
+
+    public function testALevelTheCallAsksForReplacesTheConfiguredOne(): void
+    {
+        // The configuration asks for QUALIFIED; this call asks for less.
+        $this->http = new MockHttpClient();
+        $this->service = MockSmartIdService::register($this->http, self::signer(CertificateLevel::Advanced));
+        $this->service->certificateLevel = CertificateLevel::Advanced;
+        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+
+        $session = $authenticator->startNotification(self::identity(), self::interactions(), CertificateLevel::Advanced);
+
+        self::assertSame(CertificateLevel::Advanced, $session->certificateLevel);
+        self::assertNotNull($authenticator->poll($session));
+    }
+
+    public function testACallAskingForMoreThanTheConfigurationIsHeldToIt(): void
+    {
+        $configuration = $this->service->configuration();
+        $this->client = new SmartIdClient(
+            new \Allkiri\SmartId\SmartIdConfiguration($configuration->url, $configuration->relyingPartyUuid, $configuration->relyingPartyName, $configuration->scheme, CertificateLevel::Advanced),
+            $this->http,
+        );
+        $this->service->certificateLevel = CertificateLevel::Advanced;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions(), CertificateLevel::Qualified);
+
+        $this->expectExceptionMessageMatches('/ADVANCED certificate where QUALIFIED was requested/');
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnAnswerThatDoesNotSayItsLevelIsRefused(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+        $status = $this->client->sessionStatus($session->sessionId);
+        $withoutLevel = new \Allkiri\SmartId\SmartIdSessionStatus(
+            $status->state,
+            $status->result,
+            $status->documentNumber,
+            $status->signatureValue,
+            $status->signatureAlgorithmName,
+            $status->pssParameters,
+            $status->certificate,
+            null,
+            $status->serverRandom,
+            $status->userChallenge,
+            $status->flowType,
+            $status->interactionTypeUsed,
+            $status->refusedInteraction,
+            $status->deviceIpAddress,
+            $status->signatureProtocol,
+        );
+
+        $this->expectExceptionMessage('without saying what level of certificate answered');
+
+        $authenticator->complete($session, $withoutLevel);
+    }
+
+    public function testALevelTheCertificateDoesNotBearOutIsRefused(): void
+    {
+        // The committed certificate carries no certificate policies at all.
+        $this->http = new MockHttpClient();
+        $this->service = MockSmartIdService::register($this->http, TestPki::signerRsaPerson());
+        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID reported a QUALIFIED certificate, but the certificate lacks the policies of one: 1.3.6.1.4.1.10015.17.2, 0.4.0.2042.1.2');
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnAdvancedCertificateReportedAsQualifiedIsRefused(): void
+    {
+        $this->http = new MockHttpClient();
+        $this->service = MockSmartIdService::register($this->http, self::signer(CertificateLevel::Advanced));
+        $this->client = new SmartIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(self::identity(), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID reported a QUALIFIED certificate, but the certificate lacks the policies of one');
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnAnswerFromAnotherAccountIsRefused(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(new DocumentNumber('PNOEE-40504040001-OTHR-Q'), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID answered from account ' . MockSmartIdService::DOCUMENT_NUMBER . ' but the session was started for PNOEE-40504040001-OTHR-Q');
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnAnswerForAnotherPersonIsRefused(): void
+    {
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(SemanticsIdentifier::estonian('60001019906'), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID answered for PNOEE-' . self::IDENTITY_CODE . ' but the session was started for PNOEE-60001019906');
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnAnonymousAnswerWhoseCertificateIsNotTheAccountsIsRefused(): void
+    {
+        $this->service->flowType = FlowType::Qr;
+        $this->service->documentNumberOverride = 'PNOEE-60001019906-MOCK-Q';
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startAnonymous(self::interactions());
+
+        $this->expectExceptionMessage('The Smart-ID certificate belongs to PNOEE-' . self::IDENTITY_CODE . ' but the account that answered belongs to PNOEE-60001019906');
+
+        $authenticator->poll($session);
+    }
+
+    public function testTheLevelAndThePersonAskedForSurviveJson(): void
+    {
+        $session = $this->authenticator()->startNotification(self::identity(), self::interactions(), CertificateLevel::Qscd);
+
+        $restored = SmartIdSession::fromJson(json_encode($session, JSON_THROW_ON_ERROR));
+
+        self::assertSame(CertificateLevel::Qscd, $restored->certificateLevel);
+        self::assertSame('PNOEE-' . self::IDENTITY_CODE, (string) $restored->semanticsIdentifier);
+        self::assertNull($restored->documentNumber);
     }
 
     public function testACertificateFromAnUnknownAuthorityIsRefused(): void
