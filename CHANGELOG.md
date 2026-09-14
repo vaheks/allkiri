@@ -147,6 +147,15 @@ signatures with a local key, and the API the eID means will plug into.
   files were never at risk: the copy still commits to the real certificate, and
   data files are resolved by name.
 
+- A DTD in a UTF-16 document is now refused. XML was checked for `<!DOCTYPE` by
+  searching its bytes, and UTF-16 puts a zero byte between the characters, so
+  such a document passed and libxml expanded its internal entities: a few bytes
+  became a thousand in the reproduction, and a billion-laughs document would
+  have grown as far as libxml2's own limits allow. Every signature file,
+  manifest and trusted list is loaded this way. The parsed document is now
+  checked as well. The entities are still expanded once, within those limits,
+  before the document is refused. External entities were never loaded.
+
 - Worked around a defect in the official Web eID validation library that
   refused roughly one ID-card authentication in 256. A card pads each half of an
   ECDSA signature to the width of the curve, so a half beginning with a zero

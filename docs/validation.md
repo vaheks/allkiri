@@ -179,6 +179,14 @@ broken one. The declared size is checked first because it costs nothing, and an
 archive that lies about it is stopped part way through decompressing, so the
 memory a refusal costs is bounded by the allowance rather than by the payload.
 
+**A DTD, in any encoding.** A signature file, a manifest or a trusted list that
+declares a DTD is refused, so none of them can define entities. The check runs on
+the parsed document, because a search of the bytes for `<!DOCTYPE` misses UTF-16,
+where a zero byte sits between the characters. Such a document's entities have
+already been expanded by the time it is refused, within libxml2's own limits on
+expansion. Refusing every encoding other than UTF-8 would avoid that, and was
+left out so that UTF-16 documents stay readable.
+
 **What is refused outright**: ZIP64 archives, multi-disk archives, encrypted
 entries, compression methods other than store and deflate, and entries whose
 data is truncated. The writer refuses the same shapes rather than producing
