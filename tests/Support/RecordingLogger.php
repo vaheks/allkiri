@@ -47,7 +47,39 @@ final class RecordingLogger extends AbstractLogger
      */
     public function lastLine(): string
     {
-        $record = $this->last();
+        return self::filled($this->last());
+    }
+
+    /**
+     * Everything a log backend could print from what was recorded: each message
+     * with its placeholders filled in, every string in its context, and every
+     * exception as PHP prints it, which includes the whole chain and the trace.
+     *
+     * A test that something never reaches a log asserts on this, not on one
+     * field of one record.
+     */
+    public function transcript(): string
+    {
+        $lines = [];
+        foreach ($this->records as $record) {
+            $lines[] = self::filled($record);
+            foreach ($record['context'] as $value) {
+                if (\is_string($value)) {
+                    $lines[] = $value;
+                } elseif ($value instanceof \Throwable) {
+                    $lines[] = (string) $value;
+                }
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array{level: string, message: string, context: array<mixed>} $record
+     */
+    private static function filled(array $record): string
+    {
         $line = $record['message'];
         foreach ($record['context'] as $key => $value) {
             $replacement = match (true) {

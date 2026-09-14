@@ -56,19 +56,22 @@ final class OcspClient
         $nonce = $this->options->nonceMode === NonceMode::Ignore ? null : $this->nonces->generate(self::NONCE_BYTES);
         $request = OcspRequest::build(CertId::for($subject, $issuer, $this->certIdHashOid), $nonce);
 
+        // The responder URL comes from a certificate, so it is shown the way
+        // HttpRequest redacts any URL in a message.
+        $shown = HttpRequest::withoutIdentities($url);
         try {
             $http = $this->http->send(HttpRequest::post($url, self::CONTENT_TYPE_REQUEST, $request->der, ['Accept' => 'application/ocsp-response']));
         } catch (TransportException $e) {
-            throw new OcspException('OCSP_TRANSPORT', \sprintf('OCSP request to %s failed: %s', $url, $e->getMessage()), $e);
+            throw new OcspException('OCSP_TRANSPORT', \sprintf('OCSP request to %s failed: %s', $shown, $e->getMessage()), $e);
         }
         if (!$http->isSuccess()) {
-            throw new OcspException('OCSP_HTTP_STATUS', \sprintf('OCSP responder %s answered HTTP %d', $url, $http->status));
+            throw new OcspException('OCSP_HTTP_STATUS', \sprintf('OCSP responder %s answered HTTP %d', $shown, $http->status));
         }
 
         try {
             $response = OcspResponse::fromDer($http->body);
         } catch (Asn1Exception $e) {
-            throw new OcspException('OCSP_MALFORMED_RESPONSE', \sprintf('OCSP responder %s returned an unparseable response: %s', $url, $e->getMessage()), $e);
+            throw new OcspException('OCSP_MALFORMED_RESPONSE', \sprintf('OCSP responder %s returned an unparseable response: %s', $shown, $e->getMessage()), $e);
         }
 
         $options = $trustedResponders === [] ? $this->options : $this->options->withTrustedResponders($trustedResponders);
@@ -85,7 +88,7 @@ final class OcspClient
                     $verification->single->revocationReason,
                 );
             case CertStatus::Unknown:
-                throw new CertificateRevokedException(CertificateRevokedException::REASON_UNKNOWN, \sprintf('OCSP responder %s does not know certificate %s', $url, $subject->subjectDn()));
+                throw new CertificateRevokedException(CertificateRevokedException::REASON_UNKNOWN, \sprintf('OCSP responder %s does not know certificate %s', $shown, $subject->subjectDn()));
         }
     }
 

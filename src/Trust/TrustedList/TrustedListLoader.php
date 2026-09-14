@@ -59,10 +59,10 @@ final class TrustedListLoader
         try {
             $response = $this->http->send(HttpRequest::get($source->url, ['Accept' => 'application/xml, text/xml, */*']));
         } catch (TransportException $e) {
-            throw new TrustedListException(TrustedListException::REASON_TRANSPORT, \sprintf('Could not fetch the trusted list %s: %s', $source->url, $e->getMessage()), $e);
+            throw new TrustedListException(TrustedListException::REASON_TRANSPORT, \sprintf('Could not fetch the trusted list %s: %s', HttpRequest::withoutIdentities($source->url), $e->getMessage()), $e);
         }
         if (!$response->isSuccess() || $response->body === '') {
-            throw new TrustedListException(TrustedListException::REASON_TRANSPORT, \sprintf('Trusted list %s answered HTTP %d', $source->url, $response->status));
+            throw new TrustedListException(TrustedListException::REASON_TRANSPORT, \sprintf('Trusted list %s answered HTTP %d', HttpRequest::withoutIdentities($source->url), $response->status));
         }
 
         return $response->body;

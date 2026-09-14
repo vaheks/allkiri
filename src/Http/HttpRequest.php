@@ -8,6 +8,9 @@ use Allkiri\Exception\InvalidArgumentException;
 
 final readonly class HttpRequest
 {
+    /** What an identity code in a URL is replaced with wherever the URL is shown. */
+    public const REDACTED = '[redacted]';
+
     /**
      * @param non-empty-string      $method
      * @param non-empty-string      $url
@@ -50,6 +53,46 @@ final readonly class HttpRequest
         }
 
         return null;
+    }
+
+    /**
+     * The URL as it may appear in a message or a log: without the identity
+     * codes some paths carry.
+     *
+     * Every exception that names a URL uses this, so that neither the
+     * library's logs nor an application logging the exception records who was
+     * called about.
+     */
+    public function redactedUrl(): string
+    {
+        return self::withoutIdentities($this->url);
+    }
+
+    /**
+     * Remove the identity codes that some Smart-ID paths carry.
+     *
+     * `/v3/signature/certificate/PNOEE-50001029996-MOCK-Q` names a person and a
+     * device. The type and country are kept, because they say which service
+     * was called without saying who was called about.
+     */
+    public static function withoutIdentities(string $url): string
+    {
+        $parts = explode('/', $url);
+        foreach ($parts as $index => $part) {
+            // ETSI EN 319 412-1 semantics identifiers and SK document numbers:
+            // three letters, a country, then the person.
+            if (preg_match('/^([A-Z]{3}[A-Z]{2})-.+$/', $part, $matches) === 1) {
+                $parts[$index] = $matches[1] . '-' . self::REDACTED;
+
+                continue;
+            }
+            // A bare national identity number, which older interfaces take.
+            if (preg_match('/^\d{11}$/', $part) === 1) {
+                $parts[$index] = self::REDACTED;
+            }
+        }
+
+        return implode('/', $parts);
     }
 
     /**

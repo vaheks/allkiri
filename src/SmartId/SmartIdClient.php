@@ -67,7 +67,7 @@ final class SmartIdClient
         if ($state !== 'OK') {
             throw new SmartIdApiException(
                 SmartIdApiException::REASON_ACCOUNT_NOT_FOUND,
-                \sprintf('Smart-ID has no usable certificate for %s (state %s)', $documentNumber, $state),
+                \sprintf('Smart-ID has no usable certificate for %s (state %s)', HttpRequest::withoutIdentities($documentNumber->value), $state),
             );
         }
 
@@ -298,7 +298,7 @@ final class SmartIdClient
             'relyingPartyName' => $this->configuration->relyingPartyName,
         ] + $request, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
-        $this->logger?->debug('Smart-ID POST {url}', ['url' => $url]);
+        $this->logger?->debug('Smart-ID POST {url}', ['url' => HttpRequest::withoutIdentities($url)]);
 
         return $this->decode($this->send(HttpRequest::post($url, 'application/json', $payload, ['Accept' => 'application/json'])), $url);
     }
@@ -310,7 +310,7 @@ final class SmartIdClient
         } catch (TransportException $exception) {
             throw new SmartIdApiException(
                 SmartIdApiException::REASON_TRANSPORT,
-                \sprintf('Smart-ID at %s could not be reached: %s', $request->url, $exception->getMessage()),
+                \sprintf('Smart-ID at %s could not be reached: %s', $request->redactedUrl(), $exception->getMessage()),
                 null,
                 $exception,
             );
@@ -330,7 +330,7 @@ final class SmartIdClient
         if (!\is_array($decoded)) {
             throw new SmartIdApiException(
                 SmartIdApiException::REASON_MALFORMED_RESPONSE,
-                \sprintf('Smart-ID at %s answered with something that is not a JSON object', $url),
+                \sprintf('Smart-ID at %s answered with something that is not a JSON object', HttpRequest::withoutIdentities($url)),
                 $response->status,
             );
         }
