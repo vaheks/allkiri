@@ -86,7 +86,7 @@ final class XmlDsigVerifier
             $prefixList = trim(Xml::attribute($xpath, 'ec:InclusiveNamespaces/@PrefixList', $transform));
             $prefixLists[] = $prefixList === '' ? [] : self::split($prefixList);
         }
-        $result = static fn(bool $resolved, bool $matches, ?string $problem = null): ReferenceResult => new ReferenceResult(
+        $result = static fn(bool $resolved, bool $matches, ?string $problem = null, bool $ambiguous = false): ReferenceResult => new ReferenceResult(
             $uri,
             $reference->getAttribute('Type'),
             $reference->getAttribute('Id'),
@@ -95,7 +95,14 @@ final class XmlDsigVerifier
             $resolved,
             $matches,
             $problem,
+            $ambiguous,
         );
+
+        $document = $signature->ownerDocument;
+        $carriers = $document !== null && str_starts_with($uri, '#') ? \count(Xml::elementsById($document, substr($uri, 1))) : 0;
+        if ($carriers > 1) {
+            return $result(false, false, \sprintf('Reference "%s" is ambiguous: %d elements carry the Id "%s"', $uri, $carriers, substr($uri, 1)), true);
+        }
 
         $hash = HashAlgorithm::tryFromXmlUri($digestMethod);
         if ($hash === null) {

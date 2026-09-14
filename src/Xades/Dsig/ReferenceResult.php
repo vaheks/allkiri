@@ -21,6 +21,8 @@ final readonly class ReferenceResult
         public bool $resolved,
         public bool $digestMatches,
         public ?string $problem = null,
+        /** More than one element carries the Id this reference names, so it was not followed. */
+        public bool $ambiguous = false,
     ) {}
 
     public function isValid(): bool

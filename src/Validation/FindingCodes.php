@@ -46,6 +46,9 @@ final class FindingCodes
     public const SIGNED_DATA_MISSING = 'SIGNED_DATA_MISSING';
     public const UNSIGNED_DATA_FILE = 'UNSIGNED_DATA_FILE';
 
+    /** A reference names an Id that more than one element carries, so what it covers is ambiguous. */
+    public const DUPLICATE_ID = 'DUPLICATE_ID';
+
     // Signing certificate
     public const SIGNING_CERTIFICATE_MISSING = 'SIGNING_CERTIFICATE_MISSING';
     public const SIGNING_CERTIFICATE_DIGEST_MISMATCH = 'SIGNING_CERTIFICATE_DIGEST_MISMATCH';

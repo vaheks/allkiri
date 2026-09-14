@@ -7,6 +7,7 @@ namespace Allkiri\Xades\Model;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
 use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xades\Ns;
 
 /**
  * Builds the {@see XadesSignature} read model from a ds:Signature element.
@@ -40,7 +41,9 @@ final class XadesSignatureParser
 
         $keyInfoCertificates = $this->certificates($xpath, 'ds:KeyInfo/ds:X509Data/ds:X509Certificate', $signature, $warnings, 'ds:KeyInfo');
 
-        $signedProperties = Xml::element($xpath, 'ds:Object/xades:QualifyingProperties/xades:SignedProperties', $signature);
+        $ownSignedProperties = Xml::element($xpath, 'ds:Object/xades:QualifyingProperties/xades:SignedProperties', $signature);
+        $unboundReference = self::unboundSignedPropertiesReference($signature, $references, $ownSignedProperties);
+        $signedProperties = $unboundReference === null ? $ownSignedProperties : null;
         $signingTime = null;
         $signingCertificateIsV2 = false;
         $signingCertificateReferences = [];
@@ -49,7 +52,9 @@ final class XadesSignatureParser
         $claimedRoles = [];
         $productionPlace = null;
         if ($signedProperties === null) {
-            $warnings[] = 'xades:SignedProperties missing';
+            $warnings[] = $unboundReference === null
+                ? 'xades:SignedProperties missing'
+                : \sprintf('The signed properties reference "%s" does not resolve to this signature\'s own xades:SignedProperties, so they are not read', $unboundReference);
         } else {
             $time = Xml::text($xpath, 'xades:SignedSignatureProperties/xades:SigningTime', $signedProperties);
             if ($time !== null) {
@@ -151,7 +156,38 @@ final class XadesSignatureParser
             $claimedRoles,
             $productionPlace,
             $warnings,
+            $unboundReference,
         );
+    }
+
+    /**
+     * The URI of the signed-properties reference when it resolves to anything
+     * other than this signature's own SignedProperties. Null when it resolves
+     * there, or when there is no such reference, which the policy judges.
+     *
+     * The verifier digests whatever the reference resolves to. Reading the
+     * properties by position instead would let an untouched copy placed
+     * elsewhere be digested while altered properties inside the signature are
+     * reported, and the signature would still verify. So the two have to be
+     * the same element before anything is read from them.
+     *
+     * @param list<array{id: string, uri: string, type: string, digestMethod: string, digestValue: string, transforms: list<string>}> $references
+     */
+    private static function unboundSignedPropertiesReference(\DOMElement $signature, array $references, ?\DOMElement $own): ?string
+    {
+        foreach ($references as $reference) {
+            if (!\in_array($reference['type'], [Ns::TYPE_SIGNED_PROPERTIES, Ns::TYPE_SIGNED_PROPERTIES_V111], true)) {
+                continue;
+            }
+            $document = $signature->ownerDocument;
+            $referenced = $document !== null && str_starts_with($reference['uri'], '#')
+                ? Xml::elementById($document, substr($reference['uri'], 1))
+                : null;
+
+            return $own !== null && $referenced !== null && $referenced->isSameNode($own) ? null : $reference['uri'];
+        }
+
+        return null;
     }
 
     /**

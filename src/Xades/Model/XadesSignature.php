@@ -46,6 +46,12 @@ final readonly class XadesSignature
         public array $claimedRoles,
         public ?string $productionPlace,
         public array $warnings,
+        /**
+         * The URI of a signed-properties reference that does not resolve to
+         * this signature's own SignedProperties. Their contents are then left
+         * unread, because they are not what was signed.
+         */
+        public ?string $unboundSignedPropertiesReference = null,
     ) {}
 
     public function signerCertificate(): ?Certificate
