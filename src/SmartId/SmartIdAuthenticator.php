@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\SmartId;
 
 use Allkiri\Auth\AuthenticatedIdentity;
+use Allkiri\Auth\UnidentifiableCertificateException;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Crypto\NonceGenerator;
 use Allkiri\Crypto\PublicKeyVerifier;
@@ -172,7 +173,11 @@ final class SmartIdAuthenticator
 
         $this->verifyCertificate($certificate, $status);
 
-        return AuthenticatedIdentity::fromCertificate($certificate);
+        try {
+            return AuthenticatedIdentity::fromCertificate($certificate);
+        } catch (UnidentifiableCertificateException $exception) {
+            throw new SmartIdException('The Smart-ID certificate does not name a person: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     // --- checks -------------------------------------------------------------

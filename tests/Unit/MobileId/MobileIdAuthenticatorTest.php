@@ -298,6 +298,41 @@ final class MobileIdAuthenticatorTest extends TestCase
         $authenticator->poll($session);
     }
 
+    public function testACertificateNamingAPassportIsNotThePersonalCodeAskedFor(): void
+    {
+        // Mobile-ID is asked for by personal code. A passport number that reads
+        // the same belongs to somebody else.
+        $passport = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::signerEc256(), [
+            'id-at-countryName' => 'EE',
+            'id-at-serialNumber' => 'PASEE-' . self::IDENTITY_CODE,
+        ]);
+        $this->http = new MockHttpClient();
+        $this->service = MockMobileIdService::register($this->http, $passport);
+        $this->client = new MobileIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->start(self::identity());
+        $this->service->expectToSign($session->challenge);
+
+        $this->expectExceptionMessage('Mobile-ID answered for PASEE-' . self::IDENTITY_CODE . ' but the session was started for ' . self::IDENTITY_CODE);
+
+        $authenticator->poll($session);
+    }
+
+    public function testAnESealCertificateIsRefusedBecauseItNamesNoPerson(): void
+    {
+        $this->http = new MockHttpClient();
+        $this->service = MockMobileIdService::register($this->http, TestPki::signerRsa());
+        $this->client = new MobileIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->start(self::identity());
+        $this->service->expectToSign($session->challenge);
+
+        $this->expectException(\Allkiri\MobileId\MobileIdException::class);
+        $this->expectExceptionMessage('does not name a person');
+
+        $authenticator->poll($session);
+    }
+
     public function testACertificateOutsideItsValidityIsRefused(): void
     {
         $this->clock->set('2060-01-01T00:00:00Z');

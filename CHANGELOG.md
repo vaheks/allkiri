@@ -137,6 +137,11 @@ signatures with a local key, and the API the eID means will plug into.
   their second argument. It was optional, and without one the trust check was
   skipped. The `Allkiri` factory always passed one, so only code that constructs
   the authenticators directly has to change.
+- `AuthenticatedIdentity` has a required `identifierType`, and its constructor
+  refuses an empty identity code or a country that is not two letters.
+  `semanticsIdentifier()` keeps the identifier's own type and country: a
+  passport is `PASEE-…` or `PASFI-…`, never `PNOEE-…`. The JSON form is now
+  version 2, with an `identifierType` field.
 
 ### Fixed
 
@@ -146,6 +151,17 @@ signatures with a local key, and the API the eID means will plug into.
   challenge, including one from a test PKI or one the caller had issued, and
   said nothing. The class documentation and the Smart-ID guide promised the check
   unconditionally.
+
+- A certificate that names no person no longer signs anyone in. An e-seal, or
+  any certificate without a personal code, came back from Web eID sign-in with
+  the identity code "" and the account key "PNOEE-", which every such
+  certificate shared, and Smart-ID did not refuse it either. Organisation
+  identifiers such as "NTREE-…" were read as personal codes, and a passport or
+  identity card number was reported as a personal code, so "PASEE-123" and
+  "PNOEE-123" became the same account. All three means now refuse a certificate
+  that does not name a person by personal code, passport or identity card
+  number. Mobile-ID, which is asked for by personal code, accepts only a
+  personal code.
 
 - A signature's signed properties can no longer be altered while the signature
   still verifies. A same-document reference was resolved to the first element

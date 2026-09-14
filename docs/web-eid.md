@@ -88,7 +88,11 @@ A token is refused unless:
 - the signature verifies over this origin and this challenge;
 - the certificate can be used for client authentication;
 - its policy is not one you disallowed;
-- it is valid now, chains to a trust anchor, and is not revoked.
+- it is valid now, chains to a trust anchor, and is not revoked;
+- it names a person by personal code, passport or identity card number, so an
+  e-seal or an organisation certificate cannot sign anyone in. The identifier
+  keeps its type and country in `semanticsIdentifier()`: a passport is
+  `PASEE-…`, never the same account as a personal code `PNOEE-…`.
 
 Mobile-ID certificates are disallowed by default, so a Mobile-ID certificate
 cannot be presented through Web eID. A site that asked for a card should be

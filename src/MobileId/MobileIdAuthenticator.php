@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Allkiri\MobileId;
 
 use Allkiri\Auth\AuthenticatedIdentity;
+use Allkiri\Auth\IdentifierType;
+use Allkiri\Auth\UnidentifiableCertificateException;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Crypto\CryptoException;
 use Allkiri\Crypto\EcdsaSignature;
@@ -145,11 +147,17 @@ final class MobileIdAuthenticator
             throw new MobileIdException('The Mobile-ID certificate does not chain to a trusted authority: ' . $exception->getMessage(), 0, $exception);
         }
 
-        $identity = AuthenticatedIdentity::fromCertificate($certificate);
-        if ($identity->identityCode !== $session->identity->nationalIdentityNumber) {
+        try {
+            $identity = AuthenticatedIdentity::fromCertificate($certificate);
+        } catch (UnidentifiableCertificateException $exception) {
+            throw new MobileIdException('The Mobile-ID certificate does not name a person: ' . $exception->getMessage(), 0, $exception);
+        }
+        // Mobile-ID is asked for by personal code, so only a personal code can
+        // be the person the session was started for.
+        if ($identity->identifierType !== IdentifierType::PersonalNumber || $identity->identityCode !== $session->identity->nationalIdentityNumber) {
             throw new MobileIdException(\sprintf(
                 'Mobile-ID answered for %s but the session was started for %s',
-                $identity->identityCode,
+                $identity->semanticsIdentifier(),
                 $session->identity->nationalIdentityNumber,
             ));
         }
