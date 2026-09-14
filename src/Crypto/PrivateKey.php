@@ -17,13 +17,13 @@ use phpseclib3\Exception\NoKeyLoadedException;
  */
 final class PrivateKey
 {
-    private function __construct(private readonly RSA\PrivateKey|EC\PrivateKey $key) {}
+    private function __construct(#[\SensitiveParameter] private readonly RSA\PrivateKey|EC\PrivateKey $key) {}
 
     /**
      * @param string      $pem      PKCS#8 or traditional PEM (RSA or EC)
      * @param string|null $password for encrypted keys
      */
-    public static function fromPem(string $pem, ?string $password = null): self
+    public static function fromPem(#[\SensitiveParameter] string $pem, #[\SensitiveParameter] ?string $password = null): self
     {
         try {
             $key = $password === null ? PublicKeyLoader::loadPrivateKey($pem) : PublicKeyLoader::loadPrivateKey($pem, $password);
@@ -40,7 +40,7 @@ final class PrivateKey
     /**
      * Load a PKCS#12 bundle (.p12 / .pfx) as issued for e-seals and test keys.
      */
-    public static function fromPkcs12(string $pkcs12, string $password): KeyPair
+    public static function fromPkcs12(#[\SensitiveParameter] string $pkcs12, #[\SensitiveParameter] string $password): KeyPair
     {
         $parts = null;
         if (!openssl_pkcs12_read($pkcs12, $parts, $password) || !\is_array($parts)) {

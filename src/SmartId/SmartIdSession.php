@@ -51,6 +51,7 @@ final readonly class SmartIdSession implements \JsonSerializable
         public ?string $verificationCode = null,
         public ?string $documentNumber = null,
         public ?string $sessionToken = null,
+        #[\SensitiveParameter]
         public ?string $sessionSecret = null,
         public ?string $deviceLinkBase = null,
         public ?\DateTimeImmutable $startedAt = null,
@@ -183,7 +184,7 @@ final readonly class SmartIdSession implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
         $version = $data['version'] ?? null;
         if ($version !== self::VERSION && $version !== self::VERSION_1) {

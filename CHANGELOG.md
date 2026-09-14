@@ -159,6 +159,13 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- Passwords, private key material, Smart-ID session secrets and relying-party
+  identifiers are marked `#[\SensitiveParameter]`. A stack trace in an error log
+  now shows them as `SensitiveParameterValue` instead of the value. This
+  protects trace arguments only: the objects that hold these values still show
+  them to `print_r()`, and a serialised Smart-ID session still carries its
+  secret, which is why it must stay on the server.
+
 - Web eID sign-in refuses Mobile-ID certificates issued under the policy SK has
   used since 2022, `1.3.6.1.4.1.10015.18.1`. allkiri named
   `1.3.6.1.4.1.10015.1.3` as a prefix, but the Web eID library compares

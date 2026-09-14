@@ -104,7 +104,7 @@ final readonly class DeviceLink
      * @param string   $sessionSecret  from the session response; never send this to a browser
      * @param int|null $elapsedSeconds seconds since the session started; QR links only
      */
-    public function url(string $sessionSecret, ?int $elapsedSeconds = null): string
+    public function url(#[\SensitiveParameter] string $sessionSecret, ?int $elapsedSeconds = null): string
     {
         $unprotected = $this->unprotectedUrl($elapsedSeconds);
 
@@ -116,7 +116,7 @@ final readonly class DeviceLink
      *
      * @param string $unprotectedUrl the output of {@see unprotectedUrl()}
      */
-    public function authenticationCode(string $sessionSecret, string $unprotectedUrl): string
+    public function authenticationCode(#[\SensitiveParameter] string $sessionSecret, string $unprotectedUrl): string
     {
         $key = base64_decode($sessionSecret, true);
         if ($key === false || $key === '') {
