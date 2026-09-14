@@ -38,16 +38,20 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
 
 1. **Container structure.** A ZIP with `mimetype` first and uncompressed, a
    manifest that matches the files present, at least one signature file.
-2. **Signature structure.** A SignatureValue, a reference covering the signed
-   properties, no `SignaturePolicyIdentifier` (that means BDOC-TM, which SK
-   stopped supporting on 2023-11-01).
+2. **Signature structure.** A SignatureValue, a reference covering this
+   signature's own signed properties, no `SignaturePolicyIdentifier` (that
+   means BDOC-TM, which SK stopped supporting on 2023-11-01). The signed
+   properties in the report are read from the element that reference resolves
+   to and from nowhere else, so an untouched copy placed beside the signature
+   cannot be digested while altered properties are reported.
 3. **Algorithms.** Digest and signature algorithms the policy allows, and a
    key large enough.
 4. **The signing certificate.** The certificate in the signature is the one
    the signer committed to in the signed properties.
-5. **References.** Every data file's digest matches, the signed properties'
-   digest matches, every file in the container is covered, and each data
-   reference has the media type BDOC requires.
+5. **References.** Every same-document reference names an `Id` that exactly
+   one element carries, every data file's digest matches, the signed
+   properties' digest matches, every file in the container is covered, and
+   each data reference has the media type BDOC requires.
 6. **The signature value**, over the canonicalised SignedInfo.
 7. **Timestamps.** The token covers this signature's value, verifies, and
    comes from a trusted timestamp authority. This establishes the *best

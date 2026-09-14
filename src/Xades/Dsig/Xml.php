@@ -124,11 +124,27 @@ final class Xml
         return $decoded === false || $decoded === '' ? null : $decoded;
     }
 
+    /**
+     * The element carrying this Id, or null when none does or when more than
+     * one does.
+     *
+     * Several elements with one Id make a same-document reference ambiguous: a
+     * verifier can digest one of them while a reader is shown another. So no
+     * caller gets the first and carries on.
+     */
     public static function elementById(\DOMDocument $document, string $id): ?\DOMElement
     {
-        $xpath = new \DOMXPath($document);
+        $elements = self::elementsById($document, $id);
 
-        return self::element($xpath, \sprintf('//*[@Id=%s]', self::literal($id)), $document);
+        return \count($elements) === 1 ? $elements[0] : null;
+    }
+
+    /**
+     * @return list<\DOMElement> every element carrying this Id, in document order
+     */
+    public static function elementsById(\DOMDocument $document, string $id): array
+    {
+        return self::elements(new \DOMXPath($document), \sprintf('//*[@Id=%s]', self::literal($id)), $document);
     }
 
     /**

@@ -133,14 +133,17 @@ final class ArchiveTimestampData
 
         if ($uri === '' || str_starts_with($uri, '#')) {
             $document = $reference->ownerDocument;
-            $element = $document === null || $uri === ''
-                ? null
-                : Xml::elementById($document, substr($uri, 1));
-            if ($element === null) {
+            $elements = $document === null || $uri === ''
+                ? []
+                : Xml::elementsById($document, substr($uri, 1));
+            if (\count($elements) > 1) {
+                throw new XadesException(\sprintf('An archive timestamp covers reference "%s", and %d elements carry that Id', $uri, \count($elements)));
+            }
+            if ($elements === []) {
                 throw new XadesException(\sprintf('An archive timestamp covers reference "%s", which resolves to nothing', $uri));
             }
 
-            return $this->canonicalizer->canonicalize($element, $canonicalization);
+            return $this->canonicalizer->canonicalize($elements[0], $canonicalization);
         }
 
         $bytes = $resolver->resolve(rawurldecode($uri));

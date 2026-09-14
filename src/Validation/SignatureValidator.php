@@ -272,7 +272,9 @@ final class SignatureValidator
         $signed = [];
         foreach ($result->references as $reference) {
             if ($reference->isSameDocument()) {
-                if (!$reference->isValid()) {
+                if ($reference->ambiguous) {
+                    $findings[] = Finding::error(FindingCodes::DUPLICATE_ID, $reference->problem ?? \sprintf('More than one element carries the Id that reference "%s" names', $reference->uri), Indication::TotalFailed, SubIndication::FormatFailure);
+                } elseif (!$reference->isValid()) {
                     $findings[] = Finding::error(FindingCodes::SIGNED_PROPERTIES_DIGEST_MISMATCH, $reference->problem ?? 'The signed properties have been altered since they were signed', Indication::TotalFailed, SubIndication::HashFailure);
                 }
                 continue;
@@ -292,6 +294,14 @@ final class SignatureValidator
             if (!isset($signed[$file->name])) {
                 $findings[] = Finding::error(FindingCodes::UNSIGNED_DATA_FILE, \sprintf('"%s" is in the container but this signature does not cover it', $file->name), Indication::TotalFailed, SubIndication::FormatFailure);
             }
+        }
+
+        // A duplicated Id is reported above; anything else that stops the
+        // reference reaching this signature's own signed properties means the
+        // properties in the report are not the ones that were signed.
+        $unbound = $signature->unboundSignedPropertiesReference;
+        if ($unbound !== null && $result->reference($unbound)?->ambiguous !== true) {
+            $findings[] = Finding::error(FindingCodes::SIGNED_PROPERTIES_REFERENCE_MISSING, \sprintf('Reference "%s" does not cover this signature\'s own signed properties', $unbound), Indication::TotalFailed, SubIndication::FormatFailure);
         }
 
         if ($signer !== null && !$result->signatureValid) {

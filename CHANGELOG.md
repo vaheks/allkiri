@@ -133,6 +133,20 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A signature's signed properties can no longer be altered while the signature
+  still verifies. A same-document reference was resolved to the first element
+  carrying its `Id`, while the properties were read from inside the signature by
+  position. An untouched copy placed beside the signature was therefore
+  digested, and the altered original was reported: signing time, claimed roles,
+  production place, media types and whether a policy identifier is present.
+  Renaming the original worked just as well, with every `Id` unique. The
+  properties are now read only from the element the reference resolves to. A
+  reference whose `Id` more than one element carries fails with the new finding
+  code `DUPLICATE_ID`, and one that resolves anywhere else fails with
+  `SIGNED_PROPERTIES_REFERENCE_MISSING`. The signer's identity and the signed
+  files were never at risk: the copy still commits to the real certificate, and
+  data files are resolved by name.
+
 - Worked around a defect in the official Web eID validation library that
   refused roughly one ID-card authentication in 256. A card pads each half of an
   ECDSA signature to the width of the curve, so a half beginning with a zero

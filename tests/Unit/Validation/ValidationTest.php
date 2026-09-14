@@ -8,6 +8,7 @@ use Allkiri\Container\AsicContainer;
 use Allkiri\Container\AsicWriter;
 use Allkiri\Container\DataFile;
 use Allkiri\Container\Manifest;
+use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
@@ -15,6 +16,7 @@ use Allkiri\Signing\SigningOptions;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Tests\Support\SigningFixture;
+use Allkiri\Tests\Support\Xades\SignatureWrapping;
 use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Validation\ContainerValidator;
@@ -332,6 +334,68 @@ final class ValidationTest extends TestCase
                 self::assertCount(1, $signature->warnings());
             }
         }
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(string): string, string}>
+     */
+    public static function signatureWrappings(): iterable
+    {
+        yield 'a copy of the signed properties carrying the same Id' => [static fn(string $xml): string => SignatureWrapping::duplicateId($xml), FindingCodes::DUPLICATE_ID];
+        yield 'a copy carrying the Id, the original renamed' => [static fn(string $xml): string => SignatureWrapping::renamedOriginal($xml), FindingCodes::SIGNED_PROPERTIES_REFERENCE_MISSING];
+    }
+
+    /**
+     * XML signature wrapping. The digests and the signature value still check
+     * out, so what has to fail is the binding between the reference and the
+     * properties that are reported.
+     *
+     * @param \Closure(string): string $wrap
+     */
+    #[DataProvider('signatureWrappings')]
+    public function testSignedPropertiesCannotBeSwappedForAnUntouchedCopy(\Closure $wrap, string $expectedCode): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(
+            AsicContainer::create(DataFile::fromString('a.txt', 'original')),
+            LocalKeySigner::fromKeyPair(TestPki::signerEc256()),
+        );
+        $signatureXml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        $wrapped = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('a.txt', 'original')
+            ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original')])->toXml())
+            ->addDeflated('META-INF/signatures0.xml', $wrap($signatureXml))
+            ->build();
+
+        $signature = self::validator($fixture)->validate($wrapped)->signatures[0];
+
+        self::assertSame(Indication::TotalFailed, $signature->indication);
+        self::assertContains($expectedCode, $signature->codes());
+        self::assertNotContains(FindingCodes::SIGNATURE_INVALID, $signature->codes(), 'the signature value still verifies');
+        self::assertNull($signature->info->claimedSigningTime, 'the altered signing time must not reach the report');
+    }
+
+    /**
+     * The reproduction from the audit, on a container digidoc4j made.
+     */
+    public function testTheReportedWrappingOfADigidoc4jContainerIsCaught(): void
+    {
+        $zip = new ZipWriter();
+        foreach (ZipReader::read((string) file_get_contents(self::CONTAINERS . 'valid-asice.asice')) as $entry) {
+            if ($entry->name === 'META-INF/signatures0.xml') {
+                $zip->addDeflated($entry->name, SignatureWrapping::duplicateId($entry->content()));
+            } else {
+                $zip->addEntry($entry);
+            }
+        }
+        $fixture = new SigningFixture(new FrozenClock('2026-09-11T00:00:00Z'));
+
+        $signature = self::validator($fixture)->validate($zip->build())->signatures[0];
+
+        self::assertSame(Indication::TotalFailed, $signature->indication);
+        self::assertContains(FindingCodes::DUPLICATE_ID, $signature->codes());
+        self::assertNull($signature->info->claimedSigningTime);
     }
 
     public function testATwoSignatureContainerReportsBoth(): void

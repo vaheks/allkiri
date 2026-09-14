@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Xades;
 
+use Allkiri\Container\AsicReader;
+use Allkiri\Signing\ContainerReferenceResolver;
+use Allkiri\Tests\Support\Xades\SignatureWrapping;
 use Allkiri\Xades\Dsig\ArrayReferenceResolver;
 use Allkiri\Xades\Dsig\Canonicalizer;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
@@ -117,6 +120,33 @@ final class XmlDsigVerifierTest extends TestCase
         $result = $verifier->verify($broken->signatures()[0], new ArrayReferenceResolver(['test.txt' => $content]));
         self::assertFalse($result->signatureValid);
         self::assertTrue($result->reference('test.txt')?->digestMatches);
+    }
+
+    public function testAReferenceToAnIdThatSeveralElementsCarryIsNotFollowed(): void
+    {
+        $container = (new AsicReader())->readFile(self::FIXTURES . 'containers/valid-asice.asice');
+        $resolver = new ContainerReferenceResolver($container);
+        $verifier = new XmlDsigVerifier();
+        $uri = '#xades-id-8c2a30729f251c6cb8336844b97f0657';
+
+        $wrapped = SignatureDocument::parse(SignatureWrapping::duplicateId($container->signatureFiles[0]->xml));
+        $result = $verifier->verify($wrapped->signatures()[0], $resolver);
+
+        $reference = $result->reference($uri);
+        self::assertNotNull($reference);
+        self::assertTrue($reference->ambiguous);
+        self::assertFalse($reference->resolved);
+        self::assertStringContainsString('2 elements carry the Id "xades-id-8c2a30729f251c6cb8336844b97f0657"', (string) $reference->problem);
+        self::assertFalse($result->isValid());
+        self::assertTrue($result->signatureValid, 'the SignatureValue is untouched, which is what makes this dangerous');
+
+        // With every Id unique the reference is followed as before. Telling
+        // the copy from the signature's own properties is the parser's job.
+        $renamed = SignatureDocument::parse(SignatureWrapping::renamedOriginal($container->signatureFiles[0]->xml));
+        $reference = $verifier->verify($renamed->signatures()[0], $resolver)->reference($uri);
+        self::assertNotNull($reference);
+        self::assertFalse($reference->ambiguous);
+        self::assertTrue($reference->isValid());
     }
 
     public function testEnvelopedSignatureOfTheEstonianTestTrustedList(): void
