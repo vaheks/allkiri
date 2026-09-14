@@ -20,6 +20,8 @@ final class SignatureDocument
         if ($xml === '') {
             throw new SignatureStructureException('Empty XML document');
         }
+        // A cheap early exit, but only for encodings that spell "<!DOCTYPE" in
+        // ASCII. The parsed document is checked again below.
         if (preg_match('/<!DOCTYPE/i', $xml) === 1) {
             throw new SignatureStructureException('XML documents with a DOCTYPE are not accepted');
         }
@@ -37,6 +39,12 @@ final class SignatureDocument
         if (!$ok) {
             $first = $errors[0] ?? null;
             throw new SignatureStructureException('XML is not well-formed' . ($first instanceof \LibXMLError ? ': ' . trim($first->message) : ''));
+        }
+        // UTF-16 puts a zero byte between the characters of "<!DOCTYPE", so the
+        // search above misses it and libxml parses the DTD. Only the parsed
+        // document can say whether there was one.
+        if ($document->doctype !== null) {
+            throw new SignatureStructureException('XML documents with a DOCTYPE are not accepted');
         }
 
         return new self($document);
