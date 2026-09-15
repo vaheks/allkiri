@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades\Dsig;
+namespace Allkiri\Xml\Dsig;
 
 /**
  * Supplies the bytes a ds:Reference with an external URI points at: the data

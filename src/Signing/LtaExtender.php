@@ -6,12 +6,13 @@ namespace Allkiri\Signing;
 
 use Allkiri\Crypto\Tsp\TimestampToken;
 use Allkiri\Crypto\Tsp\TspClient;
-use Allkiri\Xades\Dsig\ReferenceResolver;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Lta\ArchiveTimestampData;
 use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\XadesException;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\ReferenceResolver;
+use Allkiri\Xml\Xml;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -62,7 +63,7 @@ final class LtaExtender
 
         $unsigned = $this->unsignedSignatureProperties($document, $signature);
 
-        $stream = $this->data->forNewTimestamp($signature, $resolver, Ns::C14N_EXC);
+        $stream = $this->data->forNewTimestamp($signature, $resolver, DsigNs::C14N_EXC);
         $stamped = $this->tspClient->timestamp($stream);
         $token = $stamped->token;
 
@@ -90,8 +91,8 @@ final class LtaExtender
 
         $archive = $dom->createElementNS(Ns::XADES141, 'xadesv141:ArchiveTimeStamp');
 
-        $canonicalization = $dom->createElementNS(Ns::DS, 'ds:CanonicalizationMethod');
-        $canonicalization->setAttribute('Algorithm', Ns::C14N_EXC);
+        $canonicalization = $dom->createElementNS(DsigNs::DS, 'ds:CanonicalizationMethod');
+        $canonicalization->setAttribute('Algorithm', DsigNs::C14N_EXC);
         $archive->appendChild($canonicalization);
 
         $encapsulated = $dom->createElementNS(Ns::XADES, 'xades:EncapsulatedTimeStamp');

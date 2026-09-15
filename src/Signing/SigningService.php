@@ -15,12 +15,12 @@ use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
 use Allkiri\Exception\InvalidArgumentException;
-use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureCompleter;
 use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\XadesException;
+use Allkiri\Xml\Dsig\XmlDsigVerifier;
+use Allkiri\Xml\XmlException;
 use phpseclib3\Crypt\EC;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
@@ -127,7 +127,7 @@ final class SigningService
 
             $value = $this->normalise($signatureValue, $dataToBeSigned);
             $this->completer->setSignatureValue($document, $dataToBeSigned->signatureId, $value);
-        } catch (XadesException $e) {
+        } catch (XmlException $e) {
             // Code builds a DataToBeSigned as well as restoring one, so this is a
             // prepared document that no longer holds together, not stored data.
             throw new SessionMismatchException('The prepared signature cannot be read: ' . $e->getMessage(), 0, $e);

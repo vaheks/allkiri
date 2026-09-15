@@ -217,6 +217,14 @@ final class AsicContainerTest extends TestCase
         self::assertSame(['a & "b".txt'], Manifest::parse($odd->toXml())->paths());
     }
 
+    public function testAManifestThatIsNotXmlIsRefusedAsAContainerFailure(): void
+    {
+        $this->expectException(InvalidContainerException::class);
+        $this->expectExceptionMessage('META-INF/manifest.xml is not well-formed');
+
+        Manifest::parse('<manifest:manifest');
+    }
+
     public function testDataFileNamesAreGuardedAndMediaTypesGuessed(): void
     {
         self::assertSame('text/plain', MimeTypes::guess('a.TXT'));

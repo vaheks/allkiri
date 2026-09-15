@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Xades;
 
 use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Xml\Dsig\DsigNs;
 
 /**
  * The shape of the signatures allkiri produces.
@@ -20,7 +21,7 @@ final readonly class SignatureProfile
      */
     public function __construct(
         public HashAlgorithm $digestAlgorithm = HashAlgorithm::SHA256,
-        public string $canonicalizationMethod = Ns::C14N_EXC,
+        public string $canonicalizationMethod = DsigNs::C14N_EXC,
         public bool $useSigningCertificateV2 = true,
         public ?string $signatureId = null,
         public array $claimedRoles = [],

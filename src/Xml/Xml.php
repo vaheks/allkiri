@@ -2,33 +2,77 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades\Dsig;
+namespace Allkiri\Xml;
 
 use Allkiri\Exception\InvalidArgumentException;
-use Allkiri\Xades\Ns;
 
 /**
- * XPath helpers that turn ext-dom's loosely typed results into definite ones,
- * so the signature code reads as intent rather than as null handling.
+ * Loads untrusted XML, and turns ext-dom's loosely typed XPath results into
+ * definite ones, so the code reading signatures, manifests and trusted lists
+ * reads as intent rather than as null handling.
  */
 final class Xml
 {
     private function __construct() {}
 
     /**
-     * An XPath bound to the node's document with allkiri's prefixes registered.
+     * A document parsed without network access, entities or DTDs, with
+     * whitespace kept exactly as it is so canonicalisation reproduces what the
+     * signer saw.
+     *
+     * @throws InvalidXmlException when the bytes are empty, not well-formed, or carry a DOCTYPE
      */
-    public static function xpath(\DOMNode $context): \DOMXPath
+    public static function load(string $xml): \DOMDocument
+    {
+        if ($xml === '') {
+            throw new InvalidXmlException('Empty XML document');
+        }
+        // A cheap early exit, but only for encodings that spell "<!DOCTYPE" in
+        // ASCII. The parsed document is checked again below.
+        if (preg_match('/<!DOCTYPE/i', $xml) === 1) {
+            throw new InvalidXmlException('XML documents with a DOCTYPE are not accepted');
+        }
+        $document = new \DOMDocument('1.0', 'UTF-8');
+        $document->preserveWhiteSpace = true;
+        $document->formatOutput = false;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $ok = $document->loadXML($xml, LIBXML_NONET | LIBXML_NOCDATA);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+        } finally {
+            libxml_use_internal_errors($previous);
+        }
+        if (!$ok) {
+            $first = $errors[0] ?? null;
+            throw new InvalidXmlException('XML is not well-formed' . ($first instanceof \LibXMLError ? ': ' . trim($first->message) : ''));
+        }
+        // UTF-16 puts a zero byte between the characters of "<!DOCTYPE", so the
+        // search above misses it and libxml parses the DTD. Only the parsed
+        // document can say whether there was one.
+        if ($document->doctype !== null) {
+            throw new InvalidXmlException('XML documents with a DOCTYPE are not accepted');
+        }
+
+        return $document;
+    }
+
+    /**
+     * An XPath bound to the node's document, with these prefixes registered and
+     * no others.
+     *
+     * @param array<string, string> $namespaces prefix => namespace URI
+     */
+    public static function xpath(\DOMNode $context, array $namespaces): \DOMXPath
     {
         $document = $context instanceof \DOMDocument ? $context : $context->ownerDocument;
         if ($document === null) {
             throw new InvalidArgumentException('The node belongs to no document, so it cannot be searched');
         }
         $xpath = new \DOMXPath($document);
-        $xpath->registerNamespace('ds', Ns::DS);
-        $xpath->registerNamespace('xades', Ns::XADES);
-        $xpath->registerNamespace('xadesv141', Ns::XADES141);
-        $xpath->registerNamespace('ec', Ns::C14N_EXC);
+        foreach ($namespaces as $prefix => $uri) {
+            $xpath->registerNamespace($prefix, $uri);
+        }
 
         return $xpath;
     }

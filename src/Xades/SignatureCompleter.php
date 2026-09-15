@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Xades;
 
-use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xml\Xml;
 
 /**
  * Puts the signature value into a built signature.

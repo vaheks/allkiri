@@ -30,8 +30,8 @@ use Allkiri\Validation\Report\Indication;
 use Allkiri\Validation\Report\SignatureReport;
 use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationPolicy;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xml\Xml;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
@@ -134,7 +134,7 @@ final class ArchiveTimestampTest extends TestCase
         // and a validator would then reconstruct a different stream.
         $method = Xml::element($document->xpath(), './ds:CanonicalizationMethod', $archive);
         self::assertNotNull($method);
-        self::assertSame(\Allkiri\Xades\Ns::C14N_EXC, $method->getAttribute('Algorithm'));
+        self::assertSame(\Allkiri\Xml\Dsig\DsigNs::C14N_EXC, $method->getAttribute('Algorithm'));
     }
 
     public function testTheContainerSurvivesBeingWrittenAndReadBack(): void

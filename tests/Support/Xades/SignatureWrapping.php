@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Support\Xades;
 
-use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xml\Xml;
 
 /**
  * XML signature wrapping, built from a genuine signature file.
@@ -44,7 +45,7 @@ final class SignatureWrapping
         $document = SignatureDocument::parse($signatureXml);
         $signature = $document->signatures()[0] ?? throw new \LogicException('No ds:Signature to wrap');
         $root = $document->document()->documentElement ?? throw new \LogicException('No document element');
-        $xpath = Xml::xpath($signature);
+        $xpath = Xml::xpath($signature, Ns::PREFIXES);
         $signedProperties = Xml::element($xpath, 'ds:Object/xades:QualifyingProperties/xades:SignedProperties', $signature)
             ?? throw new \LogicException('No xades:SignedProperties to copy');
         $signingTime = Xml::element($xpath, 'xades:SignedSignatureProperties/xades:SigningTime', $signedProperties)

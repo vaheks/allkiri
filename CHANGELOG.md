@@ -275,6 +275,19 @@ signatures with a local key, and the API the eID means will plug into.
   `Xades\Ns` into the classes they describe: `AsicContainer::MIME_TYPE`,
   `SignatureFile::NS_ASIC` and `Manifest::NS_MANIFEST`. `Xml::xpath()` no longer
   registers the `asic` prefix, which no query used.
+- XML-DSig and the hardened XML loader moved out of `Allkiri\Xades` into
+  `Allkiri\Xml`. `Xades\Dsig\Xml` is now `Xml\Xml`, which gains `load()`;
+  `XmlDsigVerifier`, `Canonicalizer`, `ReferenceResolver`,
+  `ArrayReferenceResolver`, `ReferenceResult`, `DsigVerificationResult` and
+  `CanonicalizationException` are in `Xml\Dsig`. The XML-DSig namespace and
+  algorithm URIs moved from `Xades\Ns` to `Xml\Dsig\DsigNs`. `Xml::xpath()`
+  takes the prefixes to register, and `Ns::PREFIXES` holds the XAdES ones.
+- Bytes that are empty, not well-formed or carry a DOCTYPE throw the new
+  `Xml\InvalidXmlException` instead of `SignatureStructureException`.
+  `XadesException`, `InvalidXmlException` and `CanonicalizationException` extend
+  the new `Xml\XmlException`. So `archive()` on a signature file that is not XML
+  no longer throws a `XadesException`, and `CanonicalizationException` is no
+  longer one.
 
 ### Fixed
 

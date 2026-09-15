@@ -6,8 +6,8 @@ namespace Allkiri\Xades\Model;
 
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Ns;
+use Allkiri\Xml\Xml;
 
 /**
  * Builds the {@see XadesSignature} read model from a ds:Signature element.
@@ -19,7 +19,7 @@ final class XadesSignatureParser
 {
     public function parse(\DOMElement $signature): XadesSignature
     {
-        $xpath = Xml::xpath($signature);
+        $xpath = Xml::xpath($signature, Ns::PREFIXES);
         $warnings = [];
 
         $signedInfo = Xml::element($xpath, 'ds:SignedInfo', $signature);

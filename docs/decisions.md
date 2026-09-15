@@ -867,3 +867,24 @@ seven characters of the commit, so an operator can tell which code sent a
 request. Without that record it says `unknown`. `Http\UserAgent` builds the
 value, which also means the HTTP client no longer reaches up to the `Allkiri`
 facade for it.
+
+### XML-DSig is not XAdES
+
+The hardened XML loader, the XPath helpers, canonicalisation and XML-DSig
+verification lived in `Xades`, though nothing in them is XAdES. A manifest needs
+the loader, and a trusted list's signature is plain XML-DSig, so Container and
+Trust imported Xades while Xades imported both of them back.
+
+They are now `Allkiri\Xml`, below Container, Trust and Xades, which all use it.
+`Xades\SignatureDocument` stays as a thin wrapper that registers the XAdES
+prefixes. `Xml::xpath()` takes the prefixes it registers, with no default, so a
+caller that forgets them fails at once instead of quietly matching nothing.
+
+Bytes that are not XML throw `InvalidXmlException`, and `XadesException` now
+extends `XmlException`, as `InvalidXmlException` and `CanonicalizationException`
+do. A caller catching `XmlException` catches every failure of a document, and
+the library's own catch sites catch the failures they caught before. Two things
+change for a caller: `archive()` on a signature file that is not XML throws
+`InvalidXmlException`, which is not a `XadesException`, and
+`CanonicalizationException` is no longer a `XadesException`. Neither was ever
+released.

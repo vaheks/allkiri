@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\Container;
 
-use Allkiri\Xades\Dsig\Xml;
-use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\InvalidXmlException;
+use Allkiri\Xml\Xml;
 
 /**
  * META-INF/manifest.xml: the OASIS manifest an ASiC-E container carries,
@@ -38,16 +37,15 @@ final readonly class Manifest
     public static function parse(string $xml): self
     {
         try {
-            $document = SignatureDocument::parse($xml);
-        } catch (SignatureStructureException $e) {
+            $document = Xml::load($xml);
+        } catch (InvalidXmlException $e) {
             throw new InvalidContainerException('META-INF/manifest.xml is not well-formed: ' . $e->getMessage(), 0, $e);
         }
-        $root = $document->document()->documentElement;
+        $root = $document->documentElement;
         if ($root === null || $root->localName !== 'manifest') {
             throw new InvalidContainerException('META-INF/manifest.xml has no manifest element');
         }
-        $xpath = Xml::xpath($document->document());
-        $xpath->registerNamespace('manifest', self::NS_MANIFEST);
+        $xpath = Xml::xpath($document, ['manifest' => self::NS_MANIFEST]);
 
         $entries = [];
         foreach (Xml::elements($xpath, 'manifest:file-entry', $root) as $entry) {

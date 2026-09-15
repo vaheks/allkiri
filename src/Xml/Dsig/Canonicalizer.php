@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades\Dsig;
-
-use Allkiri\Xades\CanonicalizationException;
-use Allkiri\Xades\Ns;
+namespace Allkiri\Xml\Dsig;
 
 /**
  * XML canonicalisation on ext-dom. Exclusive C14N 1.0 is what allkiri emits
@@ -20,10 +17,10 @@ final class Canonicalizer
     public function canonicalize(\DOMNode $node, string $algorithm, ?array $inclusiveNamespacePrefixes = null): string
     {
         [$exclusive, $withComments] = match ($algorithm) {
-            Ns::C14N_EXC => [true, false],
-            Ns::C14N_EXC_WITH_COMMENTS => [true, true],
-            Ns::C14N_10 => [false, false],
-            Ns::C14N_10_WITH_COMMENTS => [false, true],
+            DsigNs::C14N_EXC => [true, false],
+            DsigNs::C14N_EXC_WITH_COMMENTS => [true, true],
+            DsigNs::C14N_10 => [false, false],
+            DsigNs::C14N_10_WITH_COMMENTS => [false, true],
             default => throw new CanonicalizationException(\sprintf('Unsupported canonicalization algorithm "%s"', $algorithm)),
         };
         $prefixes = $exclusive && $inclusiveNamespacePrefixes !== null && $inclusiveNamespacePrefixes !== [] ? $inclusiveNamespacePrefixes : null;
@@ -37,6 +34,6 @@ final class Canonicalizer
 
     public static function supports(string $algorithm): bool
     {
-        return \in_array($algorithm, [Ns::C14N_EXC, Ns::C14N_EXC_WITH_COMMENTS, Ns::C14N_10, Ns::C14N_10_WITH_COMMENTS], true);
+        return \in_array($algorithm, [DsigNs::C14N_EXC, DsigNs::C14N_EXC_WITH_COMMENTS, DsigNs::C14N_10, DsigNs::C14N_10_WITH_COMMENTS], true);
     }
 }

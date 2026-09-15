@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Allkiri\Trust\TrustedList;
 
 use Allkiri\Crypto\Certificate;
-use Allkiri\Xades\Dsig\ArrayReferenceResolver;
-use Allkiri\Xades\Dsig\XmlDsigVerifier;
-use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\Dsig\ArrayReferenceResolver;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\XmlDsigVerifier;
+use Allkiri\Xml\InvalidXmlException;
+use Allkiri\Xml\Xml;
 
 /**
  * Checks the enveloped XML signature of a trusted list against the
@@ -36,16 +37,20 @@ final class TrustedListVerifier
         }
 
         try {
-            $document = SignatureDocument::parse($xml);
-        } catch (SignatureStructureException $e) {
+            $document = Xml::load($xml);
+        } catch (InvalidXmlException $e) {
             throw new TrustedListException(TrustedListException::REASON_MALFORMED, 'Trusted list is not well-formed XML: ' . $e->getMessage(), $e);
         }
-        $signatures = $document->signatures();
-        if ($signatures === []) {
+        $signature = null;
+        foreach ($document->getElementsByTagNameNS(DsigNs::DS, 'Signature') as $element) {
+            $signature = $element;
+            break;
+        }
+        if ($signature === null) {
             throw new TrustedListException(TrustedListException::REASON_SIGNATURE, 'Trusted list is not signed');
         }
 
-        $result = $this->verifier->verify($signatures[0], new ArrayReferenceResolver([]));
+        $result = $this->verifier->verify($signature, new ArrayReferenceResolver([]));
         $signer = $result->certificate;
         if ($signer === null) {
             throw new TrustedListException(TrustedListException::REASON_SIGNATURE, 'Trusted list signature carries no certificate');
