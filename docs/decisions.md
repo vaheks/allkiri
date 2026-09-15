@@ -149,11 +149,8 @@ same situation. The two agree on the mapping, not only on the outcome.
 
 ### Tooling
 
-- The shell transport truncates commands above roughly 8 KB, which surfaces
-  as `unexpected EOF while looking for matching quote`. Files longer than a
-  couple of kilobytes are written with the editor tool, not heredocs.
-- OpenSSL 3.5 CLI is available locally and used as the independent
-  cross-check (`openssl ts`, `openssl ocsp`, `openssl asn1parse`).
+The OpenSSL 3.5 command line is the independent cross-check: `openssl ts`,
+`openssl ocsp` and `openssl asn1parse`.
 
 ## 2026-09-12 — Phase 2, Mobile-ID
 
