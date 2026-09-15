@@ -68,7 +68,10 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    is allowed to sign certificates. A chain that breaks either is
    `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`.
 9. **Revocation.** The embedded OCSP response answers about this certificate,
-   was signed by an authorised responder, and says `good`.
+   was signed by an authorised responder, and says `good`. When the signature
+   carries several responses, a revoked one decides. Otherwise the newest one
+   produced within the policy's OCSP window after the signature time is used,
+   and the newest overall only when none falls inside the window.
 
 In steps 7 to 9, every signature involved must be made with an acceptable
 algorithm: the timestamp token, each certificate in a chain, the OCSP response

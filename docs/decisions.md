@@ -273,6 +273,21 @@ critical, as RFC 3161 requires, and every SK TSA certificate seen does. An OCSP
 responder's certificate is not held to the same: RFC 6960 does not ask for it,
 and several of SK's responder certificates mark OCSPSigning non-critical.
 
+### Several revocation answers: a revoked one decides
+
+A signature can carry more than one OCSP response, when a tool extends it again
+or someone adds one. allkiri used the first that verified, so a good answer
+placed before a revoked one decided the verdict. A revoked answer now decides
+wherever it sits, because a good answer beside it says nothing about the
+revocation.
+
+Among the rest, the newest answer produced within the policy's OCSP window after
+the signature time is used. Plain "newest" would let an answer added days later
+fail the timestamp-to-OCSP order check on its own lateness and take a sound
+signature down with it. Only when no answer falls inside the window is the
+newest overall used. How DSS and digidoc4j choose between answers was not
+checked.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry
