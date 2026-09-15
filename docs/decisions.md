@@ -904,3 +904,24 @@ direction. A reference is an import, a qualified or fully qualified name, or an
 Allkiri class named in a comment: a `{@see}` that points upward is a dependency
 a reader follows too. The two that did, in `AlgorithmConstraints` and
 `LoggingHttpClient`, became plain words.
+
+### What the version number promises
+
+`docs/releasing.md` promised semantic versioning on "the API" without saying what
+that was. With almost nothing marked `@internal`, it meant every public class:
+the ASN.1 decoder and the ZIP writer as much as `SigningService`, so tidying
+either would have needed a major release.
+
+The version number now covers what is not marked `@internal`, the JSON an
+application stores or passes on, and the finding codes. The machinery is
+marked. A constructor parameter that takes an internal collaborator is not
+covered either, and comes after the covered ones so that they keep their
+places. The parsed CMS, OCSP and timestamp structures stay covered, because
+covered results hand them to callers; their few members that take raw ASN.1
+are marked instead. Verdicts stay outside, as before, and so does the wording of
+messages.
+
+PHPStan does not check any of this: it reports a use of something internal only
+under bleedingEdge, and never between two namespaces with the same root, which
+takes in this repository's tests and demo. `PublicApiTest` checks the marks
+instead.

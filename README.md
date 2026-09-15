@@ -170,8 +170,8 @@ built and verified without a network or eID hardware. See
 
 Every specification, endpoint and reference implementation this is built
 against is listed in [docs/specs.md](docs/specs.md). Decisions that cost an
-afternoon to establish are recorded in [docs/decisions.md](docs/decisions.md),
-and what stands between this and 1.0 is in
+afternoon to establish are recorded in [docs/decisions.md](docs/decisions.md).
+What stands between this and 1.0, and what the version number covers, are in
 [docs/releasing.md](docs/releasing.md).
 
 ## License
