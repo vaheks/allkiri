@@ -69,6 +69,8 @@ final class Allkiri
 
     private ?ContainerValidator $validator = null;
 
+    private ?HttpClient $defaultHttp = null;
+
     public function __construct(
         private readonly Environment $environment,
         private readonly ?HttpClient $http = null,
@@ -90,14 +92,18 @@ final class Allkiri
         return $this->environment;
     }
 
+    /**
+     * The client given to the constructor, or else the built-in one, built
+     * once.
+     */
     public function httpClient(): HttpClient
     {
-        return $this->http ?? $this->curlClient($this->environment->httpTimeoutSeconds);
+        return $this->http ?? ($this->defaultHttp ??= $this->curlClient($this->environment->httpTimeoutSeconds));
     }
 
     /**
-     * The built-in client, for when none was given. Built per use, so that a
-     * long poll can have the timeout it needs.
+     * The built-in client, for when none was given. Mobile-ID and Smart-ID get
+     * one of their own, so that a long poll can have the timeout it needs.
      */
     private function curlClient(int $timeoutSeconds): CurlHttpClient
     {
@@ -143,7 +149,7 @@ final class Allkiri
             $this->httpClient(),
             $this->clock,
             nonces: $this->nonces,
-            options: new OcspVerificationOptions($this->environment->ocspNonceMode, [], 300, 600, $this->policy->algorithmConstraints()),
+            options: OcspVerificationOptions::forSigning($this->environment->ocspNonceMode)->withAlgorithmConstraints($this->policy->algorithmConstraints()),
             urlOverrides: $this->environment->ocspUrlOverrides,
             defaultUrl: $this->environment->ocspDefaultUrl,
             certIdHashOid: $this->environment->certIdHashOid(),
