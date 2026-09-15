@@ -208,6 +208,7 @@ final class SmartIdClient
      */
     private function authenticationRequest(string $rpChallenge, Interactions $interactions, ?CertificateLevel $level, ?string $initialCallbackUrl = null): array
     {
+        SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $request = [
             'signatureProtocol' => self::PROTOCOL_ACSP_V2,
             'signatureProtocolParameters' => [
@@ -229,6 +230,7 @@ final class SmartIdClient
      */
     private function signatureRequest(string $digest, HashAlgorithm $hashAlgorithm, Interactions $interactions, ?CertificateLevel $level, ?string $initialCallbackUrl = null): array
     {
+        SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $request = [
             'signatureProtocol' => self::PROTOCOL_RAW_DIGEST,
             'signatureProtocolParameters' => [

@@ -267,6 +267,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- Text that is not UTF-8 is refused where it enters, instead of escaping later
+  as PHP's `\JsonException` when a request is encoded. Smart-ID interaction text,
+  the Mobile-ID and Smart-ID relying-party names, Mobile-ID display text and a
+  Smart-ID callback URL are refused with `InvalidArgumentException`, and a file
+  name sent to SiVa with `SivaException`. `SmartIdClient` now applies the
+  callback URL check the authenticator and signer already applied.
 - A certificate that names its OCSP responder at an address that is not http(s)
   no longer makes `OcspClient::fetch()` throw `InvalidArgumentException`. The
   address is skipped; without an http(s) one the default responder is asked, or

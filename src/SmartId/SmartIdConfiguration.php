@@ -59,6 +59,10 @@ final readonly class SmartIdConfiguration
         if ($relyingPartyName === '') {
             throw new InvalidArgumentException('The relying party name must not be empty');
         }
+        // It travels as JSON, which cannot carry anything but UTF-8.
+        if (!mb_check_encoding($relyingPartyName, 'UTF-8')) {
+            throw new InvalidArgumentException('The relying party name must be UTF-8');
+        }
         // The name is signed as base64, and SK limits it to 32 characters.
         if (mb_strlen($relyingPartyName, 'UTF-8') > 32) {
             throw new InvalidArgumentException('The relying party name must not exceed 32 characters');

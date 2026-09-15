@@ -38,6 +38,11 @@ final class SivaClient
      */
     public function validate(string $container, string $filename): SivaReport
     {
+        // Often an upload's own name, and it travels as JSON, which cannot carry
+        // anything but UTF-8.
+        if (!mb_check_encoding($filename, 'UTF-8')) {
+            throw new SivaException('The file name must be UTF-8 to be sent to SiVa');
+        }
         $body = json_encode([
             'document' => base64_encode($container),
             'filename' => $filename,

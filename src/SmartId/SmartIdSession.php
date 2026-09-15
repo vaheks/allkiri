@@ -92,6 +92,9 @@ final readonly class SmartIdSession implements \JsonSerializable
         if ($initialCallbackUrl === '' || str_contains($initialCallbackUrl, '|')) {
             throw new InvalidArgumentException('The callback URL must not be empty or contain "|", which separates the fields the app signs');
         }
+        if (!mb_check_encoding($initialCallbackUrl, 'UTF-8')) {
+            throw new InvalidArgumentException('The callback URL must be UTF-8');
+        }
     }
 
     /**
