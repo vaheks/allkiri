@@ -215,13 +215,18 @@
       }, function (error) {
         // Only post()'s own failure is looked at here, so an error thrown by
         // onTick above is never mistaken for the network.
-        var left = deadline - Date.now();
-        if (!error || !error.transient || left <= 0) {
+        if (!error || !error.transient) {
           throw error;
         }
+        // Set before the deadline is looked at, so a failure that arrives after
+        // it still says how many times the poll had already asked again.
+        error.retries = failures;
         failures++;
-        error.retries = failures - 1;
         lastFailure = error;
+        var left = deadline - Date.now();
+        if (left <= 0) {
+          throw error;
+        }
         var wait = Math.min(interval * Math.pow(2, Math.min(failures - 1, 3)), left);
         return delay(wait, settings.signal).then(attempt);
       });

@@ -206,6 +206,24 @@ async function main() {
   );
   check('and it backed off rather than hammering', forever() <= 8, String(forever()));
 
+  // The same, however slow the machine: the only failure arrives after the
+  // deadline, and still says how many times the poll had asked again.
+  let lateRequests = 0;
+  globalThis.fetch = () => {
+    lateRequests++;
+    return new Promise((resolve) => setTimeout(() => resolve({
+      ok: false,
+      status: 503,
+      text: () => Promise.resolve('Service Unavailable'),
+    }), 60));
+  };
+  const late = await settle(allkiri.poll('/api/poll', { interval: 5, timeout: 20 }));
+  check(
+    'a failure that arrives after the deadline still carries retries',
+    late.error !== null && late.error.status === 503 && late.error.retries === 0 && lateRequests === 1,
+    (late.error ? 'retries ' + late.error.retries : 'resolved') + ', ' + lateRequests + ' requests',
+  );
+
   answeringInTurn([null]);
   const controller = new AbortController();
   const startedAt = Date.now();
