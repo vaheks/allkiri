@@ -143,7 +143,29 @@ report.
 | `app.php` | every endpoint, and the only place the library is called |
 | `public/index.php` | routing, and the method and token checks every call passes first |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |
+| `public/vendor/web-eid.js` | a pinned copy of web-eid.js, for the ID card |
 
-The page loads `web-eid.js` from a CDN, `allkiri-qr.js` and `allkiri.js` from
-the library itself, so what you see working here is the same code an application
-would ship.
+The page loads `allkiri-qr.js` and `allkiri.js` from the library itself, so what
+you see working here is the same code an application would ship.
+
+## web-eid.js
+
+The ID card needs web-eid.js, and no CDN serves it: the package is published
+only to Web eID's own npm registry, not to npm's public one. So the demo keeps a
+copy of `iife/web-eid.js` from the
+[web-eid.js 2.1.0 release](https://github.com/web-eid/web-eid.js/releases/tag/v2.1.0)
+(`web-eid.js-v2.1.0.zip`), with the MIT licence it carries, and the page loads
+it with an `integrity` hash, so a changed file is refused.
+
+| | |
+|---|---|
+| Version | 2.1.0 |
+| SHA-256 | `ad1ae8554b301bf28a1609077ba971e4b3e6db49059fdee6c745a785dd3f7735` |
+| `integrity` | `sha384-eNqE5qChFP5o6ucg8NHzHOkGCd1MavcHSKU2gSR/Dp8eDOf3d9GBlayz3btZ15hB` |
+
+To update it, take `iife/web-eid.js` from a newer release's zip, replace the
+file, and put its hash in `views/page.php` and in this table:
+
+```bash
+php -r 'echo "sha384-", base64_encode(hash_file("sha384", "examples/demo-app/public/vendor/web-eid.js", true)), PHP_EOL;'
+```

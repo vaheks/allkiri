@@ -122,7 +122,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <pre id="check-report" hidden></pre>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/@web-eid/web-eid-library@2/dist/iife/web-eid.js"></script>
+<script src="/vendor/web-eid.js" integrity="sha384-eNqE5qChFP5o6ucg8NHzHOkGCd1MavcHSKU2gSR/Dp8eDOf3d9GBlayz3btZ15hB"></script>
 <script src="/allkiri-qr.js"></script>
 <script src="/allkiri.js"></script>
 <script>

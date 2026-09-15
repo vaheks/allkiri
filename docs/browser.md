@@ -14,12 +14,19 @@ Copy them into your public directory, or serve them straight from
 ```html
 <script src="/allkiri-qr.js"></script>
 <script src="/allkiri.js"></script>
-<!-- only for the ID card -->
-<script src="https://cdn.jsdelivr.net/npm/@web-eid/web-eid-library@2/dist/iife/web-eid.js"></script>
+<!-- only for the ID card: your own copy, see below -->
+<script src="/web-eid.js" integrity="sha384-eNqE5qChFP5o6ucg8NHzHOkGCd1MavcHSKU2gSR/Dp8eDOf3d9GBlayz3btZ15hB"></script>
 ```
 
 `allkiri-qr.js` must come first, because `allkiri.js` picks it up when it loads.
 Leave it out if you never show a Smart-ID QR code.
+
+**Serve web-eid.js yourself.** No CDN has it: the package is published only to
+Web eID's own npm registry, not to npm's public one, so a jsDelivr or unpkg
+address for it answers 404. Take `iife/web-eid.js` from the zip attached to a
+[web-eid.js release](https://github.com/web-eid/web-eid.js/releases), serve it
+from your own origin, and pin it with an `integrity` hash. The hash above is
+that file's at 2.1.0; `examples/demo-app` keeps the same copy.
 
 ## What it decides: nothing
 

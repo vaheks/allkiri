@@ -307,6 +307,11 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The demo page and `docs/browser.md` loaded web-eid.js from a jsDelivr address
+  that answers 404, because the package is not on npm's public registry, so the
+  ID card could not work there. The demo now serves a pinned copy of web-eid.js
+  2.1.0 from its GitHub release, checked by an `integrity` hash, and
+  `docs/browser.md` tells applications to do the same.
 - A poll in the demo application held the browser's session lock while SK kept
   the status request open, up to ten seconds, so every other call from that
   browser queued behind it. The lock is now released while SK is asked, and taken
