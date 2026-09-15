@@ -144,12 +144,24 @@ $report = $allkiri->validator()->validate($bytes, 'leping.asice', new Validation
 ## A second opinion from SiVa
 
 RIA runs a validation service. It is useful for comparing verdicts, and for
-the formats allkiri does not read (DDOC, signed PDF):
+the formats allkiri does not read (DDOC, signed PDF). `SivaClient` sends it a
+container, and `SivaComparison` names the differences:
 
 ```php
+$ours = $allkiri->validator()->validate($bytes, 'leping.asice');
 $siva = new SivaClient($allkiri->httpClient(), (string) $allkiri->environment()->sivaUrl);
-$sivaReport = $siva->validate($bytes, 'leping.asice');
+
+$comparison = SivaComparison::of($ours, $siva->validate($bytes, 'leping.asice'));
+if (!$comparison->agrees()) {
+    $logger->warning($comparison->describe());
+}
 ```
+
+A difference is a question, not a verdict. SiVa is the reference for Estonian
+practice, but it is a remote service with its own policy, its own trust-list
+refresh cycle and its own clock. Nothing in allkiri's validation consults it,
+and making SiVa's answer a condition of accepting a signature is a dependency to
+take on deliberately.
 
 It sends the whole container, so do not point it at a service you would not
 show the document to. For the same reason the URL must be HTTPS; plain HTTP is
@@ -159,7 +171,7 @@ accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 
 | | allkiri | SiVa |
 |---|---|---|
-| Archive timestamps (LTA) | reported, not verified; warns | verified |
+| Archive timestamps (LTA) | verified; not yet taken as proof that the signature existed before an algorithm weakened | verified |
 | BDOC-TM (time-mark) | `INDETERMINATE`, unsupported | validated |
 | DDOC, PDF | not read | validated |
 | CRL revocation data | reported, not checked | checked |
@@ -184,24 +196,6 @@ echo ReportRenderer::text($report);      // a few lines per signature
 
 Neither is part of the verdict, and an application showing its own wording
 should read the findings rather than parse these lines.
-
-## A second opinion from SiVa
-
-`SivaClient` sends a container to RIA's validation service, and `SivaComparison`
-names the differences:
-
-```php
-$comparison = SivaComparison::of($ours, $siva->validate($bytes, 'leping.asice'));
-if (!$comparison->agrees()) {
-    $logger->warning($comparison->describe());
-}
-```
-
-A difference is a question, not a verdict. SiVa is the reference for Estonian
-practice, but it is a remote service with its own policy, its own trust-list
-refresh cycle and its own clock. Nothing in allkiri's validation consults it,
-and making SiVa's answer a condition of accepting a signature is a dependency to
-take on deliberately. It also means sending the whole document to a third party.
 
 ## Containers that are hostile rather than invalid
 
