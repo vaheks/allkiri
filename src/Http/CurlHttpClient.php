@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Allkiri\Http;
 
-use Allkiri\Allkiri;
 use Allkiri\Exception\InvalidArgumentException;
 
 /**
@@ -46,6 +45,8 @@ final class CurlHttpClient implements HttpClient
     private readonly int $connectTimeoutSeconds;
 
     /**
+     * @param string|null  $userAgent             what the services are told about the client;
+     *                                            {@see UserAgent::default()} when null
      * @param list<string> $pinnedPublicKeys      base64 SHA-256 hashes of the
      *                                            servers' SubjectPublicKeyInfo, with
      *                                            or without the "sha256//" prefix
@@ -62,7 +63,7 @@ final class CurlHttpClient implements HttpClient
      */
     public function __construct(
         private readonly int $timeoutSeconds = 30,
-        string $userAgent = Allkiri::USER_AGENT,
+        ?string $userAgent = null,
         array $pinnedPublicKeys = [],
         ?string $caBundlePath = null,
         ?int $connectTimeoutSeconds = null,
@@ -77,6 +78,7 @@ final class CurlHttpClient implements HttpClient
         if ($maxResponseBytes < 1 || $maxResponseBytes > self::LARGEST_RESPONSE_LIMIT) {
             throw new InvalidArgumentException(\sprintf('The response limit must be between one byte and %d bytes', self::LARGEST_RESPONSE_LIMIT));
         }
+        $userAgent ??= UserAgent::default();
         if ($userAgent === '') {
             throw new InvalidArgumentException('User agent must not be empty');
         }

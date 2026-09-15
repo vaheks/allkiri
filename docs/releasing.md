@@ -53,10 +53,13 @@ $EDITOR README.md
 composer check && node tests/js/qr-golden.mjs
 gh workflow run integration.yml
 
-# 5. Tag it.
+# 5. Tag it. Tags carry no "v", like the ones before.
 git commit -am "release: 1.0.0" && git push
-git tag -a v1.0.0 -m "1.0.0" && git push origin v1.0.0
+git tag -a 1.0.0 -m "1.0.0" && git push origin 1.0.0
 ```
+
+Nothing in the code is bumped. The User-Agent sent to SK, RIA and Zetes reads
+the version from Composer, which takes it from the tag an application installs.
 
 Then submit `https://github.com/vaheks/allkiri` at
 <https://packagist.org/packages/submit> and enable the GitHub hook, so later

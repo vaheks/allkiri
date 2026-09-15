@@ -9,6 +9,7 @@ use Allkiri\Http\CurlHttpClient;
 use Allkiri\Http\HttpClient;
 use Allkiri\Http\HttpRequest;
 use Allkiri\Http\TransportException;
+use Allkiri\Http\UserAgent;
 use Allkiri\Tests\Support\Http\LocalHttpServer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -107,6 +108,22 @@ final class CurlHttpClientTest extends TestCase
         $this->expectExceptionMessage('answered with more than the 1000 bytes this client accepts');
 
         $client->send(HttpRequest::get(self::local('/' . $answer . '/1001')));
+    }
+
+    // --- the User-Agent -----------------------------------------------------
+
+    public function testTheInstalledVersionIsSentByDefault(): void
+    {
+        $response = (new CurlHttpClient(timeoutSeconds: 5))->send(HttpRequest::get(self::local('/user-agent')));
+
+        self::assertSame(UserAgent::default(), $response->body);
+    }
+
+    public function testAGivenUserAgentIsSentInstead(): void
+    {
+        $response = (new CurlHttpClient(timeoutSeconds: 5, userAgent: 'my-app/2.0'))->send(HttpRequest::get(self::local('/user-agent')));
+
+        self::assertSame('my-app/2.0', $response->body);
     }
 
     // --- limits that cannot work ---------------------------------------------

@@ -58,11 +58,6 @@ use Psr\SimpleCache\CacheInterface;
  */
 final class Allkiri
 {
-    public const VERSION = '0.1.0-dev';
-
-    /** Sent as User-Agent to SK, RIA and Zetes services so operators can identify the client. */
-    public const USER_AGENT = 'allkiri/' . self::VERSION . ' (+https://github.com/vaheks/allkiri)';
-
     private ?TrustStore $trustStore = null;
 
     private ?SigningService $signingService = null;
