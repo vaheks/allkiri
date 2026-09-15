@@ -6,6 +6,7 @@ namespace Allkiri\Crypto\Ocsp;
 
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
 
@@ -47,7 +48,8 @@ final class OcspResponseVerifier
         try {
             $algorithm = $basic->signatureAlgorithm();
             $signatureOk = $this->verifier->verifyWithAlgorithmIdentifier($responder->publicKey(), $algorithm, $basic->tbsResponseDataDer(), $basic->signature());
-        } catch (UnsupportedAlgorithmException $e) {
+        } catch (UnsupportedAlgorithmException|CertificateException $e) {
+            // An algorithm allkiri does not verify, or a key it cannot read.
             throw new OcspVerificationException(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage(), $e);
         }
         if (!$signatureOk) {
@@ -73,7 +75,7 @@ final class OcspResponseVerifier
             try {
                 $issued = $responder->isSignedBy($issuer);
                 $responderWeakness = $issued ? $options->algorithmConstraints->violation($responder->signatureAlgorithm(), $issuer->publicKey()) : null;
-            } catch (UnsupportedAlgorithmException $e) {
+            } catch (UnsupportedAlgorithmException|CertificateException $e) {
                 throw new OcspVerificationException(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, 'OCSP responder certificate: ' . $e->getMessage(), $e);
             }
             if (!$issued) {
@@ -83,7 +85,12 @@ final class OcspResponseVerifier
                 $weakness = 'OCSP responder certificate is ' . $responderWeakness;
             }
         }
-        if (!$responder->isValidAt($basic->producedAt())) {
+        try {
+            $validWhenProduced = $responder->isValidAt($basic->producedAt());
+        } catch (CertificateException $e) {
+            throw new OcspVerificationException(OcspVerificationException::REASON_RESPONDER_CERTIFICATE_INVALID, 'OCSP responder certificate has no readable validity period: ' . $e->getMessage(), $e);
+        }
+        if (!$validWhenProduced) {
             throw new OcspVerificationException(OcspVerificationException::REASON_RESPONDER_CERTIFICATE_INVALID, 'OCSP responder certificate was not valid when the response was produced');
         }
 

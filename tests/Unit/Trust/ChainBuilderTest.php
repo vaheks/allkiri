@@ -6,6 +6,7 @@ namespace Allkiri\Tests\Unit\Trust;
 
 use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Tests\Support\Crypto\DerPatch;
 use Allkiri\Tests\Support\Pki\Asn1Encoders;
 use Allkiri\Tests\Support\Pki\TestCertificates;
 use Allkiri\Tests\Support\Pki\TestCertificateSignature;
@@ -301,6 +302,18 @@ final class ChainBuilderTest extends TestCase
         // One that does not restrict its key usage at all is not refused for it.
         $unrestricted = self::ca('allkiri CA Without Key Usage', keyUsage: null);
         self::assertSame(3, (new ChainBuilder($store))->build(self::leaf($unrestricted), [$unrestricted->certificate], $at, ServiceType::caTypes())->length());
+    }
+
+    public function testAnIssuerKeyThatCannotBeReadIsAReasonNotAnException(): void
+    {
+        $unreadable = DerPatch::unreadableKey(TestPki::ca()->certificate);
+
+        try {
+            (new ChainBuilder(new InMemoryTrustStore([])))->build(TestPki::signerEc256()->certificate, [$unreadable], new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+            self::fail('an issuer whose key cannot be read was accepted');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
+        }
     }
 
     public function testStatusHistoryAndServiceTypeHelpers(): void

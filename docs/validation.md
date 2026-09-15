@@ -250,6 +250,13 @@ time. Apart from this depth limit, it refuses nothing phpseclib accepts, except
 crafted input too intricate to walk within a budget proportional to its size.
 Real structures nest a few dozen levels at most.
 
+**Parts that do not parse.** Something inside an OCSP response or a timestamp
+token that is not a certificate, a token claiming more than one signer, and a
+certificate whose public key cannot be loaded are each reported as a finding
+against the revocation answer, the timestamp or the signing certificate. None of
+them escapes the validator as an exception, and the OCSP and timestamp clients
+report them as a malformed response or an unsupported algorithm.
+
 **What is not guarded here.** Total upload size is your decision, and it belongs
 in your application or your web server, where `upload_max_filesize` and
 `post_max_size` already live. Signing or validating holds roughly three to four

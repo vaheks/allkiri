@@ -6,7 +6,7 @@ namespace Allkiri\Trust;
 
 use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Certificate;
-use Allkiri\Crypto\UnsupportedAlgorithmException;
+use Allkiri\Crypto\CryptoException;
 
 /**
  * Finds a path from a certificate to a trust anchor that is valid at a given
@@ -162,7 +162,8 @@ final class ChainBuilder
                 return false;
             }
             $violation = $this->constraints->violation($subject->signatureAlgorithm(), $issuer->publicKey());
-        } catch (UnsupportedAlgorithmException $e) {
+        } catch (CryptoException $e) {
+            // An algorithm allkiri does not verify, or an issuer key it cannot read.
             self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage()));
 
             return false;

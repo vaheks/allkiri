@@ -27,6 +27,11 @@ final class TimestampToken
             throw new Asn1Exception('Token content is not a TSTInfo');
         }
         $this->tstInfo = TstInfo::fromDer($this->signedData->eContent() ?? throw new Asn1Exception('Token has no TSTInfo content'));
+        // Checked while parsing, where every caller already expects a malformed
+        // token, rather than later where none does.
+        if (\count($this->signedData->signerInfos()) !== 1) {
+            throw new Asn1Exception(\sprintf('Timestamp token must have exactly one signer, has %d', \count($this->signedData->signerInfos())));
+        }
     }
 
     public static function fromDer(string $der): self

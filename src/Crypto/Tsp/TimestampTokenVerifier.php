@@ -7,6 +7,7 @@ namespace Allkiri\Crypto\Tsp;
 use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
@@ -52,7 +53,8 @@ final class TimestampTokenVerifier
         try {
             $algorithm = $signerInfo->signatureAlgorithm();
             $ok = $this->verifier->verifyWithAlgorithmIdentifier($tsa->publicKey(), $algorithm, $signedAttrs, $signerInfo->signature());
-        } catch (UnsupportedAlgorithmException $e) {
+        } catch (UnsupportedAlgorithmException|CertificateException $e) {
+            // An algorithm allkiri does not verify, or a key it cannot read.
             throw new TimestampVerificationException(TimestampVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage(), $e);
         }
         if (!$ok) {
