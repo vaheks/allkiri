@@ -25,8 +25,6 @@ require __DIR__ . '/../app.php';
 header("Content-Security-Policy: frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
-session_start();
-
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = (string) parse_url(is_string($requestUri) ? $requestUri : '/', PHP_URL_PATH);
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -116,7 +114,9 @@ function carriesCsrfToken(): bool
 }
 
 // Static assets are served straight from the library, so the demo uses the same
-// files an application would. Nothing here needs the configuration.
+// files an application would. Nothing here needs the configuration or the
+// session, so a script request neither waits for a poll holding the session
+// lock nor sets a cookie.
 $assets = [
     '/allkiri.js' => __DIR__ . '/../../../assets/allkiri.js',
     '/allkiri-qr.js' => __DIR__ . '/../../../assets/allkiri-qr.js',
@@ -145,6 +145,20 @@ try {
         . '</pre>';
     exit;
 }
+
+// The session cookie is out of reach of scripts and of other sites' requests,
+// and PHP refuses a session id it did not make. It is Secure whenever the page
+// came over HTTPS, and always in live mode, which has no business running over
+// anything else. The demo also runs over plain HTTP for Mobile-ID and Smart-ID,
+// where a Secure cookie would never come back.
+$https = $_SERVER['HTTPS'] ?? '';
+session_start([
+    'cookie_httponly' => true,
+    'cookie_samesite' => 'Lax',
+    'cookie_secure' => (is_string($https) && $https !== '' && strtolower($https) !== 'off') || $app->config()->isLive(),
+    'use_strict_mode' => true,
+    'use_only_cookies' => true,
+]);
 
 if ($path === '/' || $path === '/index.php') {
     if ($method !== 'GET') {
