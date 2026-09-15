@@ -61,7 +61,9 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
 7. **Timestamps.** The token covers this signature's value, verifies, and
    comes from a trusted timestamp authority whose certificate marks its
    timestamping purpose critical, as RFC 3161 requires. This establishes the
-   *best signature time*: the moment the signature provably existed.
+   *best signature time*: the moment the signature provably existed. A
+   signature with no timestamp is `INDETERMINATE` with `NO_POE` and
+   `TIMESTAMP_MISSING`, unless the policy's `requireSignatureTimestamp` is off.
 8. **The certificate chain**, as it stood at that moment, up to a trust anchor
    whose service was in a trustworthy status then. Every CA in it keeps to its
    path length constraint, counted as RFC 5280 counts it, and every intermediate
@@ -72,6 +74,12 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    carries several responses, a revoked one decides. Otherwise the newest one
    produced within the policy's OCSP window after the signature time is used,
    and the newest overall only when none falls inside the window.
+10. **Order.** The revocation answer must not predate the timestamp; a gap
+    beyond fifteen minutes warns and beyond a day fails. When no timestamp
+    verifies, the answer is held to the signer's claimed signing time instead:
+    produced after it, within the same one-day window, and not after the
+    validation time. Otherwise `REVOCATION_NOT_BOUND_TO_SIGNING_TIME`,
+    `INDETERMINATE` with `NO_POE`, names the bound that failed.
 
 In steps 7 to 9, every signature involved must be made with an acceptable
 algorithm: the timestamp token, each certificate in a chain, the OCSP response
@@ -85,8 +93,6 @@ fields differ, which RFC 5280 forbids, is not treated as signed at all.
 RSASSA-PSS is verified there as well, in the profile certificate authorities
 issue: SHA-256, SHA-384 or SHA-512, MGF1 with the same hash, and a salt as long
 as the digest. Other parameters are an algorithm allkiri does not support.
-10. **Order.** The revocation answer must not predate the timestamp; a gap
-    beyond fifteen minutes warns and beyond a day fails.
 
 ## The policy
 
@@ -101,7 +107,7 @@ $allkiri = new Allkiri(Environment::demo(), policy: $policy);
 
 The defaults follow Estonian practice for BDOC 2.1.2: SHA-256 and above,
 RSA-2048 and above, `DataObjectFormat` mandatory, the fifteen-minute and
-one-day OCSP thresholds digidoc4j uses.
+one-day OCSP thresholds digidoc4j uses, and a signature timestamp required.
 
 `minimumRsaKeyBits` also sets the floor for the keys that sign the
 certificates, OCSP responses and timestamps a signature rests on. A policy
@@ -144,6 +150,7 @@ accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 | DDOC, PDF | not read | validated |
 | CRL revocation data | reported, not checked | checked |
 | SHA-1 in a chain, an OCSP response or a timestamp | `INDETERMINATE` | a warning, for BDOC |
+| A signature without a timestamp (level B) | `INDETERMINATE`, `TIMESTAMP_MISSING`; judged on its claimed time with `requireSignatureTimestamp: false` | not accepted for ASiC-E |
 
 Where both validate the same signature, they should agree. The integration
 suite compares them on every run.

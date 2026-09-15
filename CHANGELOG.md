@@ -217,8 +217,22 @@ signatures with a local key, and the API the eID means will plug into.
   `REASON_PATH_LENGTH` and `REASON_CA_KEY_USAGE` on `ChainBuildingException`,
   reported for the signer's chain as `CHAIN_CONSTRAINT_VIOLATED`. `Certificate`
   gains `pathLenConstraint()`, `isSelfIssued()` and `isExtensionCritical()`.
+- A signature without a signature timestamp is INDETERMINATE with NO_POE and
+  `TIMESTAMP_MISSING`, under the new `ValidationPolicy::$requireSignatureTimestamp`,
+  which is true by default. With it off, a B-level signature is judged on its
+  claimed signing time and carries `NO_POE_CLAIMED_TIME_USED`. New finding code
+  `REVOCATION_NOT_BOUND_TO_SIGNING_TIME`.
 
 ### Fixed
+
+- Without a verified timestamp, a revocation answer is held to the claimed
+  signing time. An embedded OCSP response was compared only with itself: a
+  signature whose timestamp had been removed validated TOTAL-PASSED with an
+  answer from years before or after, and one whose timestamp failed said nothing
+  about how far its answer lay from the claimed time. The answer must now have
+  been produced after the claimed signing time, within the policy's OCSP window
+  of it, and not after the validation time. A signature with neither a timestamp
+  nor a signing time no longer skips its chain check silently.
 
 - A revoked OCSP response is no longer outweighed by a good one embedded before
   it. When a signature carried several responses, the first that verified was

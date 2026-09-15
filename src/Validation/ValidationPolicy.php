@@ -20,6 +20,7 @@ final readonly class ValidationPolicy
     /**
      * @param list<HashAlgorithm>      $allowedDigestAlgorithms
      * @param list<SignatureAlgorithm> $allowedSignatureAlgorithms
+     * @param bool                     $requireSignatureTimestamp  whether a signature without a signature timestamp can pass; without one only the signer's own claim says when it was made
      */
     public function __construct(
         public string $name = 'allkiri BDOC 2.1.2 / ASiC-E',
@@ -31,6 +32,7 @@ final readonly class ValidationPolicy
         public int $ocspDelayWarningSeconds = 900,
         public int $ocspDelayErrorSeconds = 86400,
         public int $clockSkewSeconds = 300,
+        public bool $requireSignatureTimestamp = true,
     ) {}
 
     public static function bdoc(): self
