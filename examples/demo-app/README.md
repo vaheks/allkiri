@@ -1,7 +1,8 @@
 # The allkiri demo
 
-A small application that signs in with all four Estonian eID means, signs an
-uploaded file with any of them, archives the result, and validates a container.
+A small application that signs in with an ID card, Mobile-ID or Smart-ID, signs
+an uploaded file with any of them, archives the result, and validates a
+container.
 Plain PHP, no framework: one file of endpoints and one of configuration.
 
 It exists to be read. Every endpoint is a few lines, and the parts that matter —
