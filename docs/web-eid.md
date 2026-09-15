@@ -156,6 +156,46 @@ overrides that, and is refused up front if the card does not offer it.
 SHA-224 and the SHA-3 family are reported by some cards and have no signature
 method in the profile allkiri produces, so they are passed over.
 
+## When the card fails
+
+`allkiri.cardLogin()` and `cardSign()` reject with web-eid.js's own error. Its
+`code` is one of thirteen, and its message is written for developers.
+`allkiri.describeWebEidError(error)` says who can act on it and gives a sentence
+in English for them, or `null` for anything that is not a Web eID error:
+
+| Code | Who can act | What it means |
+|---|---|---|
+| `ERR_WEBEID_EXTENSION_UNAVAILABLE` | the person | the browser extension is missing or turned off |
+| `ERR_WEBEID_NATIVE_UNAVAILABLE` | the person | the Web eID application is not installed |
+| `ERR_WEBEID_VERSION_MISMATCH` | the person | the extension, the application or both need updating; `requiresUpdate` says which |
+| `ERR_WEBEID_USER_CANCELLED` | the person | they closed the dialog |
+| `ERR_WEBEID_USER_TIMEOUT` | the person | they did not answer in time |
+| `ERR_WEBEID_NATIVE_FATAL` | the person | the application failed, often because of the reader; trying again may help |
+| `ERR_WEBEID_CONTEXT_INSECURE` | the operator | the page is not served over HTTPS |
+| `ERR_WEBEID_NATIVE_INVALID_ARGUMENT` | the developer | the application was given a bad argument, such as a short challenge |
+| `ERR_WEBEID_ACTION_PENDING` | the developer | the same action was started again before the first finished; disable the button meanwhile |
+| `ERR_WEBEID_MISSING_PARAMETER` | the developer | web-eid.js was called without something it needs |
+| `ERR_WEBEID_ACTION_TIMEOUT` | the developer | the extension never answered; a bug to report |
+| `ERR_WEBEID_VERSION_INVALID` | the developer | the application reported a malformed version; a bug to report |
+| `ERR_WEBEID_UNKNOWN_ERROR` | the developer | anything else |
+
+The codes are web-eid.js 2.x's, taken from its `ErrorCode` at 2.1.0; the server
+and TLS codes of version 1 no longer exist. There is no code for a missing card
+or a blocked PIN, because the Web eID application shows those in its own dialog.
+What the page receives once the person closes that dialog is most likely
+`ERR_WEBEID_USER_CANCELLED`, or `ERR_WEBEID_USER_TIMEOUT` if they leave it open;
+that has not been tried on a card.
+
+```js
+allkiri.cardLogin({ challengeUrl: '/api/card/challenge', loginUrl: '/api/card/login' })
+  .then(showTheUser)
+  .catch(function (error) {
+    var problem = allkiri.describeWebEidError(error);
+    console.warn(error);
+    showMessage(problem ? problem.text : 'Signing in did not work. Try again.');
+  });
+```
+
 ## Production trust
 
 `Environment::production()` reaches its trust anchors through the European list

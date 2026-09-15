@@ -137,6 +137,10 @@ signatures with a local key, and the API the eID means will plug into.
   identifier (`PssParameters`, `SignatureAlgorithmIdentifier::$pss`) and
   accepted in the one profile in use: SHA-256, SHA-384 or SHA-512, MGF1 with
   the same hash, a salt as long as the digest.
+- **Web eID errors a person can act on.** `allkiri.describeWebEidError()` takes
+  the error `cardLogin()` or `cardSign()` rejected with and says who can act on
+  it, the person, the site's operator or its developers, with a sentence for
+  them, for each of web-eid.js 2.x's thirteen codes. The demo page shows it.
 
 ### Changed
 

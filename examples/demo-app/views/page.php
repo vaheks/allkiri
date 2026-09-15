@@ -148,13 +148,29 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
     };
   }
 
+  // web-eid.js's own messages are written for developers. The person gets a
+  // sentence they can act on, and the error itself goes to the console.
+  function cardFailed(id) {
+    return function (error) {
+      var problem = allkiri.describeWebEidError(error);
+      if (!problem) {
+        failed(id)(error);
+        return;
+      }
+      if (window.console) {
+        window.console.warn(problem.code, error);
+      }
+      say(id, problem.text, true);
+    };
+  }
+
   // --- signing in --------------------------------------------------------
 
   $('card-login').onclick = function () {
     say('card-login-status', 'Insert the card and follow the prompts…');
     allkiri.cardLogin({ challengeUrl: '/api/card/challenge', loginUrl: '/api/card/login' })
       .then(function (user) { say('card-login-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'); })
-      .catch(failed('card-login-status'));
+      .catch(cardFailed('card-login-status'));
   };
 
   $('mid-login').onclick = function () {
@@ -211,7 +227,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   $('sign-card').onclick = function () {
     say('sign-status', 'Insert the card…');
     allkiri.cardSign({ prepareUrl: '/api/card/sign/prepare', completeUrl: '/api/card/sign/complete' })
-      .then(signed).catch(failed('sign-status'));
+      .then(signed).catch(cardFailed('sign-status'));
   };
 
   $('sign-mid').onclick = function () {

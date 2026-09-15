@@ -481,12 +481,98 @@
     element.setAttribute('aria-label', 'Verification code ' + String(code).split('').join(' '));
   }
 
+  // --- when the ID card fails ------------------------------------------------
+
+  var PROBLEM_ON_THIS_SITE = 'The ID card could not be used because of a problem on this site. Try again later.';
+
+  /**
+   * Who can act on each error code of web-eid.js 2.x, and what to tell them.
+   */
+  var WEB_EID_PROBLEMS = {
+    ERR_WEBEID_EXTENSION_UNAVAILABLE: {
+      who: 'person',
+      text: 'The Web eID browser extension is not installed or not turned on. Install or enable it, then try again.'
+    },
+    ERR_WEBEID_NATIVE_UNAVAILABLE: {
+      who: 'person',
+      text: 'The Web eID application is not installed. Install the ID card software, which includes it, then try again.'
+    },
+    ERR_WEBEID_VERSION_MISMATCH: { who: 'person', text: '' },
+    ERR_WEBEID_USER_CANCELLED: {
+      who: 'person',
+      text: 'The ID card request was cancelled. Start again when you are ready.'
+    },
+    ERR_WEBEID_USER_TIMEOUT: {
+      who: 'person',
+      text: 'Nothing was entered in time. Try again.'
+    },
+    ERR_WEBEID_NATIVE_FATAL: {
+      who: 'person',
+      text: 'The ID card could not be used. Check that it is in the reader and try again; if it keeps happening, the reader or the card may be at fault.'
+    },
+    ERR_WEBEID_CONTEXT_INSECURE: {
+      who: 'operator',
+      text: 'This page is not served over HTTPS, and the ID card only works on a secure page.'
+    },
+    ERR_WEBEID_NATIVE_INVALID_ARGUMENT: { who: 'developer', text: PROBLEM_ON_THIS_SITE },
+    ERR_WEBEID_ACTION_PENDING: { who: 'developer', text: PROBLEM_ON_THIS_SITE },
+    ERR_WEBEID_MISSING_PARAMETER: { who: 'developer', text: PROBLEM_ON_THIS_SITE },
+    ERR_WEBEID_ACTION_TIMEOUT: { who: 'developer', text: PROBLEM_ON_THIS_SITE },
+    ERR_WEBEID_VERSION_INVALID: { who: 'developer', text: PROBLEM_ON_THIS_SITE },
+    ERR_WEBEID_UNKNOWN_ERROR: { who: 'developer', text: PROBLEM_ON_THIS_SITE }
+  };
+
+  /**
+   * What to tell someone whose ID card failed.
+   *
+   * cardLogin() and cardSign() reject with web-eid.js's own error, whose
+   * message is written for developers and belongs in your logs. Given that
+   * error, this says who can act on it (the person at the card, the site's
+   * operator, or its developers) and gives a sentence in English for them.
+   * Anything that is not a known web-eid.js 2.x error gives null, so your own
+   * handling applies.
+   *
+   * @param {*} error
+   * @returns {{code: string, who: string, text: string}|null}
+   */
+  function describeWebEidError(error) {
+    var code = error && typeof error.code === 'string' ? error.code : null;
+    if (code === null || !Object.prototype.hasOwnProperty.call(WEB_EID_PROBLEMS, code)) {
+      return null;
+    }
+    var problem = WEB_EID_PROBLEMS[code];
+    return {
+      code: code,
+      who: problem.who,
+      text: code === 'ERR_WEBEID_VERSION_MISMATCH' ? outOfDate(error.requiresUpdate) : problem.text
+    };
+  }
+
+  /**
+   * web-eid.js says which of its parts is out of date in requiresUpdate.
+   */
+  function outOfDate(requiresUpdate) {
+    var extension = !!(requiresUpdate && requiresUpdate.extension);
+    var application = !!(requiresUpdate && requiresUpdate.nativeApp);
+    if (extension && application) {
+      return 'The Web eID browser extension and application are out of date. Update both, then try again.';
+    }
+    if (extension) {
+      return 'The Web eID browser extension is out of date. Update it, then try again.';
+    }
+    if (application) {
+      return 'The Web eID application is out of date. Update the ID card software, then try again.';
+    }
+    return 'Web eID is out of date. Update the browser extension and the ID card software, then try again.';
+  }
+
   return {
     configure: configure,
     post: post,
     poll: poll,
     cardLogin: cardLogin,
     cardSign: cardSign,
+    describeWebEidError: describeWebEidError,
     notificationFlow: notificationFlow,
     deviceLinkQr: deviceLinkQr,
     showVerificationCode: showVerificationCode,
