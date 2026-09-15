@@ -58,6 +58,16 @@ on every read. A poisoned cache cannot introduce a trust anchor.
 A list is written to the cache when it is fetched, not again when it is read
 from there, so the cache lifetime decides how soon a fresh copy is fetched.
 
+## When a list cannot be loaded
+
+`$allkiri->trustStore()->anchors()` throws `TrustedListException` when a list
+cannot be fetched, verified or parsed, with a reason such as
+`TRUSTED_LIST_TRANSPORT`. Signing and signing people in fail the same way.
+Validation does not throw: each signature is reported `INDETERMINATE` with
+`TRUST_ANCHORS_UNAVAILABLE` and the exception's message. The failure is not
+remembered, so each signature tries to load the lists again, and with the
+network down each one waits out the HTTP timeouts again.
+
 ## When a list is not renewed
 
 Every trusted list names its next update, the date by which a newer one is due.

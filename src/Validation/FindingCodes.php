@@ -100,5 +100,8 @@ final class FindingCodes
     /** A trusted list the signature rests on is past its next update: a warning, or an error once the policy's grace period is over. */
     public const TRUSTED_LIST_EXPIRED = 'TRUSTED_LIST_EXPIRED';
 
+    /** The trust anchors could not be loaded, so nothing that needs them could be checked. */
+    public const TRUST_ANCHORS_UNAVAILABLE = 'TRUST_ANCHORS_UNAVAILABLE';
+
     private function __construct() {}
 }

@@ -231,8 +231,17 @@ signatures with a local key, and the API the eID means will plug into.
   `TrustedList::isExpiredAt()` now counts a list with no next update as expired.
 - `TrustedListLoader` writes a list to the cache only when it fetched it, not
   again when it read it from the cache.
+- New finding code `TRUST_ANCHORS_UNAVAILABLE`, INDETERMINATE with
+  NO_CERTIFICATE_CHAIN_FOUND, for a signature validated while the trust anchors
+  cannot be loaded.
 
 ### Fixed
+
+- Validation no longer throws when the trust anchors cannot be loaded. A
+  trusted list that could not be fetched, verified or parsed escaped from
+  `SignatureValidator` and `ContainerValidator` as a `TrustedListException`.
+  Each signature now reports it as `TRUST_ANCHORS_UNAVAILABLE`, and what was
+  found before stands.
 
 - A signature resting on a trusted list past its next update is no longer
   reported as if the list were current. It validated TOTAL-PASSED with no

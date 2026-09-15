@@ -44,6 +44,7 @@ use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use Allkiri\Trust\TrustedList\TrustedListSource;
 use Allkiri\Trust\TrustedList\TrustedListStatus;
@@ -849,6 +850,70 @@ final class ValidationTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         new ValidationPolicy(trustedListGraceSeconds: -1);
+    }
+
+    /**
+     * A trust store whose trusted list cannot be fetched.
+     */
+    private static function unreachableTrust(): TrustStore
+    {
+        return new class implements TrustStore {
+            public function anchors(?array $types = null): array
+            {
+                throw $this->unreachable();
+            }
+
+            public function findAnchor(Certificate $certificate): ?TrustAnchor
+            {
+                throw $this->unreachable();
+            }
+
+            public function findIssuerAnchors(Certificate $subject): array
+            {
+                throw $this->unreachable();
+            }
+
+            private function unreachable(): TrustedListException
+            {
+                return new TrustedListException(TrustedListException::REASON_TRANSPORT, 'Could not fetch the trusted list https://tl.test/list.xml: connection refused');
+            }
+        };
+    }
+
+    /**
+     * Trust anchors that cannot be loaded leave the trust half of validation
+     * undecided. That is reported rather than thrown, and what was found
+     * before the anchors were needed still stands.
+     */
+    public function testTrustAnchorsThatCannotBeLoadedAreReportedNotThrown(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $options = new ValidationOptions(trustStore: self::unreachableTrust());
+        $validator = self::validator($fixture);
+
+        $intact = $validator->validate((new AsicWriter())->write($result->container), 'a.asice', $options)->signatures[0];
+        self::assertSame(Indication::Indeterminate, $intact->indication);
+        self::assertSame(SubIndication::NoCertificateChainFound, $intact->subIndication);
+        self::assertSame([FindingCodes::TRUST_ANCHORS_UNAVAILABLE], array_map(static fn($f): string => $f->code, $intact->errors()));
+        self::assertStringContainsString('(TRUSTED_LIST_TRANSPORT)', $intact->errors()[0]->message);
+        self::assertStringContainsString('https://tl.test/list.xml', $intact->errors()[0]->message);
+
+        $changed = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('a.txt', 'tampered')
+            ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'tampered')])->toXml())
+            ->addDeflated('META-INF/signatures0.xml', self::signatureXml($result))
+            ->build();
+        $tampered = $validator->validate($changed, 'a.asice', $options)->signatures[0];
+        self::assertSame(Indication::TotalFailed, $tampered->indication);
+        self::assertSame(SubIndication::HashFailure, $tampered->subIndication);
+        self::assertTrue($tampered->has(FindingCodes::DATA_FILE_DIGEST_MISMATCH));
+        self::assertTrue($tampered->has(FindingCodes::TRUST_ANCHORS_UNAVAILABLE));
+
+        $untimed = $validator->validate(self::containerOfA(self::withoutSignatureTimestamp(self::signatureXml($result))), 'a.asice', $options)->signatures[0];
+        self::assertSame(SubIndication::NoPoe, $untimed->subIndication);
+        self::assertSame([FindingCodes::TIMESTAMP_MISSING, FindingCodes::TRUST_ANCHORS_UNAVAILABLE], array_map(static fn($f): string => $f->code, $untimed->errors()));
     }
 
     public function testLevelsBAndTAreReportedAsWhatTheyAre(): void

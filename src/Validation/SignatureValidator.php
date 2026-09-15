@@ -30,6 +30,8 @@ use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ChainBuildingException;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\TrustedListException;
+use Allkiri\Trust\TrustException;
 use Allkiri\Trust\TrustStore;
 use Allkiri\Validation\Report\Finding;
 use Allkiri\Validation\Report\Indication;
@@ -50,9 +52,9 @@ use Allkiri\Xades\XadesException;
  * Decides whether one XAdES signature in a container is valid, and says why
  * when it is not.
  *
- * It never throws on bad input: a report that explains the problem is the
- * product. The order of the checks matters, because the later ones need the
- * time the earlier ones establish.
+ * It never throws, on bad input or when the trust anchors cannot be loaded: a
+ * report that explains the problem is the product. The order of the checks
+ * matters, because the later ones need the time the earlier ones establish.
  */
 final class SignatureValidator
 {
@@ -85,34 +87,52 @@ final class SignatureValidator
         $this->checkSigningCertificateUsage($signer, $findings);
         $this->checkReferences($container, $signature, $element, $signer, $findings);
 
-        $timestamp = $this->checkTimestamps($signature, $expiry, $findings);
-        $bestSignatureTime = $timestamp?->genTime();
-        if ($bestSignatureTime === null && $signature->signingTime !== null) {
-            $bestSignatureTime = $signature->signingTime;
-            // A signature with no timestamp at all has been told so already, when the policy requires one.
-            if ($level !== null && ($level !== SignatureLevel::B || !$this->policy->requireSignatureTimestamp)) {
-                $findings[] = Finding::warning(FindingCodes::NO_POE_CLAIMED_TIME_USED, 'No usable timestamp; the signer\'s claimed signing time is used instead');
-            }
-        }
-
+        $timestamp = null;
+        $bestSignatureTime = null;
         $ocsp = null;
-        if ($signer !== null && $bestSignatureTime === null) {
-            $findings[] = Finding::error(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, 'Neither a verified timestamp nor a signing time says when the signature was made, so its certificate chain and revocation status cannot be checked', Indication::Indeterminate, SubIndication::NoPoe);
-        }
-        if ($signer !== null && $bestSignatureTime !== null) {
-            $chain = $this->checkChain($signature, $signer, $bestSignatureTime, $expiry, $findings);
-            if ($chain !== null) {
-                $ocsp = $this->checkRevocation($signature, $signer, $chain, $bestSignatureTime, $expiry, $findings);
+        $archiveTime = null;
+        try {
+            $timestamp = $this->checkTimestamps($signature, $expiry, $findings);
+            $bestSignatureTime = $timestamp?->genTime();
+            if ($bestSignatureTime === null && $signature->signingTime !== null) {
+                $bestSignatureTime = $signature->signingTime;
+                // A signature with no timestamp at all has been told so already, when the policy requires one.
+                if ($level !== null && ($level !== SignatureLevel::B || !$this->policy->requireSignatureTimestamp)) {
+                    $findings[] = Finding::warning(FindingCodes::NO_POE_CLAIMED_TIME_USED, 'No usable timestamp; the signer\'s claimed signing time is used instead');
+                }
             }
-        }
-        if ($ocsp !== null && $timestamp !== null) {
-            $this->checkTimestampOcspOrder($timestamp, $ocsp, $findings);
-        } elseif ($ocsp !== null && $bestSignatureTime !== null) {
-            $this->checkRevocationAgainstClaimedTime($bestSignatureTime, $ocsp, $validationTime, $findings);
-        }
 
-        $archiveTime = $this->checkArchiveTimestamps($container, $element, $expiry, $timestamp, $findings);
-        array_push($findings, ...$expiry->warnings());
+            if ($signer !== null && $bestSignatureTime === null) {
+                $findings[] = Finding::error(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, 'Neither a verified timestamp nor a signing time says when the signature was made, so its certificate chain and revocation status cannot be checked', Indication::Indeterminate, SubIndication::NoPoe);
+            }
+            if ($signer !== null && $bestSignatureTime !== null) {
+                $chain = $this->checkChain($signature, $signer, $bestSignatureTime, $expiry, $findings);
+                if ($chain !== null) {
+                    $ocsp = $this->checkRevocation($signature, $signer, $chain, $bestSignatureTime, $expiry, $findings);
+                }
+            }
+            if ($ocsp !== null && $timestamp !== null) {
+                $this->checkTimestampOcspOrder($timestamp, $ocsp, $findings);
+            } elseif ($ocsp !== null && $bestSignatureTime !== null) {
+                $this->checkRevocationAgainstClaimedTime($bestSignatureTime, $ocsp, $validationTime, $findings);
+            }
+
+            $archiveTime = $this->checkArchiveTimestamps($container, $element, $expiry, $timestamp, $findings);
+            array_push($findings, ...$expiry->warnings());
+        } catch (TrustException $e) {
+            // Nothing from here on can be decided without trust anchors, but
+            // what was found before them stands: a changed file stays changed.
+            $findings[] = Finding::error(
+                FindingCodes::TRUST_ANCHORS_UNAVAILABLE,
+                \sprintf(
+                    'The trust anchors could not be loaded%s, so the timestamps, certificate chain and revocation status cannot be checked: %s',
+                    $e instanceof TrustedListException ? ' (' . $e->reason . ')' : '',
+                    $e->getMessage(),
+                ),
+                Indication::Indeterminate,
+                SubIndication::NoCertificateChainFound,
+            );
+        }
 
         [$indication, $subIndication] = $this->verdict($findings);
 

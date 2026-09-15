@@ -19,8 +19,11 @@ use Allkiri\Tests\Support\Pki\MockTsa;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListSource;
+use Allkiri\Validation\FindingCodes;
+use Allkiri\Validation\Report\Indication;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
@@ -91,6 +94,22 @@ final class AllkiriTest extends TestCase
         $this->expectException(TrustedListException::class);
 
         $allkiri->trustStore()->anchors();
+    }
+
+    /**
+     * Validation needs the same trust, but reports its absence on each
+     * signature instead of throwing, so the caller still has a report to show.
+     */
+    public function testValidationReportsProductionTrustThatCannotBeFetched(): void
+    {
+        $allkiri = new Allkiri(Environment::production(), new MockHttpClient());
+
+        $report = $allkiri->validator()->validateFile(__DIR__ . '/../fixtures/containers/valid-asice-esteid2018.asice');
+
+        $signature = $report->signatures[0];
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertTrue($signature->has(FindingCodes::TRUST_ANCHORS_UNAVAILABLE));
+        self::assertStringContainsString(ListOfListsSource::EU_URL, implode("\n", array_map(static fn($f): string => $f->message, $signature->errors())));
     }
 
     public function testTheEnvironmentIsImmutableAndConfigurable(): void

@@ -99,6 +99,12 @@ RSASSA-PSS is verified there as well, in the profile certificate authorities
 issue: SHA-256, SHA-384 or SHA-512, MGF1 with the same hash, and a salt as long
 as the digest. Other parameters are an algorithm allkiri does not support.
 
+Steps 7 to 10 need the trust anchors. When they cannot be loaded, because a
+trusted list cannot be fetched, verified or parsed, validation does not throw.
+Each signature is `INDETERMINATE` with `NO_CERTIFICATE_CHAIN_FOUND` and
+`TRUST_ANCHORS_UNAVAILABLE`, whose message gives the reason. What steps 1 to 6
+found still stands, so a tampered container is still `TOTAL-FAILED`.
+
 ## The policy
 
 ```php
