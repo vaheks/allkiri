@@ -288,6 +288,10 @@ signatures with a local key, and the API the eID means will plug into.
   the new `Xml\XmlException`. So `archive()` on a signature file that is not XML
   no longer throws a `XadesException`, and `CanonicalizationException` is no
   longer one.
+- `ZipBombException` and `UnsupportedZipException` moved from
+  `Allkiri\Container\Zip` to `Allkiri\Container`, beside the
+  `InvalidContainerException` they extend, and `AsicReader` and `AsicWriter`
+  declare the ones they throw.
 
 ### Fixed
 

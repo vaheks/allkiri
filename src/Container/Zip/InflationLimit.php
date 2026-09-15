@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\Container\Zip;
 
+use Allkiri\Container\UnsupportedZipException;
+use Allkiri\Container\ZipBombException;
 use Allkiri\Exception\InvalidArgumentException;
 
 /**

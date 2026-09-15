@@ -32,8 +32,9 @@ final class AsicReader
 
     /**
      * @throws InvalidContainerException when the bytes are not a readable ZIP
-     * @throws \Allkiri\Container\Zip\ZipBombException when it would expand out of
-     *                                                all proportion to its size
+     * @throws UnsupportedZipException   when the ZIP uses a feature allkiri does not read: ZIP64, encryption,
+     *                                   several disks, or compression other than store and deflate
+     * @throws ZipBombException          when it would expand out of all proportion to its size
      */
     public function read(string $bytes): AsicContainer
     {

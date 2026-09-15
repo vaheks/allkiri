@@ -228,9 +228,10 @@ PDFs and images barely compress at all. Change it when you know better:
 $allkiri = new Allkiri($environment, reader: new AsicReader(maxCompressionRatio: 500));
 ```
 
-The refusal is a `ZipBombException`, which is separate from the other reasons a
-container cannot be read so that an application can tell a hostile upload from a
-broken one. The declared size is checked first because it costs nothing, and an
+The refusal is `Allkiri\Container\ZipBombException`, an
+`InvalidContainerException` kept separate from the other reasons a container
+cannot be read so that an application can tell a hostile upload from a broken
+one. The declared size is checked first because it costs nothing, and an
 archive that lies about it is stopped part way through decompressing, so the
 memory a refusal costs is bounded by the allowance rather than by the payload.
 
