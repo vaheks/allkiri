@@ -119,6 +119,8 @@ $_SESSION['sid'] = json_encode($session);
 Then, from a browser poll:
 
 ```php
+// A SessionDataException here means the store handed back something that
+// cannot be read as a session; start again.
 $session = SmartIdSession::fromJson($_SESSION['sid']);
 $identity = $authenticator->poll($session);   // null while they are still deciding
 

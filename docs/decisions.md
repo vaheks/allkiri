@@ -780,3 +780,19 @@ exception extends `\RuntimeException` through its module's base class. Guzzle an
 Symfony are built the same way, and `catch (AllkiriException)` keeps working. A
 test walks `src` and fails on any exception outside the family, and on any SPL
 exception or anonymous exception class created there.
+
+### One exception for what was stored
+
+A prepared signature, a session or a challenge is written to the application's
+store in one request and read back in the next. When it came back malformed,
+the seven restores failed seven ways: `InvalidArgumentException`, which calls it
+a programmer error; PHP's `ValueError` or date exceptions; a
+`CertificateException`; and, for a Web eID signing session, a `WebEidException`.
+A Mobile-ID session whose challenge was not base64 was not refused at all.
+
+They now share one reader, and every restore throws `SessionDataException`, a
+runtime exception: the data came from the store rather than from the code, and
+the useful response is to start again. What the reader finds wrong itself is
+named by field, without the value. What an object refuses after the reader
+accepted it, such as a phone number in no known form, is wrapped with the
+original exception as `previous`, and so is PHP's `ValueError`.

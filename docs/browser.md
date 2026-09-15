@@ -131,6 +131,8 @@ running.promise.then(done).catch(explain);
 Your link endpoint rebuilds the link each time it is asked:
 
 ```php
+// A SessionDataException here means the store handed back something that
+// cannot be read as a session; start again.
 $session = SmartIdSession::fromJson($_SESSION['sid']);
 $link = $session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64());
 

@@ -251,6 +251,12 @@ signatures with a local key, and the API the eID means will plug into.
   now extends SPL's `\InvalidArgumentException`: `catch (\InvalidArgumentException)`
   and `catch (\LogicException)` catch it, and `catch (\RuntimeException)` no
   longer does. Every other library exception extends `\RuntimeException`.
+- Every restore of stored data, `fromJson()` and `fromArray()` on
+  `DataToBeSigned`, `WebEidChallenge` and the sessions, throws the new
+  `Allkiri\Exception\SessionDataException` when what was stored cannot be read
+  back. What an object refuses after reading, and PHP's `ValueError`, arrive as
+  its `previous`. The restores threw `InvalidArgumentException`, or let
+  `ValueError`, `CertificateException` and `WebEidException` through.
 
 ### Fixed
 
@@ -264,7 +270,8 @@ signatures with a local key, and the API the eID means will plug into.
   Mobile-ID session whose challenge was not base64 was restored with an empty
   challenge, an unknown algorithm or level in a stored `DataToBeSigned` threw
   PHP's `ValueError`, and dates were parsed loosely, so "now" was accepted. Each
-  is now refused, with a message naming the field and never its value.
+  is now refused with `SessionDataException`, with a message naming the field
+  and never its value.
 - A stored Smart-ID session with a missing field no longer puts the whole stored
   array, session secret included, into the exception's stack trace. Every
   `fromArray()` and `fromJson()` now keeps its input out of stack traces.
