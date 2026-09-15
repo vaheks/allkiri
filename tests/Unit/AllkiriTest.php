@@ -209,6 +209,16 @@ final class AllkiriTest extends TestCase
         self::assertSame($given, (new Allkiri(Environment::demo(), $given))->httpClient(), 'a client that was given is used as it is');
     }
 
+    public function testThePreparedSignatureLifetimeReachesTheSigningService(): void
+    {
+        $allkiri = new Allkiri(Environment::demo(), new MockHttpClient(), preparedSignatureTtlSeconds: 0);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least a second');
+
+        $allkiri->signingService();
+    }
+
     public function testTheProcessCacheHonoursTimeToLive(): void
     {
         $cache = new ArrayCache();

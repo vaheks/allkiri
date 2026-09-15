@@ -9,6 +9,7 @@ use Allkiri\Container\AsicWriter;
 use Allkiri\Container\DataFile;
 use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Signing\PreparedSignatureExpiredException;
 use Allkiri\Signing\SessionMismatchException;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningOptions;
@@ -318,6 +319,25 @@ final class WebEidSignerTest extends TestCase
         $this->expectException(SessionMismatchException::class);
 
         $this->signer->complete($tampered, $session, self::sign($session, $card));
+    }
+
+    /**
+     * Card signing has no session timeout of its own, so this is the only
+     * limit on how long the page may take.
+     */
+    public function testACardSignatureReturnedTooLateIsRefused(): void
+    {
+        $card = TestPki::signerEc384();
+        $container = self::container();
+        $session = $this->signer->prepare($container, $card->certificate->base64(), self::cardAlgorithms());
+        $this->fixture->clock->advance('PT15M');
+
+        try {
+            $this->signer->complete($container, $session, self::sign($session, $card));
+            self::fail('a card signature returned fifteen minutes later was finished');
+        } catch (PreparedSignatureExpiredException) {
+        }
+        self::assertSame(0, $this->fixture->tsa->requests);
     }
 
     public function testASignatureCanBeAppendedToAnAlreadySignedContainer(): void
