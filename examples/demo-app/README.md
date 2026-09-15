@@ -9,9 +9,11 @@ storing a challenge against the browser session, showing a verification code
 before the person touches their phone, keeping the Smart-ID session secret on
 the server — are commented where they happen.
 
-**Not for production.** No accounts, no authorisation, no rate limiting, and
-uploads live in a temporary directory keyed by session. It also reports errors
-verbatim, which a real application must not do.
+**Not for production.** It refuses cross-site requests with a CSRF token of its
+own, where a real application would use its framework's protection, and it has
+no accounts, no authorisation and no rate limiting. Uploads live in a temporary
+directory keyed by session. It also reports errors verbatim, which a real
+application must not do.
 
 It has two modes. In `demo` it talks to SK's free test services with the
 credentials SK publishes, and nothing it produces is a valid signature. In
@@ -134,7 +136,7 @@ report.
 | `config.php` | the two modes, and the only place the environment is read |
 | `logger.php` | a PSR-3 logger in thirty lines, writing JSON lines |
 | `app.php` | every endpoint, and the only place the library is called |
-| `public/index.php` | routing, and nothing else |
+| `public/index.php` | routing, and the method and token checks every call passes first |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |
 
 The page loads `web-eid.js` from a CDN, `allkiri-qr.js` and `allkiri.js` from
