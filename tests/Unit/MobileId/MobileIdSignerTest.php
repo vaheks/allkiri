@@ -113,6 +113,26 @@ final class MobileIdSignerTest extends TestCase
         $this->signer->start(self::container(), self::identity());
     }
 
+    public function testAnUntrustedCertificateIsRefusedBeforeThePhoneIsAsked(): void
+    {
+        // Issued under the test TSA's certificate, which the fixture trusts
+        // only as a timestamp authority.
+        $this->useSigner(\Allkiri\Tests\Support\Pki\TestCertificates::issue(
+            \Allkiri\Tests\Support\Pki\TestKey::ec(label: 'untrusted-mobile-id-signer'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            \Allkiri\Tests\Support\Pki\TestIssuer::of(TestPki::tsa(), \Allkiri\Tests\Support\Pki\TestKey::fixture('tsa')),
+        ));
+
+        try {
+            $this->signer->start(self::container(), self::identity());
+            self::fail('an untrusted certificate started a signature');
+        } catch (\Allkiri\Signing\SigningException $exception) {
+            self::assertStringContainsString('does not chain to a trusted CA', $exception->getMessage());
+        }
+        self::assertSame(0, $this->fixture->http->requestCount(MockMobileIdService::URL . '/signature'), 'the phone was not asked');
+    }
+
     // --- completing ---------------------------------------------------------
 
     /**

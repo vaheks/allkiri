@@ -11,6 +11,7 @@ use Allkiri\Container\DataFile;
 use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Crypto\Tsp\TimestampVerificationException;
 use Allkiri\Signing\CertificateNotForSigningException;
 use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\InvalidSignatureValueException;
@@ -21,10 +22,14 @@ use Allkiri\Signing\SigningException;
 use Allkiri\Signing\SigningOptions;
 use Allkiri\Tests\Support\Pki\TestCertificates;
 use Allkiri\Tests\Support\Pki\TestCertificateSignature;
+use Allkiri\Tests\Support\Pki\TestIssuer;
 use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
+use Allkiri\Tests\Support\Trust\SwitchableTrustStore;
+use Allkiri\Trust\ChainBuildingException;
+use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Xades\Dsig\ArrayReferenceResolver;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\Model\XadesSignatureParser;
@@ -375,9 +380,15 @@ final class SigningServiceTest extends TestCase
         $fixture = new SigningFixture();
         $fixture->tsa->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
 
-        $this->expectExceptionMessageMatches('/Token is signed with SHA-1/');
-
-        $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        try {
+            $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+            self::fail('a timestamp signed with SHA-1 was accepted');
+        } catch (SigningException $e) {
+            self::assertMatchesRegularExpression('/Token is signed with SHA-1/', $e->getMessage());
+            $previous = $e->getPrevious();
+            self::assertInstanceOf(TimestampVerificationException::class, $previous);
+            self::assertSame(TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $previous->reason);
+        }
     }
 
     public function testAnOcspResponseSignedWithSha1IsRefused(): void
@@ -400,10 +411,152 @@ final class SigningServiceTest extends TestCase
             signature: TestCertificateSignature::Sha1,
         );
 
-        $this->expectException(SigningException::class);
-        $this->expectExceptionMessageMatches('/does not chain to a trusted CA: .* is signed with SHA-1/');
+        $fixture = new SigningFixture();
 
-        (new SigningFixture())->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair($signer));
+        try {
+            $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair($signer));
+            self::fail('a signer whose certificate is signed with SHA-1 signed');
+        } catch (SigningException $e) {
+            self::assertMatchesRegularExpression('/does not chain to a trusted CA: .* is signed with SHA-1/', $e->getMessage());
+            self::assertInstanceOf(ChainBuildingException::class, $e->getPrevious());
+        }
+        self::assertSame(0, $fixture->tsa->requests, 'refused before a timestamp was bought');
+    }
+
+    /**
+     * A signing certificate issued under the test TSA's certificate, which the
+     * fixture trusts only as a timestamp authority.
+     */
+    private static function untrustedSigner(): KeyPair
+    {
+        return TestCertificates::issue(
+            TestKey::ec(label: 'untrusted-signer'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            TestIssuer::of(TestPki::tsa(), TestKey::fixture('tsa')),
+        );
+    }
+
+    private static function unreachableLists(): TrustedListException
+    {
+        return new TrustedListException(TrustedListException::REASON_TRANSPORT, 'Could not fetch the trusted list https://tl.test/list.xml: connection refused');
+    }
+
+    /**
+     * @return iterable<string, array{SignatureLevel}>
+     */
+    public static function levelsThatRestOnTrust(): iterable
+    {
+        yield 'T' => [SignatureLevel::T];
+        yield 'LT' => [SignatureLevel::LT];
+    }
+
+    /**
+     * #24: a person with an untrusted certificate is refused before being asked
+     * for a PIN, not after a timestamp has been bought for their signature.
+     */
+    #[DataProvider('levelsThatRestOnTrust')]
+    public function testAnUntrustedSignerIsRefusedWhenPrepared(SignatureLevel $level): void
+    {
+        $fixture = new SigningFixture();
+
+        try {
+            $fixture->signingService->prepare(self::container(), self::untrustedSigner()->certificate, new SigningOptions($level));
+            self::fail('an untrusted signer was prepared for');
+        } catch (SigningException $e) {
+            self::assertStringContainsString('does not chain to a trusted CA', $e->getMessage());
+            self::assertInstanceOf(ChainBuildingException::class, $e->getPrevious());
+        }
+        self::assertSame(0, $fixture->tsa->requests);
+        self::assertSame(0, $fixture->ocsp->requests);
+    }
+
+    public function testAnUntrustedSignerCanStillSignAtLevelB(): void
+    {
+        $fixture = new SigningFixture();
+
+        $result = $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(self::untrustedSigner()), new SigningOptions(SignatureLevel::B));
+
+        self::assertSame(SignatureLevel::B, $result->level);
+        self::assertSame(0, $fixture->tsa->requests);
+    }
+
+    /**
+     * Level T never asked for the chain at all: the timestamp was bought and
+     * the signature finished.
+     */
+    public function testTheChainIsCheckedAgainBeforeATimestampIsBought(): void
+    {
+        $fixture = new SigningFixture();
+        $store = new SwitchableTrustStore($fixture->trustStore);
+        $service = $fixture->signingServiceTrusting($store);
+        $keyPair = TestPki::signerEc256();
+        $container = self::container();
+        $prepared = $service->prepare($container, $keyPair->certificate, new SigningOptions(SignatureLevel::T));
+        $store->failWith(self::unreachableLists());
+
+        try {
+            $service->finalize($container, $prepared, $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical));
+            self::fail('a signature was finished without its chain being checked');
+        } catch (SigningException $e) {
+            self::assertStringContainsString('could not be loaded', $e->getMessage());
+            self::assertInstanceOf(TrustedListException::class, $e->getPrevious());
+        }
+        self::assertSame(0, $fixture->tsa->requests, 'no timestamp was bought');
+    }
+
+    public function testTrustedListsThatCannotBeLoadedAreASigningFailureWhenPreparing(): void
+    {
+        $fixture = new SigningFixture();
+        $store = new SwitchableTrustStore($fixture->trustStore);
+        $store->failWith(self::unreachableLists());
+
+        try {
+            $fixture->signingServiceTrusting($store)->prepare(self::container(), TestPki::signerEc256()->certificate);
+            self::fail('a signature was prepared without the trusted lists');
+        } catch (SigningException $e) {
+            self::assertInstanceOf(TrustedListException::class, $e->getPrevious());
+        }
+    }
+
+    public function testAPreparedDocumentThatIsNotXmlIsASessionMismatch(): void
+    {
+        $fixture = new SigningFixture();
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $fixture->signingService->prepare($container, $keyPair->certificate);
+        $broken = new DataToBeSigned(
+            $prepared->signatureId,
+            $prepared->signatureFileName,
+            $prepared->algorithm,
+            $prepared->digest,
+            $prepared->signedInfoCanonical,
+            'not xml',
+            $prepared->signerCertificate,
+            $prepared->containerFingerprint,
+            $prepared->level,
+            $prepared->createdAt,
+        );
+
+        $this->expectException(SessionMismatchException::class);
+        $this->expectExceptionMessage('The prepared signature cannot be read');
+
+        $fixture->signingService->finalize($container, $broken, $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical));
+    }
+
+    public function testAnArchiveTimestampThatCannotBeTrustedIsASigningFailure(): void
+    {
+        $fixture = new SigningFixture();
+        $lt = $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $fixture->tsa->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
+
+        try {
+            $fixture->signingService->archive($lt->container);
+            self::fail('an archive timestamp signed with SHA-1 was added');
+        } catch (SigningException $e) {
+            self::assertStringContainsString('archive timestamp', $e->getMessage());
+            self::assertInstanceOf(TimestampVerificationException::class, $e->getPrevious());
+        }
     }
 
     public function testALateOcspResponseIsAWarningNotAFailure(): void

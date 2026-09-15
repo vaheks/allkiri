@@ -796,3 +796,27 @@ the useful response is to start again. What the reader finds wrong itself is
 named by field, without the value. What an object refuses after the reader
 accepted it, such as a phone number in no known form, is wrapped with the
 original exception as `previous`, and so is PHP's `ValueError`.
+
+A prepared signature whose XML no longer parses is not one of these. Code can
+build a `DataToBeSigned` as well as restore one, so `finalize()` refuses it as a
+`SessionMismatchException`: a prepared document that no longer holds together.
+
+### Trust is checked before anything is spent
+
+`finalize()` verified the signature value before buying a timestamp, but the
+signer's certificate chain was first built after the timestamp had been bought,
+and at level T not at all: an untrusted signer cost a timestamp, and at T was
+given one. Timestamp failures and trusted lists that could not be loaded escaped
+as their own exceptions, while chain and OCSP failures were wrapped.
+
+`prepare()` now builds the chain at level T and above, before a person is asked
+for a PIN or a Mobile-ID or Smart-ID session is started, and `finalize()` builds
+it again before the timestamp, because the trust store can change between the
+two requests. The check lives on `LtExtender`, which holds the chain builder, so
+every signing service that can reach level T has it; an optional chain builder
+is how the Mobile-ID and Smart-ID authenticators once skipped their trust check.
+Every failure of what a signature needs now arrives as a `SigningException` with
+the original as `previous`.
+
+In production this moves the first loading of the trusted lists from the first
+`finalize()` to the first `prepare()`.

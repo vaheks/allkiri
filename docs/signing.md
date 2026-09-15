@@ -55,6 +55,8 @@ What `finalize()` does before spending anything:
 3. Verifies the completed signature against the container. This proves in one
    step that the prepared document was not altered, that it still covers
    exactly these files, and that the value really is a signature over it.
+4. At level T and above, checks again that the signer's certificate chains to
+   a trusted CA.
 
 Only then does it buy a timestamp and ask for a revocation answer. A wrong
 signature value costs nothing.
@@ -106,7 +108,22 @@ same card or account, which chains to the same CA.
 `prepare()` refuses such a certificate with `CertificateNotForSigningException`
 before building anything, so nobody is asked for a PIN and no timestamp is
 bought. Only nonRepudiation is required: SK's signing certificates carry it
-without digitalSignature.
+without digitalSignature. A certificate whose key allkiri cannot sign with is
+refused the same way.
+
+## Signers who are not trusted
+
+At level T and above, `prepare()` checks that the signer's certificate chains
+to a trusted CA, so a person with an untrusted certificate is refused before
+being asked for a PIN and before a Mobile-ID or Smart-ID session is started.
+`finalize()` checks again before buying a timestamp, because the trust store
+can change between the two requests. Level B rests on no trust and checks none.
+
+A failure of anything a signature needs arrives as a `SigningException`, with
+the original exception as `getPrevious()`: a chain that cannot be built
+(`ChainBuildingException`), trusted lists that cannot be loaded
+(`TrustedListException`), a timestamp that cannot be had or trusted
+(`TimestampException`), and a revocation answer that cannot (`OcspException`).
 
 ## Adding a signature to an existing container
 
