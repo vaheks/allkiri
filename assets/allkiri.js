@@ -44,6 +44,26 @@
     });
   }
 
+  /**
+   * What a gateway in front of your server answers when it gave up on it or
+   * could not reach it. The request may never have arrived.
+   */
+  var GATEWAY_STATUSES = [502, 503, 504];
+
+  /**
+   * A failure in which no answer from your server arrived: the network, or a
+   * connection dropped while the answer was on its way. Marked, so that poll()
+   * can tell it from anything your server actually said.
+   */
+  function noAnswer(failure) {
+    if (failure && failure.name === 'AbortError') {
+      return failure;
+    }
+    var error = failure instanceof Error ? failure : new Error(String(failure));
+    error.transient = true;
+    return error;
+  }
+
   function post(url, body, options) {
     if (typeof url !== 'string' || url === '') {
       return Promise.reject(new Error('allkiri: no URL was given for this step'));
@@ -79,6 +99,7 @@
           var error = new Error(message);
           error.status = response.status;
           error.payload = payload;
+          error.transient = GATEWAY_STATUSES.indexOf(response.status) !== -1;
           throw error;
         }
         // An answer that cannot be read is an error, not an empty answer.
@@ -96,7 +117,11 @@
           throw unreadable;
         }
         return payload;
+      }, function (failure) {
+        throw noAnswer(failure);
       });
+    }, function (failure) {
+      throw noAnswer(failure);
     });
   }
 
@@ -112,12 +137,24 @@
 
   function delay(ms, signal) {
     return new Promise(function (resolve, reject) {
-      var timer = setTimeout(resolve, ms);
+      if (signal && signal.aborted) {
+        reject(abortError());
+        return;
+      }
+      function onAbort() {
+        clearTimeout(timer);
+        reject(abortError());
+      }
+      // Removed when the wait ends, or a long poll leaves one listener per
+      // round on the caller's signal.
+      var timer = setTimeout(function () {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        resolve();
+      }, ms);
       if (signal) {
-        signal.addEventListener('abort', function () {
-          clearTimeout(timer);
-          reject(abortError());
-        }, { once: true });
+        signal.addEventListener('abort', onAbort, { once: true });
       }
     });
   }
@@ -135,6 +172,12 @@
    * when finished. It is the server that talks to SK and decides; this only
    * asks again.
    *
+   * When no answer from the server arrives, or a gateway answers 502, 503 or
+   * 504, it asks again after the interval, then after twice, four and eight
+   * times it, never past the timeout. Anything the server did say ends the
+   * wait at once. So an endpoint may be asked again about a session it already
+   * finished, and should give the finished answer again for a little while.
+   *
    * @param {string} url
    * @param {{interval?: number, timeout?: number, signal?: AbortSignal, onTick?: Function}} [options]
    * @returns {Promise<object>}
@@ -143,16 +186,20 @@
     var settings = options || {};
     var interval = settings.interval || 1000;
     var deadline = Date.now() + (settings.timeout || 120000);
+    var failures = 0;
+    var lastFailure = null;
 
     function attempt() {
       if (settings.signal && settings.signal.aborted) {
         return Promise.reject(abortError());
       }
       if (Date.now() > deadline) {
-        return Promise.reject(new Error('Gave up waiting'));
+        return Promise.reject(lastFailure || new Error('Gave up waiting'));
       }
 
       return post(url, undefined, settings).then(function (answer) {
+        failures = 0;
+        lastFailure = null;
         // Same reasoning as the parse check in post(): only a real answer may
         // be read as "not finished yet".
         if (answer === null || typeof answer !== 'object') {
@@ -165,6 +212,18 @@
           settings.onTick(answer);
         }
         return delay(interval, settings.signal).then(attempt);
+      }, function (error) {
+        // Only post()'s own failure is looked at here, so an error thrown by
+        // onTick above is never mistaken for the network.
+        var left = deadline - Date.now();
+        if (!error || !error.transient || left <= 0) {
+          throw error;
+        }
+        failures++;
+        error.retries = failures - 1;
+        lastFailure = error;
+        var wait = Math.min(interval * Math.pow(2, Math.min(failures - 1, 3)), left);
+        return delay(wait, settings.signal).then(attempt);
       });
     }
 

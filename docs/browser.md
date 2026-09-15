@@ -192,6 +192,18 @@ after the session it was waiting for had been finished and consumed. The person
 then sees a failure with the wrong cause, minutes after the thing they did
 actually succeeded.
 
+A poll is asked again in one case only: when no answer from your server arrived,
+because the network failed or a gateway in front of it answered 502, 503 or 504.
+It waits the poll interval, then twice, four and eight times it, never past the
+timeout. If the timeout comes first, it rejects with the last of those errors,
+and that error's `retries` says how many times it asked again. Anything your
+server did say, a 500 included, ends the wait at once.
+
+So your poll endpoint can be asked again about a session it has already finished
+and forgotten, when its answer was lost on the way back. Keep the finished answer
+for a little while and give it again to a poll that finds nothing in progress;
+`examples/demo-app` keeps it for a minute.
+
 What to show a person is your decision, and it should not be the message: these
 are for your logs. `docs/mobile-id.md` and `docs/smart-id.md` list the outcomes
 worth distinguishing.

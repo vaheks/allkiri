@@ -307,6 +307,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- `allkiri.poll()`, and so `notificationFlow()` and `deviceLinkQr()`, gave up on
+  the first failure, including a dropped connection or a gateway's 502 while SK
+  was still waiting for the person. A poll that got no answer from your server,
+  or a 502, 503 or 504, is now asked again with a growing wait, within the same
+  timeout; anything your server said still ends it at once. A finished wait no
+  longer leaves an abort listener behind on the caller's signal for every round.
 - The demo page and `docs/browser.md` loaded web-eid.js from a jsDelivr address
   that answers 404, because the package is not on npm's public registry, so the
   ID card could not work there. The demo now serves a pinned copy of web-eid.js
