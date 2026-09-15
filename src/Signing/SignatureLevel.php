@@ -18,7 +18,7 @@ enum SignatureLevel: string
     /** T plus the certificates and revocation data needed to validate it later. */
     case LT = 'XAdES_BASELINE_LT';
 
-    /** LT plus an archive timestamp (Phase 5). */
+    /** LT plus an archive timestamp, which can be laid again later to carry the signature further. */
     case LTA = 'XAdES_BASELINE_LTA';
 
     public function includes(self $other): bool

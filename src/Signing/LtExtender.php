@@ -47,7 +47,7 @@ final class LtExtender
             return new LtExtensionResult(SignatureLevel::B);
         }
         if ($level === SignatureLevel::LTA) {
-            throw new SigningException('Archive timestamps (LTA) are not implemented yet');
+            throw new SigningException('LtExtender raises a signature to T or LT. The archive timestamp of LTA is added on top of LT by LtaExtender, or by SigningService, which does both');
         }
 
         $unsigned = $this->unsignedSignatureProperties($document, $signature);
