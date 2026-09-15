@@ -272,6 +272,9 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- `LtExtender`, asked for LTA, said archive timestamps were not implemented,
+  although `LtaExtender` and `SigningService` add them. It now says that, and
+  `docs/signing.md` lists LTA among the levels.
 - The User-Agent sent to SK, RIA and Zetes said `allkiri/0.1.0-dev` whatever was
   installed. It now names the installed release, or the branch and commit of a
   branch install.

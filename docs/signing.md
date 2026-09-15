@@ -90,12 +90,11 @@ middleware produce. RSA values are passed through as they are.
 | `B` | the signature alone | when a timestamp cannot be obtained; not enough for a qualified signature |
 | `T` | a timestamp: proof of when | rarely on its own |
 | `LT` | the certificates and revocation data needed to validate it years later | the default, and what Estonian practice expects |
+| `LTA` | an archive timestamp over all of that, which can be laid again later | for signatures that must stay verifiable for many years; see [archive timestamps](#keeping-a-signature-verifiable-archive-timestamps) |
 
 ```php
 $options = (new SigningOptions())->withLevel(SignatureLevel::T);
 ```
-
-Level LTA (archive timestamps) is not implemented yet.
 
 The order inside LT is not negotiable: the timestamp is taken first, then the
 revocation answer, so the answer provably comes after the signature existed.
