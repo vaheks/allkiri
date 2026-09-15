@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Xades;
 
 use Allkiri\Container\DataFile;
+use Allkiri\Container\SignatureFile;
 use Allkiri\Crypto\Asn1\Asn1;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\SignatureAlgorithm;
@@ -48,7 +49,7 @@ final class SignatureBuilder
         $document->preserveWhiteSpace = true;
         $document->formatOutput = false;
 
-        $root = $document->createElementNS(Ns::ASIC, 'asic:XAdESSignatures');
+        $root = $document->createElementNS(SignatureFile::NS_ASIC, 'asic:XAdESSignatures');
         $document->appendChild($root);
         $signature = $document->createElementNS(Ns::DS, 'ds:Signature');
         $signature->setAttribute('Id', $id);

@@ -11,6 +11,9 @@ use Allkiri\Exception\InvalidArgumentException;
  */
 final readonly class SignatureFile
 {
+    /** The ASiC namespace of the XAdESSignatures element a signature file holds. */
+    public const NS_ASIC = 'http://uri.etsi.org/02918/v1.2.1#';
+
     public function __construct(
         public string $name,
         public string $xml,

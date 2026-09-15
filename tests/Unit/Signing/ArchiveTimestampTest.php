@@ -31,7 +31,6 @@ use Allkiri\Validation\Report\SignatureReport;
 use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationPolicy;
 use Allkiri\Xades\Dsig\Xml;
-use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -302,7 +301,7 @@ final class ArchiveTimestampTest extends TestCase
         self::assertNotNull($token);
 
         $bytes = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('leping.txt', "Tere, allkiri!\n")
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('leping.txt', "Tere, allkiri!\n")])->toXml())
             ->addDeflated('META-INF/signatures0.xml', substr_replace($xml, base64_encode($token->der()), $offset, \strlen($archiveToken)))

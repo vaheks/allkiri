@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Allkiri\Container;
 
 use Allkiri\Xades\Dsig\Xml;
-use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\SignatureStructureException;
 
@@ -15,6 +14,9 @@ use Allkiri\Xades\SignatureStructureException;
  */
 final readonly class Manifest
 {
+    /** The OpenDocument manifest namespace the file is written in. */
+    public const NS_MANIFEST = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
+
     /**
      * @param list<array{fullPath: string, mediaType: string}> $entries without the root entry
      */
@@ -45,12 +47,12 @@ final readonly class Manifest
             throw new InvalidContainerException('META-INF/manifest.xml has no manifest element');
         }
         $xpath = Xml::xpath($document->document());
-        $xpath->registerNamespace('manifest', Ns::MANIFEST);
+        $xpath->registerNamespace('manifest', self::NS_MANIFEST);
 
         $entries = [];
         foreach (Xml::elements($xpath, 'manifest:file-entry', $root) as $entry) {
-            $path = $entry->getAttributeNS(Ns::MANIFEST, 'full-path');
-            $type = $entry->getAttributeNS(Ns::MANIFEST, 'media-type');
+            $path = $entry->getAttributeNS(self::NS_MANIFEST, 'full-path');
+            $type = $entry->getAttributeNS(self::NS_MANIFEST, 'media-type');
             if ($path === '' || $path === '/') {
                 continue; // the root entry describes the container itself
             }
@@ -67,8 +69,8 @@ final readonly class Manifest
     public function toXml(): string
     {
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
-            . '<manifest:manifest xmlns:manifest="' . Ns::MANIFEST . '" manifest:version="1.2">'
-            . '<manifest:file-entry manifest:full-path="/" manifest:media-type="' . Ns::MIME_ASICE . '"/>';
+            . '<manifest:manifest xmlns:manifest="' . self::NS_MANIFEST . '" manifest:version="1.2">'
+            . '<manifest:file-entry manifest:full-path="/" manifest:media-type="' . AsicContainer::MIME_TYPE . '"/>';
         foreach ($this->entries as $entry) {
             $xml .= '<manifest:file-entry manifest:full-path="' . self::escape($entry['fullPath']) . '" manifest:media-type="' . self::escape($entry['mediaType']) . '"/>';
         }

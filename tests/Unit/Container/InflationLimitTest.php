@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Container;
 
+use Allkiri\Container\AsicContainer;
 use Allkiri\Container\AsicReader;
 use Allkiri\Container\DataFile;
 use Allkiri\Container\Manifest;
@@ -12,7 +13,6 @@ use Allkiri\Container\Zip\ZipBombException;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
-use Allkiri\Xades\Ns;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
@@ -35,7 +35,7 @@ final class InflationLimitTest extends TestCase
      */
     private static function container(array $files): string
     {
-        $writer = (new ZipWriter())->addStored('mimetype', Ns::MIME_ASICE);
+        $writer = (new ZipWriter())->addStored('mimetype', AsicContainer::MIME_TYPE);
         $dataFiles = [];
         foreach ($files as $name => $content) {
             $writer = $writer->addDeflated($name, $content);

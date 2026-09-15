@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Allkiri\Container;
 
 use Allkiri\Container\Zip\ZipWriter;
-use Allkiri\Xades\Ns;
 
 /**
  * Writes an ASiC-E container.
@@ -21,7 +20,7 @@ final class AsicWriter
         $zip = new ZipWriter();
 
         if ($container->isNew()) {
-            $zip->addStored(AsicReader::MIMETYPE_ENTRY, Ns::MIME_ASICE);
+            $zip->addStored(AsicReader::MIMETYPE_ENTRY, AsicContainer::MIME_TYPE);
             foreach ($container->dataFiles as $file) {
                 $zip->addDeflated($file->name, $file->content);
             }

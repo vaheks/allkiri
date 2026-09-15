@@ -57,7 +57,6 @@ use Allkiri\Validation\Report\SubIndication;
 use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationOptions;
 use Allkiri\Validation\ValidationPolicy;
-use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureBuilder;
 use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -157,7 +156,7 @@ final class ValidationTest extends TestCase
     private static function containerOfA(string $signatureXml): string
     {
         return (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'x')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'x')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', $signatureXml)
@@ -229,7 +228,7 @@ final class ValidationTest extends TestCase
 
         // A changed data file.
         $changed = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'tampered')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'tampered')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', $signatureXml)
@@ -252,7 +251,7 @@ final class ValidationTest extends TestCase
         self::assertIsString($brokenXml);
         self::assertNotSame($signatureXml, $brokenXml);
         $broken = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'original')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', $brokenXml)
@@ -264,7 +263,7 @@ final class ValidationTest extends TestCase
 
         // An extra, unsigned file smuggled into the container.
         $extra = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'original')
             ->addDeflated('evil.txt', 'never signed')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original'), DataFile::fromString('evil.txt', 'never signed')])->toXml())
@@ -307,7 +306,7 @@ final class ValidationTest extends TestCase
 
         // A signature file that is not XML.
         $badXml = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'x')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'x')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', 'not xml at all')
@@ -900,7 +899,7 @@ final class ValidationTest extends TestCase
         self::assertStringContainsString('https://tl.test/list.xml', $intact->errors()[0]->message);
 
         $changed = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'tampered')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'tampered')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', self::signatureXml($result))
@@ -1016,7 +1015,7 @@ final class ValidationTest extends TestCase
         );
         $signatureXml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
         $wrapped = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'original')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', $wrap($signatureXml))
@@ -1078,7 +1077,7 @@ final class ValidationTest extends TestCase
     {
         $placeholder = str_repeat('q', \strlen($name));
         $sound = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addStored($placeholder, 'x')
             ->build();
         $hostile = str_replace($placeholder, $name, $sound, $count);
@@ -1097,7 +1096,7 @@ final class ValidationTest extends TestCase
     public function testAnArchiveThatReadersCouldReadDifferentlyIsNotAContainer(): void
     {
         $sound = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addStored('a.txt', 'checked')
             ->addStored('b.txt', 'shown')
             ->build();
@@ -1167,7 +1166,7 @@ final class ValidationTest extends TestCase
         $hostileXml = preg_replace('#(<xades:EncapsulatedOCSPValue>)[^<]+#', '${1}' . $nested, $signatureXml, 1, $replaced);
         self::assertSame(1, $replaced);
         $hostile = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'original')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'original')])->toXml())
             ->addDeflated('META-INF/signatures0.xml', (string) $hostileXml)

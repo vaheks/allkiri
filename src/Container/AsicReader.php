@@ -7,7 +7,6 @@ namespace Allkiri\Container;
 use Allkiri\Container\Zip\InflationLimit;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
-use Allkiri\Xades\Ns;
 
 /**
  * Reads an ASiC-E container.
@@ -156,8 +155,8 @@ final class AsicReader
         if ($entry->localExtra !== '' || $entry->centralExtra !== '') {
             $findings[] = new StructuralFinding(StructuralFinding::MIMETYPE_HAS_EXTRA_FIELD, 'The mimetype entry carries an extra field');
         }
-        if (trim($entry->content()) !== Ns::MIME_ASICE) {
-            $findings[] = new StructuralFinding(StructuralFinding::MIMETYPE_WRONG_CONTENT, \sprintf('The mimetype entry says "%s" instead of "%s"', trim($entry->content()), Ns::MIME_ASICE));
+        if (trim($entry->content()) !== AsicContainer::MIME_TYPE) {
+            $findings[] = new StructuralFinding(StructuralFinding::MIMETYPE_WRONG_CONTENT, \sprintf('The mimetype entry says "%s" instead of "%s"', trim($entry->content()), AsicContainer::MIME_TYPE));
         }
     }
 }
