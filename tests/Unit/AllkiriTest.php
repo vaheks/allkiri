@@ -199,6 +199,16 @@ final class AllkiriTest extends TestCase
         self::assertSame(1, $http->requestCount($url), 'the list is fetched once per process');
     }
 
+    public function testTheDefaultHttpClientIsBuiltOnce(): void
+    {
+        $allkiri = new Allkiri(Environment::demo());
+
+        self::assertSame($allkiri->httpClient(), $allkiri->httpClient());
+
+        $given = new MockHttpClient();
+        self::assertSame($given, (new Allkiri(Environment::demo(), $given))->httpClient(), 'a client that was given is used as it is');
+    }
+
     public function testTheProcessCacheHonoursTimeToLive(): void
     {
         $cache = new ArrayCache();

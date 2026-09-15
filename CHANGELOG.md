@@ -241,6 +241,10 @@ signatures with a local key, and the API the eID means will plug into.
   `SmartIdSigner::startDeviceLink()` default their options to a new
   `ValidationOptions` or `SigningOptions`, as every other method does, and no
   longer accept `null` for them. Leave the argument out instead.
+- `Allkiri::httpClient()` builds the default `CurlHttpClient` once and returns
+  the same one after that; it built a new one on every call. Mobile-ID and
+  Smart-ID still get a client of their own, with a timeout long enough for
+  their long polls.
 
 ### Fixed
 
