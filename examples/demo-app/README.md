@@ -26,17 +26,22 @@ otherwise identical.
 
 ```bash
 composer install
-php -S localhost:8080 -t examples/demo-app/public
+php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 Then open <http://localhost:8080>.
+
+The last argument makes `index.php` the server's router. The library's two
+scripts, `/allkiri.js` and `/allkiri-qr.js`, are routes in it rather than files,
+and without the router PHP before 8.4 answers 404 for a path that looks like a
+file it cannot find.
 
 Mobile-ID, Smart-ID and validation work over plain HTTP. **The ID card does
 not**: the Web eID extension refuses to work on an insecure origin. For that you
 need HTTPS and an origin the server agrees with:
 
 ```bash
-ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
+ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 with a TLS terminator in front, or run it behind whatever you normally use.
@@ -47,7 +52,7 @@ If every HTTPS call fails with curl error 60, your PHP has no `curl.cainfo`
 configured, which is common on Windows. Point it at a bundle:
 
 ```bash
-ALLKIRI_CA_BUNDLE=/path/to/cacert.pem php -S localhost:8080 -t examples/demo-app/public
+ALLKIRI_CA_BUNDLE=/path/to/cacert.pem php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 ## Live mode
@@ -86,7 +91,7 @@ once with each remote mean and validates the result in SiVa production. See
 ## Logging
 
 ```bash
-ALLKIRI_LOG=/tmp/allkiri.log ALLKIRI_LOG_HTTP=1 php -S localhost:8080 -t examples/demo-app/public
+ALLKIRI_LOG=/tmp/allkiri.log ALLKIRI_LOG_HTTP=1 php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 One JSON object per line, holding three things at once: the audit trail the

@@ -6,15 +6,32 @@ declare(strict_types=1);
  * The demo's front controller: routing, and the checks every call passes before
  * it reaches the application.
  *
- * Run it with the built-in server:
+ * Run it with the built-in server, with this file as its router:
  *
- *   php -S localhost:8080 -t examples/demo-app/public
+ *   php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
  *
  * The ID card needs HTTPS, because the Web eID extension refuses to work on an
  * insecure origin. See the README beside this file.
  */
 
 use Allkiri\Demo\App;
+
+$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+$path = (string) parse_url(is_string($requestUri) ? $requestUri : '/', PHP_URL_PATH);
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$method = is_string($requestMethod) ? strtoupper($requestMethod) : 'GET';
+
+// As the built-in server's router, this file sees every request. A real file
+// inside public/, such as vendor/web-eid.js, is left to the server, and every
+// other path is answered here. Without the router, PHP before 8.4 answers 404
+// for a missing path that looks like a file, and /allkiri.js is one.
+if (PHP_SAPI === 'cli-server') {
+    $public = realpath(__DIR__);
+    $file = realpath(__DIR__ . $path);
+    if ($public !== false && $file !== false && $file !== realpath(__FILE__) && is_file($file) && str_starts_with($file, $public . DIRECTORY_SEPARATOR)) {
+        return false;
+    }
+}
 
 require __DIR__ . '/../../../vendor/autoload.php';
 require __DIR__ . '/../config.php';
@@ -24,11 +41,6 @@ require __DIR__ . '/../app.php';
 // page's own buttons need no token, and one of them buys a timestamp.
 header("Content-Security-Policy: frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
-
-$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-$path = (string) parse_url(is_string($requestUri) ? $requestUri : '/', PHP_URL_PATH);
-$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$method = is_string($requestMethod) ? strtoupper($requestMethod) : 'GET';
 
 /**
  * Everything except the page and the assets is JSON.

@@ -311,6 +311,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The demo application's scripts did not load on PHP 8.2 and 8.3. Run as its
+  README said, PHP's built-in server answered 404 for `/allkiri.js` and
+  `/allkiri-qr.js`, which exist only as routes in `index.php`: before 8.4 it
+  does not pass a missing path that looks like a file on to `index.php`. The
+  README now starts the server with `index.php` as its router, which leaves the
+  real files in `public/` to the server.
 - `allkiri.deviceLinkQr()` asked for a new link every interval whether or not
   the last request had answered, so a slow server got overlapping requests, and
   `stop()` could not cancel any of them. A `signal` passed in stopped nothing.

@@ -87,7 +87,7 @@ $report = $allkiri->validator()->validateFile('leping.asice');
 
 ```bash
 composer install
-php -S localhost:8080 -t examples/demo-app/public
+php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 A small application that signs in with Mobile-ID, Smart-ID or an ID card, signs
