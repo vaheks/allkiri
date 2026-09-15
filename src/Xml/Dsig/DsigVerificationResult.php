@@ -9,6 +9,8 @@ use Allkiri\Crypto\Certificate;
 /**
  * Core XML-DSig verification: reference digests and the SignatureValue.
  * Says nothing about trust, time or XAdES qualifying properties.
+ *
+ * @internal
  */
 final readonly class DsigVerificationResult
 {

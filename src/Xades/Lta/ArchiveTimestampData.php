@@ -37,6 +37,8 @@ use Allkiri\Xml\Xml;
  * reasonable and matches nothing: the clause says "including the
  * SignedProperties element", where the signature timestamp's own computation
  * does not.
+ *
+ * @internal
  */
 final class ArchiveTimestampData
 {

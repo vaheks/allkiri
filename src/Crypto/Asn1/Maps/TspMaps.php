@@ -9,6 +9,8 @@ use phpseclib3\File\ASN1\Maps;
 
 /**
  * RFC 3161 Time-Stamp Protocol structures.
+ *
+ * @internal
  */
 final class TspMaps
 {

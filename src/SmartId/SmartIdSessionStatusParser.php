@@ -14,6 +14,8 @@ use Allkiri\Crypto\HashAlgorithm;
  * Kept apart from the client so the rules are visible and testable on their
  * own: every field a successful session must carry is required here, because
  * later checks are only as good as the values they run on.
+ *
+ * @internal
  */
 final class SmartIdSessionStatusParser
 {

@@ -15,6 +15,8 @@ use phpseclib3\Math\BigInteger;
  * absolute within the decoded buffer; context-specific elements carry a
  * `constant` key (their tag) while universal ones do not; times decode to
  * DateTime, integers to BigInteger, OIDs to dotted strings.
+ *
+ * @internal
  */
 final class Node
 {

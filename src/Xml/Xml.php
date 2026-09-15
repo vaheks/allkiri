@@ -10,6 +10,8 @@ use Allkiri\Exception\InvalidArgumentException;
  * Loads untrusted XML, and turns ext-dom's loosely typed XPath results into
  * definite ones, so the code reading signatures, manifests and trusted lists
  * reads as intent rather than as null handling.
+ *
+ * @internal
  */
 final class Xml
 {

@@ -11,6 +11,8 @@ use phpseclib3\File\ASN1\Maps;
  * RFC 5652 CMS SignedData (as used by RFC 3161 tokens) and RFC 5035 ESS
  * signing-certificate attributes. Certificates and attribute values are ANY so
  * that their DER is sliced from the original bytes, never re-encoded.
+ *
+ * @internal
  */
 final class CmsMaps
 {

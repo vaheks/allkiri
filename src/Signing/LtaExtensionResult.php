@@ -6,6 +6,8 @@ namespace Allkiri\Signing;
 
 /**
  * What adding an archive timestamp produced.
+ *
+ * @internal
  */
 final readonly class LtaExtensionResult
 {

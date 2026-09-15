@@ -11,6 +11,8 @@ use phpseclib3\Math\BigInteger;
 
 /**
  * An RFC 3161 TimeStampResp: status plus, when granted, the token.
+ *
+ * @internal
  */
 final class TimestampResponse
 {

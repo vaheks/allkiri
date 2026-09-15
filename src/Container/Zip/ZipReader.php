@@ -20,6 +20,8 @@ use Allkiri\Container\UnsupportedZipException;
  * names it differently from the central directory. A validator that checks
  * one file while DigiDoc4 or an unzip tool shows another has reported on the
  * wrong document.
+ *
+ * @internal
  */
 final class ZipReader
 {

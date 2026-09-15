@@ -48,11 +48,11 @@ final class SigningService
         private readonly ClockInterface $clock,
         private readonly ?LtExtender $ltExtender = null,
         private readonly ?LtaExtender $ltaExtender = null,
+        private readonly ?LoggerInterface $logger = null,
+        private readonly int $preparedSignatureTtlSeconds = self::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS,
         private readonly ?SignatureBuilder $builder = null,
         private readonly SignatureCompleter $completer = new SignatureCompleter(),
         private readonly XmlDsigVerifier $dsigVerifier = new XmlDsigVerifier(),
-        private readonly ?LoggerInterface $logger = null,
-        private readonly int $preparedSignatureTtlSeconds = self::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS,
     ) {
         if ($preparedSignatureTtlSeconds < 1) {
             throw new InvalidArgumentException('A prepared signature must be allowed at least a second before it is finalized');

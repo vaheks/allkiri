@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Allkiri\Xml\Dsig;
 
+/**
+ * @internal
+ */
 final class ArrayReferenceResolver implements ReferenceResolver
 {
     /**

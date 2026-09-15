@@ -9,6 +9,8 @@ use Allkiri\Exception\InvalidArgumentException;
 /**
  * Files shipped with the library: the trust anchors and trusted-list signer
  * certificates that a configuration pins.
+ *
+ * @internal
  */
 final class Resources
 {

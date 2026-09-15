@@ -10,6 +10,8 @@ use Allkiri\Container\UnsupportedZipException;
 /**
  * One entry of a ZIP archive, with the bytes exactly as they appear in the
  * file so an existing entry can be copied into a new archive untouched.
+ *
+ * @internal
  */
 final readonly class ZipEntry
 {

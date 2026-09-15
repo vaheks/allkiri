@@ -24,6 +24,8 @@ final readonly class SingleResponse
     /**
      * @param array<mixed> $mapped asn1map output of one SingleResponse
      * @param Node         $node   the same element, for exact times
+     *
+     * @internal
      */
     public static function fromMapped(array $mapped, Node $node): self
     {

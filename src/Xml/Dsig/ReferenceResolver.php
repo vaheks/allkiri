@@ -8,6 +8,8 @@ namespace Allkiri\Xml\Dsig;
  * Supplies the bytes a ds:Reference with an external URI points at: the data
  * files of a container, or nothing for a signature whose references are all
  * same-document.
+ *
+ * @internal
  */
 interface ReferenceResolver
 {

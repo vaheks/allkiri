@@ -7,6 +7,8 @@ namespace Allkiri\Crypto\Asn1;
 /**
  * The result of decoding DER against a map: the mapped value for convenient
  * access, and the raw node tree for exact byte slices.
+ *
+ * @internal
  */
 final class DecodedElement
 {

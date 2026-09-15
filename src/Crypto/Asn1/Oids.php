@@ -13,6 +13,8 @@ use phpseclib3\File\X509;
  * phpseclib names very few of these (and decodes named ones as names, unnamed
  * ones as dotted strings), so every comparison in allkiri goes through
  * {@see Oids::dotted()} and the constants below.
+ *
+ * @internal
  */
 final class Oids
 {

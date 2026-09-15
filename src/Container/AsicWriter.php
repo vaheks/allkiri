@@ -29,7 +29,7 @@ final class AsicWriter
             }
             $zip->addDeflated(AsicReader::MANIFEST_ENTRY, $container->manifest->toXml());
         } else {
-            foreach ($container->originalEntries as $entry) {
+            foreach ($container->originalEntries() as $entry) {
                 $zip->addEntry($entry);
             }
         }

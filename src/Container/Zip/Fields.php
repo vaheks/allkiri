@@ -11,6 +11,8 @@ use Allkiri\Container\InvalidContainerException;
  *
  * ZIP headers are all little-endian unsigned integers, but unpack() is typed
  * as returning anything; this reads them once and hands out definite ints.
+ *
+ * @internal
  */
 final class Fields
 {
