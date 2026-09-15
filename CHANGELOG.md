@@ -307,6 +307,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A poll in the demo application held the browser's session lock while SK kept
+  the status request open, up to ten seconds, so every other call from that
+  browser queued behind it. The lock is now released while SK is asked, and taken
+  again only to finish a session that is still the one read, so two tabs cannot
+  both finish a signature and buy two timestamps. A finished answer is given
+  again for a minute to a poll that finds nothing in progress.
 - The demo application kept the same session id after someone signed in, gave
   its session cookie no `HttpOnly`, `SameSite` or `Secure` flag, and accepted an
   id it had never issued. The id now changes at sign-in. The cookie is `HttpOnly`

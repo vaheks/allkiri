@@ -30,7 +30,10 @@ use Allkiri\Container\DataFile;
 use Allkiri\Http\CurlHttpClient;
 use Allkiri\Http\LoggingHttpClient;
 use Allkiri\MobileId\MobileIdIdentity;
+use Allkiri\MobileId\MobileIdResult;
 use Allkiri\MobileId\MobileIdSession;
+use Allkiri\MobileId\MobileIdSessionException;
+use Allkiri\MobileId\MobileIdSessionStatus;
 use Allkiri\MobileId\MobileIdSigningSession;
 use Allkiri\SmartId\CertificateLevel;
 use Allkiri\SmartId\DocumentNumber;
@@ -38,6 +41,7 @@ use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
 use Allkiri\SmartId\SmartIdSession;
+use Allkiri\SmartId\SmartIdSessionStatus;
 use Allkiri\SmartId\SmartIdSigningSession;
 use Allkiri\Validation\Report\ReportRenderer;
 use Allkiri\WebEid\CardAlgorithm;
@@ -46,6 +50,9 @@ use Allkiri\WebEid\WebEidSigningSession;
 
 final class App
 {
+    /** How long a finished poll's answer is given again. See pollWithoutTheLock(). */
+    private const REPEAT_SECONDS = 60;
+
     private readonly Allkiri $allkiri;
 
     private readonly Config $config;
@@ -126,6 +133,7 @@ final class App
             self::string($request, 'identityCode'),
         ));
         $_SESSION['mobile-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->forgetFinished('mobile-id');
         $this->audit('authentication started', [
             'mean' => 'mobile-id',
             'session' => $session->sessionId,
@@ -142,18 +150,25 @@ final class App
      */
     public function mobileIdLoginPoll(): array
     {
-        $stored = $_SESSION['mobile-id'] ?? null;
-        if (!\is_string($stored)) {
-            throw new \RuntimeException('No Mobile-ID session is in progress');
-        }
+        return $this->pollWithoutTheLock(
+            'mobile-id',
+            'No Mobile-ID session is in progress',
+            function (string $stored): ?MobileIdSessionStatus {
+                $session = MobileIdSession::fromJson($stored);
+                $status = $this->allkiri->mobileIdClient($this->config->mobileId)->status($session->type, $session->sessionId);
 
-        $identity = $this->allkiri->mobileIdAuthenticator($this->config->mobileId)->poll(MobileIdSession::fromJson($stored));
-        if ($identity === null) {
-            return ['done' => false];
-        }
-        unset($_SESSION['mobile-id']);
+                return $status->isRunning() ? null : $status;
+            },
+            function (string $stored, MobileIdSessionStatus $status): array {
+                // What MobileIdAuthenticator::poll() does before completing.
+                if (!$status->isOk()) {
+                    throw new MobileIdSessionException($status->result ?? MobileIdResult::Timeout);
+                }
+                $identity = $this->allkiri->mobileIdAuthenticator($this->config->mobileId)->complete(MobileIdSession::fromJson($stored), $status);
 
-        return ['done' => true] + $this->signedIn($identity);
+                return ['done' => true] + $this->signedIn($identity);
+            },
+        );
     }
 
     /**
@@ -169,6 +184,7 @@ final class App
             self::interactions('Log in to ' . $this->config->serviceName()),
         );
         $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->forgetFinished('smart-id');
         $this->audit('authentication started', ['mean' => 'smart-id', 'session' => $session->sessionId]);
 
         return ['verificationCode' => $session->verificationCode];
@@ -179,18 +195,20 @@ final class App
      */
     public function smartIdLoginPoll(): array
     {
-        $stored = $_SESSION['smart-id'] ?? null;
-        if (!\is_string($stored)) {
-            throw new \RuntimeException('No Smart-ID session is in progress');
-        }
+        return $this->pollWithoutTheLock(
+            'smart-id',
+            'No Smart-ID session is in progress',
+            function (string $stored): ?SmartIdSessionStatus {
+                $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(SmartIdSession::fromJson($stored)->sessionId);
 
-        $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->poll(SmartIdSession::fromJson($stored));
-        if ($identity === null) {
-            return ['done' => false];
-        }
-        unset($_SESSION['smart-id']);
+                return $status->isRunning() ? null : $status;
+            },
+            function (string $stored, SmartIdSessionStatus $status): array {
+                $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->complete(SmartIdSession::fromJson($stored), $status);
 
-        return ['done' => true] + $this->signedIn($identity);
+                return ['done' => true] + $this->signedIn($identity);
+            },
+        );
     }
 
     // --- signing a file -----------------------------------------------------
@@ -236,6 +254,7 @@ final class App
             self::string($request, 'identityCode'),
         ));
         $_SESSION['signing'] = json_encode($signing, JSON_THROW_ON_ERROR);
+        $this->forgetFinished('signing');
         $this->audit('signing started', [
             'mean' => 'mobile-id',
             'session' => $signing->session->sessionId,
@@ -251,21 +270,24 @@ final class App
      */
     public function mobileIdSignPoll(): array
     {
-        $stored = $_SESSION['signing'] ?? null;
-        if (!\is_string($stored)) {
-            throw new \RuntimeException('No signing session is in progress');
-        }
+        return $this->pollWithoutTheLock(
+            'signing',
+            'No signing session is in progress',
+            function (string $stored): ?MobileIdSessionStatus {
+                $session = MobileIdSigningSession::fromJson($stored)->session;
+                $status = $this->allkiri->mobileIdClient($this->config->mobileId)->status($session->type, $session->sessionId);
 
-        $container = $this->container();
-        $result = $this->allkiri->mobileIdSigner($this->config->mobileId)->poll($container, MobileIdSigningSession::fromJson($stored));
-        if ($result === null) {
-            return ['done' => false];
-        }
-        unset($_SESSION['signing']);
-        $this->storeContainer($result->container);
-        $this->auditSigned('mobile-id', $result);
+                return $status->isRunning() ? null : $status;
+            },
+            function (string $stored, MobileIdSessionStatus $status): array {
+                $signer = $this->allkiri->mobileIdSigner($this->config->mobileId);
+                $result = $signer->complete($this->container(), MobileIdSigningSession::fromJson($stored), $status);
+                $this->storeContainer($result->container);
+                $this->auditSigned('mobile-id', $result);
 
-        return ['done' => true, 'level' => $result->level->value];
+                return ['done' => true, 'level' => $result->level->value];
+            },
+        );
     }
 
     /**
@@ -284,6 +306,7 @@ final class App
             self::interactions('Sign the uploaded file'),
         );
         $_SESSION['signing-smart-id'] = json_encode($signing, JSON_THROW_ON_ERROR);
+        $this->forgetFinished('signing-smart-id');
         $this->audit('signing started', [
             'mean' => 'smart-id',
             'session' => $signing->session->sessionId,
@@ -299,22 +322,23 @@ final class App
      */
     public function smartIdSignPoll(): array
     {
-        $stored = $_SESSION['signing-smart-id'] ?? null;
-        if (!\is_string($stored)) {
-            throw new \RuntimeException('No signing session is in progress');
-        }
+        return $this->pollWithoutTheLock(
+            'signing-smart-id',
+            'No signing session is in progress',
+            function (string $stored): ?SmartIdSessionStatus {
+                $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(SmartIdSigningSession::fromJson($stored)->session->sessionId);
 
-        $container = $this->container();
-        $signer = $this->allkiri->smartIdSigner($this->config->smartId->withCertificateLevel(CertificateLevel::Qscd));
-        $result = $signer->poll($container, SmartIdSigningSession::fromJson($stored));
-        if ($result === null) {
-            return ['done' => false];
-        }
-        unset($_SESSION['signing-smart-id']);
-        $this->storeContainer($result->container);
-        $this->auditSigned('smart-id', $result);
+                return $status->isRunning() ? null : $status;
+            },
+            function (string $stored, SmartIdSessionStatus $status): array {
+                $signer = $this->allkiri->smartIdSigner($this->config->smartId->withCertificateLevel(CertificateLevel::Qscd));
+                $result = $signer->complete($this->container(), SmartIdSigningSession::fromJson($stored), $status);
+                $this->storeContainer($result->container);
+                $this->auditSigned('smart-id', $result);
 
-        return ['done' => true, 'level' => $result->level->value];
+                return ['done' => true, 'level' => $result->level->value];
+            },
+        );
     }
 
     /**
@@ -435,6 +459,110 @@ final class App
             Interaction::confirmationMessage($text),
             Interaction::displayTextAndPin(mb_substr($text, 0, 60)),
         );
+    }
+
+    // --- waiting for a person -----------------------------------------------
+
+    /**
+     * Ask whether a person is done, without making the rest of the page wait.
+     *
+     * PHP locks a browser's session for as long as a request holds it open, and
+     * SK keeps a status request open for up to ten seconds, so a poll that kept
+     * the session open would queue every other call from that browser behind it.
+     * So the stored session is read, the lock released, and SK asked only for the
+     * status. While the person has not answered, that is the whole request.
+     *
+     * Once they have, the lock is taken again, and the session is finished only if
+     * it is still the one that was read. Another tab or a double click may have
+     * finished it meanwhile, and finishing a signature twice buys two timestamps.
+     *
+     * A finished answer is given again for a minute to a poll that finds nothing
+     * in progress. allkiri.js retries a poll whose answer a gateway lost, and by
+     * then the first attempt had already finished the session here.
+     *
+     * @template TStatus of MobileIdSessionStatus|SmartIdSessionStatus
+     *
+     * @param \Closure(string): (TStatus|null)                $ask    the stored session's status, or null while it is running
+     * @param \Closure(string, TStatus): array<string, mixed> $finish runs with the lock held again
+     *
+     * @return array<string, mixed>
+     */
+    private function pollWithoutTheLock(string $key, string $nothingInProgress, \Closure $ask, \Closure $finish): array
+    {
+        $stored = $_SESSION[$key] ?? null;
+        if (!\is_string($stored)) {
+            return $this->finishedAnswer($key) ?? throw new \RuntimeException($nothingInProgress);
+        }
+        $id = session_id();
+        session_write_close();
+
+        $status = $ask($stored);
+        if ($status === null) {
+            return ['done' => false];
+        }
+
+        session_start();
+        if (session_id() !== $id) {
+            // Another request replaced the session meanwhile, as signing in does.
+            // Leave the cookie that browser now holds alone.
+            header_remove('Set-Cookie');
+            session_abort();
+
+            throw new \RuntimeException('This browser\'s session changed while waiting; start again');
+        }
+        if (($_SESSION[$key] ?? null) !== $stored) {
+            return $this->finishedAnswer($key) ?? throw new \RuntimeException('Another request finished this session first');
+        }
+        unset($_SESSION[$key]);
+
+        $answer = $finish($stored, $status);
+        $this->rememberFinished($key, $answer);
+
+        return $answer;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function finishedAnswer(string $key): ?array
+    {
+        $finished = $_SESSION['finished'] ?? null;
+        $entry = \is_array($finished) ? ($finished[$key] ?? null) : null;
+        if (!\is_array($entry)) {
+            return null;
+        }
+        $at = $entry['at'] ?? null;
+        $remembered = $entry['answer'] ?? null;
+        if (!\is_int($at) || !\is_array($remembered) || time() - $at > self::REPEAT_SECONDS) {
+            return null;
+        }
+
+        $answer = [];
+        foreach ($remembered as $name => $value) {
+            $answer[(string) $name] = $value;
+        }
+
+        return $answer;
+    }
+
+    /**
+     * @param array<string, mixed> $answer
+     */
+    private function rememberFinished(string $key, array $answer): void
+    {
+        $finished = $_SESSION['finished'] ?? null;
+        $finished = \is_array($finished) ? $finished : [];
+        $finished[$key] = ['answer' => $answer, 'at' => time()];
+        $_SESSION['finished'] = $finished;
+    }
+
+    private function forgetFinished(string $key): void
+    {
+        $finished = $_SESSION['finished'] ?? null;
+        if (\is_array($finished)) {
+            unset($finished[$key]);
+            $_SESSION['finished'] = $finished;
+        }
     }
 
     // --- the audit trail ----------------------------------------------------
