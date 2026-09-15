@@ -170,9 +170,9 @@ it), then the timestamp, the certificate chain and the OCSP response.
 | Timestamps | `http://tsa.demo.sk.ee/tsa` | `http://tsa.sk.ee`, contract with SK |
 | Revocation | `http://demo.sk.ee/ocsp` and the AIA responders | the AIA responder each certificate names is free; `ocsp.sk.ee` needs a contract |
 
-By default allkiri asks the responder the certificate itself names in its
-Authority Information Access extension. Override that per issuing CA when you
-have a contract endpoint:
+By default allkiri asks the first http(s) responder the certificate itself names
+in its Authority Information Access extension; an address at any other scheme is
+skipped. Override that per issuing CA when you have a contract endpoint:
 
 ```php
 $environment = Environment::production()->withOcspUrlOverrides([

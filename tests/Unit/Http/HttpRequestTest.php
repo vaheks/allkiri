@@ -47,6 +47,15 @@ final class HttpRequestTest extends TestCase
         HttpRequest::get('ftp://example.test/file');
     }
 
+    public function testOnlyHttpAndHttpsAreHttpUrls(): void
+    {
+        self::assertTrue(HttpRequest::isHttpUrl('http://ocsp.test/'));
+        self::assertTrue(HttpRequest::isHttpUrl('HTTPS://ocsp.test/'));
+        self::assertFalse(HttpRequest::isHttpUrl('ldap://ldap.test/ocsp'));
+        self::assertFalse(HttpRequest::isHttpUrl('ocsp.test/'));
+        self::assertFalse(HttpRequest::isHttpUrl(''));
+    }
+
     /**
      * @return iterable<string, array{string, string}>
      */

@@ -345,4 +345,32 @@ final class OcspTest extends TestCase
         $this->expectException(OcspException::class);
         (new OcspClient($http, $clock))->responderUrl($ca, $ca);
     }
+
+    /**
+     * The HTTP clients speak only http(s), and an ldap:// responder address from
+     * a certificate reached them anyway, escaping as InvalidArgumentException.
+     */
+    public function testAResponderAddressThatIsNotHttpIsSkipped(): void
+    {
+        $clock = new FrozenClock();
+        $http = new MockHttpClient();
+        $ca = TestPki::ca()->certificate;
+        $aia = static fn(string ...$urls): array => ['id-pe-authorityInfoAccess' => [
+            array_map(static fn(string $url): array => ['accessMethod' => 'id-ad-ocsp', 'accessLocation' => ['uniformResourceIdentifier' => $url]], array_values($urls)),
+            false,
+        ]];
+        $ldapThenHttp = TestCertificates::issue(TestKey::ec(label: 'ldap-then-http'), ['id-at-commonName' => 'Two responders'], $aia('ldap://ldap.test/ocsp', 'http://ocsp.test/'))->certificate;
+        $ldapOnly = TestCertificates::issue(TestKey::ec(label: 'ldap-only'), ['id-at-commonName' => 'One ldap responder'], $aia('ldap://ldap.test/ocsp'))->certificate;
+
+        self::assertSame('http://ocsp.test/', (new OcspClient($http, $clock))->responderUrl($ldapThenHttp, $ca));
+        self::assertSame('http://default.test/ocsp', (new OcspClient($http, $clock, defaultUrl: 'http://default.test/ocsp'))->responderUrl($ldapOnly, $ca));
+
+        try {
+            (new OcspClient($http, $clock))->fetch($ldapOnly, $ca);
+            self::fail('a responder at an ldap:// address was asked');
+        } catch (OcspException $e) {
+            self::assertSame('OCSP_NO_RESPONDER_URL', $e->reason);
+        }
+        self::assertSame([], $http->requests(), 'nothing was sent');
+    }
 }
