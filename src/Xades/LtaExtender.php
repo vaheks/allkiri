@@ -41,8 +41,9 @@ final class LtaExtender
      * @param ReferenceResolver $resolver supplies the data files, which are part
      *                                    of what is stamped
      *
-     * @throws XadesException when the signature is not at LT, or what is stamped
-     *                        cannot be reconstructed
+     * @throws XadesException                           when the signature is not at LT, or what is stamped
+     *                                                  cannot be reconstructed
+     * @throws \Allkiri\Crypto\Tsp\TimestampException when the archive timestamp cannot be had or trusted
      */
     public function extend(SignatureDocument $document, \DOMElement $signature, ReferenceResolver $resolver): LtaExtensionResult
     {

@@ -257,8 +257,20 @@ signatures with a local key, and the API the eID means will plug into.
   back. What an object refuses after reading, and PHP's `ValueError`, arrive as
   its `previous`. The restores threw `InvalidArgumentException`, or let
   `ValueError`, `CertificateException` and `WebEidException` through.
+- `SigningService` wraps a timestamp that cannot be had or trusted, and trusted
+  lists that cannot be loaded, as `SigningException` with the original as
+  `previous`, as it already did for chains and OCSP. A key of a type allkiri
+  cannot sign with is refused in `prepare()` with
+  `CertificateNotForSigningException`, and a prepared signature whose XML cannot
+  be read is refused in `finalize()` with `SessionMismatchException`.
+  `LtExtender` gains `requireTrustedSigner()`.
 
 ### Fixed
+
+- The signer's certificate chain is checked in `prepare()`, at level T and
+  above, and again in `finalize()` before a timestamp is bought. It was first
+  checked after the timestamp had been bought, and at level T not at all, so an
+  untrusted signer cost a timestamp and at T was given one.
 
 - A bundled resource that cannot be read throws `InvalidArgumentException`
   instead of an anonymous exception class that could not be caught by name, and

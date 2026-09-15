@@ -7,16 +7,21 @@ namespace Allkiri\Signing;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\SignatureFile;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\CryptoException;
 use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyType;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Crypto\Tsp\TimestampException;
+use Allkiri\Crypto\UnsupportedAlgorithmException;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\LtaExtender;
+use Allkiri\Xades\LtaExtensionResult;
 use Allkiri\Xades\LtExtender;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureCompleter;
 use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xades\XadesException;
 use phpseclib3\Crypt\EC;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
@@ -44,7 +49,8 @@ final class SigningService
     /**
      * Build everything that is signed and return what the signer must sign.
      *
-     * @throws CertificateNotForSigningException when the certificate's key usage lacks nonRepudiation
+     * @throws CertificateNotForSigningException when the certificate's key usage lacks nonRepudiation, or its key is of a type allkiri cannot sign with
+     * @throws SigningException                  at level T and above, when the certificate does not chain to a trusted CA or the trusted lists cannot be loaded
      */
     public function prepare(AsicContainer $container, Certificate $signer, SigningOptions $options = new SigningOptions()): DataToBeSigned
     {
@@ -56,7 +62,17 @@ final class SigningService
         if ($options->level !== SignatureLevel::B && $this->ltExtender === null) {
             throw new SigningException(\sprintf('Signing at level %s needs a timestamp and OCSP service; none is configured', $options->level->value));
         }
-        $algorithm = $options->signatureAlgorithm ?? SignatureAlgorithm::forKey($signer->publicKey());
+        try {
+            $algorithm = $options->signatureAlgorithm ?? SignatureAlgorithm::forKey($signer->publicKey());
+        } catch (UnsupportedAlgorithmException|CertificateException $e) {
+            throw new CertificateNotForSigningException('This certificate has a key allkiri cannot sign with: ' . $e->getMessage(), 0, $e);
+        }
+        // A signer whose certificate chains to no trusted CA is refused here as
+        // well, before a PIN is asked for or an eID session is started. Level B
+        // rests on no trust.
+        if ($options->level !== SignatureLevel::B) {
+            $this->ltExtender?->requireTrustedSigner($signer, $this->clock->now());
+        }
         $built = $this->builder()->build($container->dataFiles, $signer, $algorithm, $options->profile);
 
         return new DataToBeSigned(
@@ -77,6 +93,10 @@ final class SigningService
      * Complete a prepared signature with the value the signer produced.
      *
      * @param string $signatureValue raw r‖s or DER for ECDSA; PKCS#1 or PSS bytes for RSA
+     *
+     * @throws SessionMismatchException       when the container or the prepared signature changed, or the prepared signature cannot be read
+     * @throws InvalidSignatureValueException when the value is not a signature over what was prepared
+     * @throws SigningException               when trust, the timestamp or the revocation answer fails, with the original exception as the previous one
      */
     public function finalize(AsicContainer $container, DataToBeSigned $dataToBeSigned, string $signatureValue): SigningResult
     {
@@ -87,11 +107,17 @@ final class SigningService
             throw new SessionMismatchException(\sprintf('The container expects "%s" but the session was prepared for "%s"', $container->nextSignatureFileName(), $dataToBeSigned->signatureFileName));
         }
 
-        $document = SignatureDocument::parse($dataToBeSigned->signatureXml);
-        $signature = $document->signature($dataToBeSigned->signatureId) ?? throw new SessionMismatchException('The prepared document has no such signature');
+        try {
+            $document = SignatureDocument::parse($dataToBeSigned->signatureXml);
+            $signature = $document->signature($dataToBeSigned->signatureId) ?? throw new SessionMismatchException('The prepared document has no such signature');
 
-        $value = $this->normalise($signatureValue, $dataToBeSigned);
-        $this->completer->setSignatureValue($document, $dataToBeSigned->signatureId, $value);
+            $value = $this->normalise($signatureValue, $dataToBeSigned);
+            $this->completer->setSignatureValue($document, $dataToBeSigned->signatureId, $value);
+        } catch (XadesException $e) {
+            // Code builds a DataToBeSigned as well as restoring one, so this is a
+            // prepared document that no longer holds together, not stored data.
+            throw new SessionMismatchException('The prepared signature cannot be read: ' . $e->getMessage(), 0, $e);
+        }
 
         // Verify the finished signature against the container before spending
         // anything on a timestamp or an OCSP request. This proves in one step
@@ -118,6 +144,9 @@ final class SigningService
         $level = SignatureLevel::B;
         if ($dataToBeSigned->level !== SignatureLevel::B) {
             $extender = $this->ltExtender ?? throw new SigningException('No timestamp and OCSP service is configured');
+            // Trust again before the timestamp is bought: the trust store can
+            // have changed since the signature was prepared.
+            $extender->requireTrustedSigner($dataToBeSigned->signerCertificate, $this->clock->now());
             // LTA is reached through LT: the archive timestamp covers the
             // signature timestamp and the revocation data, so those have to
             // exist first.
@@ -130,7 +159,7 @@ final class SigningService
         }
         if ($dataToBeSigned->level === SignatureLevel::LTA) {
             $lta = $this->ltaExtender ?? throw new SigningException('Signing at LTA needs an archive timestamp service; none is configured');
-            $level = $lta->extend($document, $signature, new ContainerReferenceResolver($container))->level;
+            $level = $this->archiveTimestamp($lta, $document, $signature, new ContainerReferenceResolver($container))->level;
         }
 
         $this->logger?->info('Signed {file} at level {level}', ['file' => $dataToBeSigned->signatureFileName, 'level' => $level->value]);
@@ -177,7 +206,7 @@ final class SigningService
         foreach ($files as $file) {
             $document = SignatureDocument::parse($file->xml);
             foreach ($document->signatures() as $signature) {
-                $extension = $lta->extend($document, $signature, $resolver);
+                $extension = $this->archiveTimestamp($lta, $document, $signature, $resolver);
                 $timestampTime = $extension->timestampTime;
                 $lastId = $signature->getAttribute('Id');
             }
@@ -220,6 +249,15 @@ final class SigningService
             return EcdsaSignature::toRaw($signatureValue, $key);
         } catch (CryptoException $exception) {
             throw new InvalidSignatureValueException($exception->getMessage(), 0, $exception);
+        }
+    }
+
+    private function archiveTimestamp(LtaExtender $lta, SignatureDocument $document, \DOMElement $signature, ContainerReferenceResolver $resolver): LtaExtensionResult
+    {
+        try {
+            return $lta->extend($document, $signature, $resolver);
+        } catch (TimestampException $e) {
+            throw new SigningException('Could not obtain a valid archive timestamp: ' . $e->getMessage(), 0, $e);
         }
     }
 

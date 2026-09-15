@@ -62,7 +62,8 @@ from there, so the cache lifetime decides how soon a fresh copy is fetched.
 
 `$allkiri->trustStore()->anchors()` throws `TrustedListException` when a list
 cannot be fetched, verified or parsed, with a reason such as
-`TRUSTED_LIST_TRANSPORT`. Signing and signing people in fail the same way.
+`TRUSTED_LIST_TRANSPORT`. Signing refuses with a `SigningException` that
+carries it as the previous exception, and signing people in fails as well.
 Validation does not throw: each signature is reported `INDETERMINATE` with
 `TRUST_ANCHORS_UNAVAILABLE` and the exception's message. The failure is not
 remembered, so each signature tries to load the lists again, and with the

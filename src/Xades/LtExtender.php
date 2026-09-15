@@ -7,12 +7,15 @@ namespace Allkiri\Xades;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspException;
+use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\Tsp\TspClient;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningException;
+use Allkiri\Trust\CertificateChain;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ChainBuildingException;
 use Allkiri\Trust\ServiceType;
+use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustStore;
 use Allkiri\Xades\Dsig\Canonicalizer;
 use Allkiri\Xades\Dsig\Xml;
@@ -53,11 +56,13 @@ final class LtExtender
         }
 
         $warnings = [];
-        $issuer = $this->issuerOf($signer, $timestamp->genTime());
-        $trustedResponders = array_map(
-            static fn($anchor): Certificate => $anchor->certificate,
-            $this->trustStore->anchors(ServiceType::ocspTypes()),
-        );
+        $issuer = $this->chain($signer, $timestamp->genTime())->issuerOfLeaf();
+        try {
+            $ocspAnchors = $this->trustStore->anchors(ServiceType::ocspTypes());
+        } catch (TrustedListException $e) {
+            throw self::listsUnavailable($e);
+        }
+        $trustedResponders = array_map(static fn($anchor): Certificate => $anchor->certificate, $ocspAnchors);
 
         try {
             $ocsp = $this->ocspClient->fetch($signer, $issuer, array_values($trustedResponders));
@@ -90,13 +95,28 @@ final class LtExtender
         return new LtExtensionResult(SignatureLevel::LT, $timestamp->genTime(), $producedAt, $warnings);
     }
 
+    /**
+     * Refuse a signer whose certificate does not chain to a trusted CA at the
+     * given moment, before anything is spent on the signature.
+     *
+     * @throws SigningException carrying the ChainBuildingException, or the TrustedListException of lists that could not be loaded
+     */
+    public function requireTrustedSigner(Certificate $signer, \DateTimeInterface $at): void
+    {
+        $this->chain($signer, $at);
+    }
+
     private function addTimestamp(SignatureDocument $document, \DOMElement $signature, \DOMElement $unsigned): \Allkiri\Crypto\Tsp\TimestampToken
     {
         $signatureValue = Xml::element($document->xpath(), 'ds:SignatureValue', $signature)
             ?? throw new SignatureStructureException('The signature has no ds:SignatureValue to timestamp');
         // XAdES timestamps the canonicalised ds:SignatureValue element, tag and all.
         $canonical = $this->canonicalizer->canonicalize($signatureValue, Ns::C14N_EXC);
-        $result = $this->tspClient->timestamp($canonical);
+        try {
+            $result = $this->tspClient->timestamp($canonical);
+        } catch (TimestampException $e) {
+            throw new SigningException('Could not obtain a valid timestamp for the signature: ' . $e->getMessage(), 0, $e);
+        }
 
         $dom = $document->document();
         $id = 'TS-' . $signature->getAttribute('Id');
@@ -169,13 +189,20 @@ final class LtExtender
         return $unsigned;
     }
 
-    private function issuerOf(Certificate $signer, \DateTimeImmutable $at): Certificate
+    private function chain(Certificate $signer, \DateTimeInterface $at): CertificateChain
     {
         try {
-            return $this->chainBuilder->build($signer, [], $at, ServiceType::caTypes())->issuerOfLeaf();
+            return $this->chainBuilder->build($signer, [], $at, ServiceType::caTypes());
         } catch (ChainBuildingException $e) {
             throw new SigningException(\sprintf('The signer\'s certificate does not chain to a trusted CA: %s', $e->getMessage()), 0, $e);
+        } catch (TrustedListException $e) {
+            throw self::listsUnavailable($e);
         }
+    }
+
+    private static function listsUnavailable(TrustedListException $e): SigningException
+    {
+        return new SigningException('The trusted lists the signature is checked against could not be loaded: ' . $e->getMessage(), 0, $e);
     }
 
     /**
@@ -185,7 +212,7 @@ final class LtExtender
     {
         try {
             return $this->chainBuilder->build($signer, [], $at, ServiceType::caTypes())->caCertificates();
-        } catch (ChainBuildingException) {
+        } catch (ChainBuildingException|TrustedListException) {
             return [];
         }
     }
@@ -203,7 +230,7 @@ final class LtExtender
 
         try {
             return [...$certificates, ...$this->chainBuilder->build($tsa, $certificates, $token->genTime(), ServiceType::tsaTypes())->caCertificates()];
-        } catch (ChainBuildingException) {
+        } catch (ChainBuildingException|TrustedListException) {
             return $certificates;
         }
     }

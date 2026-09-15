@@ -46,6 +46,10 @@ final class SigningFixture
 
     public readonly SigningService $signingService;
 
+    private readonly TspClient $tspClient;
+
+    private readonly OcspClient $ocspClient;
+
     /**
      * @param list<Certificate> $extraCas      trusted as qualified CAs beside the test CA, for signing with certificates issued in a test
      * @param KeyPair|null      $tsa           the timestamp authority, trusted as one; the committed test TSA when null
@@ -70,18 +74,27 @@ final class SigningFixture
         );
         $this->chainBuilder = new ChainBuilder($this->trustStore);
 
-        $tspClient = new TspClient($this->http, MockTsa::URL, nonces: new FixedNonceGenerator('tsa'));
-        $ocspClient = new OcspClient(
+        $this->tspClient = new TspClient($this->http, MockTsa::URL, nonces: new FixedNonceGenerator('tsa'));
+        $this->ocspClient = new OcspClient(
             $this->http,
             $this->clock,
             nonces: new FixedNonceGenerator('ocsp'),
             options: OcspVerificationOptions::forSigning(),
         );
 
-        $this->signingService = new SigningService(
+        $this->signingService = $this->signingServiceTrusting($this->trustStore);
+    }
+
+    /**
+     * A signing service like the fixture's own, deciding trust with another
+     * store.
+     */
+    public function signingServiceTrusting(TrustStore $store): SigningService
+    {
+        return new SigningService(
             $this->clock,
-            new LtExtender($tspClient, $ocspClient, $this->chainBuilder, $this->trustStore),
-            new LtaExtender($tspClient),
+            new LtExtender($this->tspClient, $this->ocspClient, new ChainBuilder($store), $store),
+            new LtaExtender($this->tspClient),
             new SignatureBuilder($this->clock),
         );
     }

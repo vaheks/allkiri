@@ -42,7 +42,6 @@ final readonly class StoredData
      * @param non-empty-list<int> $versions every version the caller still reads
      * @param \Closure(self): T   $restore  builds the object from the fields
      *
-     *
      * @throws SessionDataException when what was stored cannot be read back
      * @return T
      */
@@ -67,7 +66,6 @@ final readonly class StoredData
     }
 
     /**
-     *
      * @throws SessionDataException when the JSON is not an object
      * @return array<mixed>
      */
