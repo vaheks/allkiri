@@ -9,7 +9,8 @@
  * actually succeeded.
  *
  * So: an answer that cannot be read is an error, immediately, and says what came
- * back instead.
+ * back instead. Only a poll that got no answer from the server at all, or a
+ * gateway's 502, 503 or 504, is asked again.
  *
  * No dependencies. Stubs global fetch.
  *
@@ -42,14 +43,18 @@ function answering(status, body) {
   });
 }
 
-/** Answer each request from the list in turn, so a poll loop can be watched. */
+/**
+ * Answer each request from the list in turn, so a poll loop can be watched. A
+ * null in the list makes fetch itself fail, as it does when no answer arrives.
+ */
 function answeringInTurn(answers) {
   let index = 0;
-  const seen = [];
   globalThis.fetch = () => {
     const answer = answers[Math.min(index, answers.length - 1)];
     index++;
-    seen.push(answer);
+    if (answer === null) {
+      return Promise.reject(new TypeError('Failed to fetch'));
+    }
     return Promise.resolve({
       ok: answer.status >= 200 && answer.status < 300,
       status: answer.status,
@@ -65,6 +70,14 @@ async function rejects(promise) {
     return null;
   } catch (error) {
     return error;
+  }
+}
+
+async function settle(promise) {
+  try {
+    return { value: await promise, error: null };
+  } catch (error) {
+    return { value: null, error };
   }
 }
 
@@ -145,6 +158,95 @@ async function main() {
     gone && gone.message,
   );
   check('after three questions', laters() === 3, String(laters()));
+
+  // --- poll: what is asked again ------------------------------------------
+
+  const dropped = answeringInTurn([null, { status: 200, body: '{"done":true,"name":"MARY ÄNN"}' }]);
+  const afterDrop = await settle(allkiri.poll('/api/poll', { interval: 1, timeout: 5000 }));
+  check(
+    'a poll that got no answer at all is asked again',
+    afterDrop.value !== null && afterDrop.value.name === 'MARY ÄNN' && dropped() === 2,
+    afterDrop.error ? afterDrop.error.message : String(dropped()),
+  );
+
+  for (const status of [502, 503, 504]) {
+    const gateway = answeringInTurn([
+      { status, body: '<html><body>Bad Gateway</body></html>' },
+      { status: 200, body: '{"done":true}' },
+    ]);
+    const recovered = await settle(allkiri.poll('/api/poll', { interval: 1, timeout: 5000 }));
+    check(
+      'a ' + status + ' from a gateway is asked again',
+      recovered.value !== null && recovered.value.done === true && gateway() === 2,
+      recovered.error ? recovered.error.message : String(gateway()),
+    );
+  }
+
+  for (const [what, answer] of [
+    ['a 500 from the server', { status: 500, body: '{"error":"Something broke"}' }],
+    ['a 400 from the server', { status: 400, body: '{"error":"No Mobile-ID session is in progress"}' }],
+    ['an unreadable 200', { status: 200, body: '<br /><b>Warning</b>' }],
+  ]) {
+    const once = answeringInTurn([answer, { status: 200, body: '{"done":true}' }]);
+    const outcome = await settle(allkiri.poll('/api/poll', { interval: 1, timeout: 5000 }));
+    check(what + ' still ends the wait at once', outcome.error !== null && once() === 1, String(once()));
+  }
+
+  const forever = answeringInTurn([{ status: 503, body: 'Service Unavailable' }]);
+  const exhausted = await settle(allkiri.poll('/api/poll', { interval: 5, timeout: 150 }));
+  check(
+    'asking again stops at the timeout, with the last error',
+    exhausted.error !== null && exhausted.error.status === 503,
+    exhausted.error ? exhausted.error.message : 'resolved',
+  );
+  check(
+    'that error says how many times it asked again',
+    exhausted.error !== null && exhausted.error.retries >= 1 && forever() === exhausted.error.retries + 1,
+    forever() + ' requests, retries ' + (exhausted.error && exhausted.error.retries),
+  );
+  check('and it backed off rather than hammering', forever() <= 8, String(forever()));
+
+  answeringInTurn([null]);
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const cancelled = settle(allkiri.poll('/api/poll', { interval: 1000, timeout: 10000, signal: controller.signal }));
+  setTimeout(() => controller.abort(), 50);
+  const abortOutcome = await cancelled;
+  check(
+    'an abort during a backoff ends the wait at once',
+    abortOutcome.error !== null && abortOutcome.error.name === 'AbortError' && Date.now() - startedAt < 500,
+    (abortOutcome.error ? abortOutcome.error.name : 'resolved') + ' after ' + (Date.now() - startedAt) + ' ms',
+  );
+
+  const ticks = answeringInTurn([{ status: 200, body: '{"done":false}' }, { status: 200, body: '{"done":true}' }]);
+  const brokenTick = await settle(allkiri.poll('/api/poll', {
+    interval: 1,
+    timeout: 5000,
+    onTick: () => { throw new TypeError('the page broke'); },
+  }));
+  check(
+    'an error in onTick is not mistaken for a network failure',
+    brokenTick.error instanceof TypeError && ticks() === 1,
+    (brokenTick.error ? brokenTick.error.message : 'resolved') + ', ' + ticks() + ' requests',
+  );
+
+  const listeners = { added: 0, removed: 0 };
+  const quietSignal = {
+    aborted: false,
+    addEventListener: () => { listeners.added++; },
+    removeEventListener: () => { listeners.removed++; },
+  };
+  answeringInTurn([
+    { status: 200, body: '{"done":false}' },
+    { status: 200, body: '{"done":false}' },
+    { status: 200, body: '{"done":true}' },
+  ]);
+  await allkiri.poll('/api/poll', { interval: 1, signal: quietSignal });
+  check(
+    'a wait that finished leaves no abort listeners behind',
+    listeners.added === 2 && listeners.removed === 2,
+    JSON.stringify(listeners),
+  );
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed === 0 ? 0 : 1);
