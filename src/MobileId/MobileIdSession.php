@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\MobileId;
 
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\StoredData;
 
 /**
  * A Mobile-ID operation waiting for the person to act.
@@ -59,42 +60,20 @@ final readonly class MobileIdSession implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
-            throw new InvalidArgumentException('Unsupported Mobile-ID session version');
-        }
-        $challenge = base64_decode(self::string($data, 'challenge', ''), true);
-
-        return new self(
-            self::string($data, 'sessionId'),
-            self::string($data, 'type'),
-            self::string($data, 'verificationCode'),
-            new MobileIdIdentity(self::string($data, 'phoneNumber'), self::string($data, 'nationalIdentityNumber')),
-            $challenge === false ? '' : $challenge,
-        );
+        return StoredData::restore($data, 'Mobile-ID session', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            $stored->string('sessionId'),
+            $stored->string('type'),
+            $stored->string('verificationCode'),
+            new MobileIdIdentity($stored->string('phoneNumber'), $stored->string('nationalIdentityNumber')),
+            // A signing session stores an empty challenge.
+            $stored->base64('challenge', allowEmpty: true),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Mobile-ID session JSON is not an object');
-        }
-
-        return self::fromArray($data);
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function string(array $data, string $key, ?string $default = null): string
-    {
-        $value = $data[$key] ?? $default;
-        if (!\is_string($value)) {
-            throw new InvalidArgumentException(\sprintf('Mobile-ID session is missing "%s"', $key));
-        }
-
-        return $value;
+        return self::fromArray(StoredData::decode($json, 'Mobile-ID session'));
     }
 }

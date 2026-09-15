@@ -6,6 +6,7 @@ namespace Allkiri\MobileId;
 
 use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Signing\DataToBeSigned;
+use Allkiri\StoredData;
 
 /**
  * A signature half-made: the XAdES is built and the phone is being asked for
@@ -52,27 +53,16 @@ final readonly class MobileIdSigningSession implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
-            throw new InvalidArgumentException('Unsupported Mobile-ID signing session version');
-        }
-        $session = $data['session'] ?? null;
-        $dataToBeSigned = $data['dataToBeSigned'] ?? null;
-        if (!\is_array($session) || !\is_array($dataToBeSigned)) {
-            throw new InvalidArgumentException('A Mobile-ID signing session needs both the session and the data to be signed');
-        }
-
-        return new self(MobileIdSession::fromArray($session), DataToBeSigned::fromArray($dataToBeSigned));
+        return StoredData::restore($data, 'Mobile-ID signing session', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            MobileIdSession::fromArray($stored->object('session')),
+            DataToBeSigned::fromArray($stored->object('dataToBeSigned')),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Mobile-ID signing session JSON is not an object');
-        }
-
-        return self::fromArray($data);
+        return self::fromArray(StoredData::decode($json, 'Mobile-ID signing session'));
     }
 }

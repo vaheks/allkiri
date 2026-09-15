@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\WebEid;
 
-use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Signing\DataToBeSigned;
+use Allkiri\StoredData;
 
 /**
  * A signature half-made: the XAdES is built and the browser is being asked for
@@ -51,27 +51,16 @@ final readonly class WebEidSigningSession implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
-            throw new InvalidArgumentException('Unsupported Web eID signing session version');
-        }
-        $dataToBeSigned = $data['dataToBeSigned'] ?? null;
-        $algorithm = $data['algorithm'] ?? null;
-        if (!\is_array($dataToBeSigned) || !\is_array($algorithm)) {
-            throw new InvalidArgumentException('A Web eID signing session needs both the data to be signed and the algorithm');
-        }
-
-        return new self(DataToBeSigned::fromArray($dataToBeSigned), CardAlgorithm::fromArray($algorithm));
+        return StoredData::restore($data, 'Web eID signing session', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            DataToBeSigned::fromArray($stored->object('dataToBeSigned')),
+            CardAlgorithm::fromArray($stored->object('algorithm')),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Web eID signing session JSON is not an object');
-        }
-
-        return self::fromArray($data);
+        return self::fromArray(StoredData::decode($json, 'Web eID signing session'));
     }
 }

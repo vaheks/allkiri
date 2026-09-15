@@ -6,6 +6,7 @@ namespace Allkiri\SmartId;
 
 use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Signing\DataToBeSigned;
+use Allkiri\StoredData;
 
 /**
  * A signature half-made: the XAdES is built and the Smart-ID app is being asked
@@ -51,27 +52,16 @@ final readonly class SmartIdSigningSession implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
-            throw new InvalidArgumentException('Unsupported Smart-ID signing session version');
-        }
-        $session = $data['session'] ?? null;
-        $dataToBeSigned = $data['dataToBeSigned'] ?? null;
-        if (!\is_array($session) || !\is_array($dataToBeSigned)) {
-            throw new InvalidArgumentException('A Smart-ID signing session needs both the session and the data to be signed');
-        }
-
-        return new self(SmartIdSession::fromArray($session), DataToBeSigned::fromArray($dataToBeSigned));
+        return StoredData::restore($data, 'Smart-ID signing session', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            SmartIdSession::fromArray($stored->object('session')),
+            DataToBeSigned::fromArray($stored->object('dataToBeSigned')),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Smart-ID signing session JSON is not an object');
-        }
-
-        return self::fromArray($data);
+        return self::fromArray(StoredData::decode($json, 'Smart-ID signing session'));
     }
 }
