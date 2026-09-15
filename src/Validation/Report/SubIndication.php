@@ -16,6 +16,9 @@ enum SubIndication: string
     case NoSigningCertificateFound = 'NO_SIGNING_CERTIFICATE_FOUND';
     case NoCertificateChainFound = 'NO_CERTIFICATE_CHAIN_FOUND';
     case CertificateChainGeneralFailure = 'CERTIFICATE_CHAIN_GENERAL_FAILURE';
+
+    /** A certificate does not meet a constraint on what it may be used for, or on the path it sits in. */
+    case ChainConstraintsFailure = 'CHAIN_CONSTRAINTS_FAILURE';
     case CryptoConstraintsFailure = 'CRYPTO_CONSTRAINTS_FAILURE';
 
     /** An algorithm or key that is no longer acceptable, with no proof the signature existed while it still was. */

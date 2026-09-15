@@ -80,6 +80,10 @@ final class TimestampTokenVerifier
         if (!$tsa->hasExtendedKeyUsage(Oids::ID_KP_TIMESTAMPING)) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_TSA_KEY_USAGE, 'TSA certificate lacks the timeStamping extended key usage');
         }
+        // RFC 3161 §2.3: and the extension must be critical.
+        if (!$tsa->isExtensionCritical('id-ce-extKeyUsage')) {
+            throw new TimestampVerificationException(TimestampVerificationException::REASON_TSA_KEY_USAGE, 'TSA certificate\'s extended key usage is not marked critical, as RFC 3161 requires');
+        }
 
         if ($tstInfo->hashAlgorithmOid !== $imprintAlgorithm->oid() || !hash_equals($expectedImprint, $tstInfo->messageImprint)) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_IMPRINT, 'Token does not cover the expected message imprint');

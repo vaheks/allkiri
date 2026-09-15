@@ -104,6 +104,23 @@ final class CertificateTest extends TestCase
         self::assertSame('1.2.840.113549.1.1.11', $ec->signatureAlgorithmOid(), 'sha256WithRSAEncryption, signed by the RSA CA');
     }
 
+    public function testWhatACertificateMayBeUsedFor(): void
+    {
+        $tsa = TestPki::tsa()->certificate;
+        self::assertTrue($tsa->isExtensionCritical('id-ce-extKeyUsage'));
+        self::assertTrue($tsa->isExtensionCritical('2.5.29.37'), 'by OID as well as by name');
+        self::assertFalse(TestPki::ocspResponder()->certificate->isExtensionCritical('id-ce-extKeyUsage'));
+        self::assertFalse($tsa->isExtensionCritical('id-ce-certificatePolicies'), 'an extension it does not have');
+
+        self::assertSame(1, Certificate::fromPem((string) file_get_contents(self::CERTS . 'TEST_of_EE_GovCA2018.pem'))->pathLenConstraint());
+        self::assertSame(0, Certificate::fromPem((string) file_get_contents(self::CERTS . 'TEST_of_ESTEID2018.pem'))->pathLenConstraint());
+        self::assertNull(TestPki::ca()->certificate->pathLenConstraint(), 'a CA with no limit');
+        self::assertNull(TestPki::signerEc256()->certificate->pathLenConstraint(), 'not a CA');
+
+        self::assertTrue(TestPki::ca()->certificate->isSelfIssued());
+        self::assertFalse(TestPki::signerEc256()->certificate->isSelfIssued());
+    }
+
     /**
      * RFC 5280 §4.1.1.2: the algorithm named inside the signed part and the one
      * outside it must be the same. Here the CA genuinely signed, with SHA-256, a

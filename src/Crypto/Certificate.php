@@ -384,6 +384,56 @@ final class Certificate
     }
 
     /**
+     * The most CA certificates that may follow this one in a path, not counting
+     * self-issued ones; null when it sets no limit or is not a CA.
+     */
+    public function pathLenConstraint(): ?int
+    {
+        $value = $this->x509->getExtension('id-ce-basicConstraints');
+        if (!\is_array($value) || ($value['cA'] ?? false) !== true) {
+            return null;
+        }
+        $limit = $value['pathLenConstraint'] ?? null;
+        if (!$limit instanceof \phpseclib3\Math\BigInteger) {
+            return null;
+        }
+        $int = filter_var($limit->toString(), FILTER_VALIDATE_INT);
+
+        return $int === false ? PHP_INT_MAX : max(0, $int);
+    }
+
+    /**
+     * Subject and issuer are the same name: a root, or a CA that certified its
+     * own new key. RFC 5280 does not count these towards a path length.
+     */
+    public function isSelfIssued(): bool
+    {
+        return $this->subjectNameDer() === $this->issuerNameDer();
+    }
+
+    /**
+     * Whether the certificate marks the extension critical; false when it does
+     * not have the extension at all.
+     *
+     * @param string $extension dotted OID or phpseclib name
+     */
+    public function isExtensionCritical(string $extension): bool
+    {
+        $extensions = $this->tbs()['extensions'] ?? null;
+        if (!\is_array($extensions)) {
+            return false;
+        }
+        foreach ($extensions as $entry) {
+            $id = \is_array($entry) ? ($entry['extnId'] ?? null) : null;
+            if (\is_string($id) && ($id === $extension || ASN1::getOID($id) === $extension)) {
+                return ($entry['critical'] ?? false) === true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param string $extension dotted OID or phpseclib name
      */
     public function hasExtension(string $extension): bool

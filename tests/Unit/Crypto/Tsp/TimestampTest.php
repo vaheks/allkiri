@@ -134,6 +134,18 @@ final class TimestampTest extends TestCase
         } catch (TimestampVerificationException $e) {
             self::assertSame(TimestampVerificationException::REASON_TSA_KEY_USAGE, $e->reason);
         }
+
+        // RFC 3161 §2.3: the purpose has to be marked critical as well.
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock(), TestCertificates::issue(TestPki::tsa(), ['id-at-commonName' => 'allkiri TSA With A Non-Critical Purpose'], ['id-ce-extKeyUsage' => [['id-kp-timeStamping'], false]]));
+
+        try {
+            (new TspClient($http, MockTsa::URL))->timestamp('x');
+            self::fail('a TSA certificate with a non-critical purpose was accepted');
+        } catch (TimestampVerificationException $e) {
+            self::assertSame(TimestampVerificationException::REASON_TSA_KEY_USAGE, $e->reason);
+            self::assertStringContainsString('not marked critical', $e->getMessage());
+        }
     }
 
     public function testATokenSignedWithSha1IsNotAccepted(): void

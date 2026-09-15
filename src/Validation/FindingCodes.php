@@ -58,6 +58,9 @@ final class FindingCodes
     public const ISSUER_SERIAL_MISMATCH = 'ISSUER_SERIAL_MISMATCH';
     public const SIGNING_CERTIFICATE_REFERENCE_MISSING = 'SIGNING_CERTIFICATE_REFERENCE_MISSING';
 
+    /** The signing certificate's key usage does not include nonRepudiation, so it is not a certificate for signing. */
+    public const SIGNING_CERTIFICATE_KEY_USAGE = 'SIGNING_CERTIFICATE_KEY_USAGE';
+
     // Timestamps
     public const TIMESTAMP_MISSING = 'TIMESTAMP_MISSING';
     public const TIMESTAMP_INVALID = 'TIMESTAMP_INVALID';
@@ -73,6 +76,9 @@ final class FindingCodes
 
     /** A certificate in the signer's chain is signed with SHA-1 or a key below the minimum. */
     public const CHAIN_WEAK_ALGORITHM = 'CHAIN_WEAK_ALGORITHM';
+
+    /** A CA in the signer's chain is outside its path length constraint, or may not sign certificates. */
+    public const CHAIN_CONSTRAINT_VIOLATED = 'CHAIN_CONSTRAINT_VIOLATED';
     public const SIGNING_CERTIFICATE_EXPIRED = 'SIGNING_CERTIFICATE_EXPIRED';
     public const SIGNING_CERTIFICATE_NOT_YET_VALID = 'SIGNING_CERTIFICATE_NOT_YET_VALID';
     public const REVOCATION_MISSING = 'REVOCATION_MISSING';

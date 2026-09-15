@@ -201,8 +201,25 @@ signatures with a local key, and the API the eID means will plug into.
   chain `CHAIN_NOT_FOUND` (INDETERMINATE) instead of `CHAIN_INVALID`
   (TOTAL-FAILED). When no chain can be built, the reason given is the failure
   that got furthest along a path rather than the last one tried.
+- A signing certificate must have nonRepudiation in its key usage.
+  `SigningService::prepare()` refuses one without it with the new
+  `CertificateNotForSigningException`, and validation reports it as
+  `SIGNING_CERTIFICATE_KEY_USAGE`, INDETERMINATE with the new sub-indication
+  `CHAIN_CONSTRAINTS_FAILURE`.
+- Certificate chains keep to each CA's constraints. New reasons
+  `REASON_PATH_LENGTH` and `REASON_CA_KEY_USAGE` on `ChainBuildingException`,
+  reported for the signer's chain as `CHAIN_CONSTRAINT_VIOLATED`. `Certificate`
+  gains `pathLenConstraint()`, `isSelfIssued()` and `isExtensionCritical()`.
 
 ### Fixed
+
+- A certificate is now judged for the job it does. Three checks were missing.
+  A certificate without nonRepudiation, such as an authentication certificate
+  from a trusted CA, made signatures that validated as TOTAL-PASSED, and
+  allkiri would make them. A CA's path length constraint was ignored, and so was
+  an intermediate whose key usage does not allow it to issue certificates. And
+  a timestamp authority certificate that does not mark its timestamping purpose
+  critical, as RFC 3161 requires, was accepted.
 
 - SHA-1 and small RSA keys are no longer accepted beneath a signature. The
   validation policy's algorithm floor reached only the XAdES signature method

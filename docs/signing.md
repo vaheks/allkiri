@@ -93,6 +93,19 @@ demands something else, as Smart-ID does with RSA-PSS:
 $options = (new SigningOptions())->withAlgorithm(SignatureAlgorithm::PS256);
 ```
 
+## Certificates that cannot sign
+
+A certificate whose key usage lacks nonRepudiation cannot make a signature that
+validates. ETSI EN 319 412-2 requires that bit of every certificate for
+electronic signatures, and SiVa and allkiri's own validator both refuse a
+signature without it. The usual case is an authentication certificate from the
+same card or account, which chains to the same CA.
+
+`prepare()` refuses such a certificate with `CertificateNotForSigningException`
+before building anything, so nobody is asked for a PIN and no timestamp is
+bought. Only nonRepudiation is required: SK's signing certificates carry it
+without digitalSignature.
+
 ## Adding a signature to an existing container
 
 ```php

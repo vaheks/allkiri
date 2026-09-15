@@ -24,6 +24,12 @@ final class ChainBuildingException extends TrustException
     /** A certificate's signature verifies, but with SHA-1 or a key below the minimum. */
     public const REASON_ALGORITHM_NOT_ACCEPTED = 'CERTIFICATE_SIGNATURE_ALGORITHM_NOT_ACCEPTED';
 
+    /** A CA has more CA certificates below it than its pathLenConstraint allows. */
+    public const REASON_PATH_LENGTH = 'CERTIFICATE_PATH_LENGTH_EXCEEDED';
+
+    /** An intermediate CA's key usage does not include keyCertSign. */
+    public const REASON_CA_KEY_USAGE = 'CA_CERTIFICATE_KEY_USAGE_INVALID';
+
     public function __construct(
         public readonly string $reason,
         string $message,

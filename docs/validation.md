@@ -48,17 +48,25 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    key large enough. The signatures this signature rests on meet a floor too:
    see steps 7 to 9.
 4. **The signing certificate.** The certificate in the signature is the one
-   the signer committed to in the signed properties.
+   the signer committed to in the signed properties, and it is a certificate
+   for signing: its key usage includes nonRepudiation, which ETSI EN 319 412-2
+   requires. An authentication certificate from the same CA does not qualify;
+   such a signature is `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`, as
+   SiVa reports it.
 5. **References.** Every same-document reference names an `Id` that exactly
    one element carries, every data file's digest matches, the signed
    properties' digest matches, every file in the container is covered, and
    each data reference has the media type BDOC requires.
 6. **The signature value**, over the canonicalised SignedInfo.
 7. **Timestamps.** The token covers this signature's value, verifies, and
-   comes from a trusted timestamp authority. This establishes the *best
-   signature time*: the moment the signature provably existed.
+   comes from a trusted timestamp authority whose certificate marks its
+   timestamping purpose critical, as RFC 3161 requires. This establishes the
+   *best signature time*: the moment the signature provably existed.
 8. **The certificate chain**, as it stood at that moment, up to a trust anchor
-   whose service was in a trustworthy status then.
+   whose service was in a trustworthy status then. Every CA in it keeps to its
+   path length constraint, counted as RFC 5280 counts it, and every intermediate
+   is allowed to sign certificates. A chain that breaks either is
+   `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`.
 9. **Revocation.** The embedded OCSP response answers about this certificate,
    was signed by an authorised responder, and says `good`.
 
