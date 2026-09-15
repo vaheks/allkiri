@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Signing;
 
 use Allkiri\Container\AsicContainer;
-use Allkiri\Xades\Dsig\ReferenceResolver;
+use Allkiri\Xml\Dsig\ReferenceResolver;
 
 /**
  * Resolves a signature's external references to the container's data files.

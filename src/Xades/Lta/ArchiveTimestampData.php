@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Allkiri\Xades\Lta;
 
-use Allkiri\Xades\Dsig\Canonicalizer;
-use Allkiri\Xades\Dsig\ReferenceResolver;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Ns;
 use Allkiri\Xades\XadesException;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\ReferenceResolver;
+use Allkiri\Xml\Xml;
 
 /**
  * What an archive timestamp covers.
@@ -47,7 +48,7 @@ final class ArchiveTimestampData
      * Build the stream for an archive timestamp that is about to be added,
      * covering everything currently in the signature.
      */
-    public function forNewTimestamp(\DOMElement $signature, ReferenceResolver $resolver, string $canonicalization = Ns::C14N_EXC): string
+    public function forNewTimestamp(\DOMElement $signature, ReferenceResolver $resolver, string $canonicalization = DsigNs::C14N_EXC): string
     {
         return $this->build($signature, $resolver, $canonicalization, null);
     }
@@ -73,7 +74,7 @@ final class ArchiveTimestampData
     public static function canonicalizationOf(\DOMElement $archiveTimestamp): string
     {
         foreach ($archiveTimestamp->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->localName === 'CanonicalizationMethod' && $child->namespaceURI === Ns::DS) {
+            if ($child instanceof \DOMElement && $child->localName === 'CanonicalizationMethod' && $child->namespaceURI === DsigNs::DS) {
                 $algorithm = $child->getAttribute('Algorithm');
                 if ($algorithm !== '') {
                     return $algorithm;
@@ -81,7 +82,7 @@ final class ArchiveTimestampData
             }
         }
 
-        return Ns::C14N_10;
+        return DsigNs::C14N_10;
     }
 
     /**
@@ -94,7 +95,7 @@ final class ArchiveTimestampData
         if ($document === null) {
             throw new XadesException('The signature is not part of a document');
         }
-        $xpath = Xml::xpath($document);
+        $xpath = Xml::xpath($document, Ns::PREFIXES);
 
         $stream = '';
 
@@ -107,7 +108,7 @@ final class ArchiveTimestampData
 
         // 2. The signature's own elements.
         foreach (['SignedInfo', 'SignatureValue', 'KeyInfo'] as $name) {
-            $element = $this->child($signature, Ns::DS, $name);
+            $element = $this->child($signature, DsigNs::DS, $name);
             if ($element !== null) {
                 $stream .= $this->canonicalizer->canonicalize($element, $canonicalization);
             }

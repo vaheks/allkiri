@@ -7,13 +7,14 @@ namespace Allkiri\Tests\Unit\Xades;
 use Allkiri\Container\AsicReader;
 use Allkiri\Crypto\Tsp\TimestampToken;
 use Allkiri\Signing\ContainerReferenceResolver;
-use Allkiri\Xades\Dsig\Canonicalizer;
-use Allkiri\Xades\Dsig\ReferenceResolver;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Lta\ArchiveTimestampData;
 use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\XadesException;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\ReferenceResolver;
+use Allkiri\Xml\Xml;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
@@ -55,7 +56,7 @@ final class ArchiveTimestampDataTest extends TestCase
         $document = $signature->ownerDocument;
         self::assertNotNull($document);
 
-        return Xml::xpath($document);
+        return Xml::xpath($document, Ns::PREFIXES);
     }
 
     /**
@@ -90,7 +91,7 @@ final class ArchiveTimestampDataTest extends TestCase
         self::assertNotNull($properties);
 
         self::assertStringContainsString(
-            (new Canonicalizer())->canonicalize($properties, Ns::C14N_EXC),
+            (new Canonicalizer())->canonicalize($properties, DsigNs::C14N_EXC),
             $data,
         );
     }
@@ -111,7 +112,7 @@ final class ArchiveTimestampDataTest extends TestCase
             $element = Xml::element($xpath, './/' . $name, $signature);
             self::assertNotNull($element, $name . ' should be in the fixture');
             self::assertStringContainsString(
-                $canonicalizer->canonicalize($element, Ns::C14N_EXC),
+                $canonicalizer->canonicalize($element, DsigNs::C14N_EXC),
                 $data,
                 $name . ' should be covered by the archive timestamp',
             );
@@ -126,7 +127,7 @@ final class ArchiveTimestampDataTest extends TestCase
         [$signature, $archive, $resolver] = self::fixture();
         $data = (new ArchiveTimestampData())->forExistingTimestamp($signature, $archive, $resolver);
 
-        $canonical = (new Canonicalizer())->canonicalize($archive, Ns::C14N_EXC);
+        $canonical = (new Canonicalizer())->canonicalize($archive, DsigNs::C14N_EXC);
 
         self::assertStringNotContainsString($canonical, $data);
     }
@@ -135,7 +136,7 @@ final class ArchiveTimestampDataTest extends TestCase
     {
         [, $archive] = self::fixture();
 
-        self::assertSame(Ns::C14N_EXC, ArchiveTimestampData::canonicalizationOf($archive));
+        self::assertSame(DsigNs::C14N_EXC, ArchiveTimestampData::canonicalizationOf($archive));
     }
 
     /**
@@ -148,7 +149,7 @@ final class ArchiveTimestampDataTest extends TestCase
         $document = new \DOMDocument();
         $element = $document->createElementNS(Ns::XADES141, 'xadesv141:ArchiveTimeStamp');
 
-        self::assertSame(Ns::C14N_10, ArchiveTimestampData::canonicalizationOf($element));
+        self::assertSame(DsigNs::C14N_10, ArchiveTimestampData::canonicalizationOf($element));
     }
 
     /**

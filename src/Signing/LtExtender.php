@@ -15,11 +15,12 @@ use Allkiri\Trust\ChainBuildingException;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustStore;
-use Allkiri\Xades\Dsig\Canonicalizer;
-use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Xml;
 
 /**
  * Raises a completed BES signature to T and then to LT.
@@ -112,7 +113,7 @@ final class LtExtender
         $signatureValue = Xml::element($document->xpath(), 'ds:SignatureValue', $signature)
             ?? throw new SignatureStructureException('The signature has no ds:SignatureValue to timestamp');
         // XAdES timestamps the canonicalised ds:SignatureValue element, tag and all.
-        $canonical = $this->canonicalizer->canonicalize($signatureValue, Ns::C14N_EXC);
+        $canonical = $this->canonicalizer->canonicalize($signatureValue, DsigNs::C14N_EXC);
         try {
             $result = $this->tspClient->timestamp($canonical);
         } catch (TimestampException $e) {
@@ -124,8 +125,8 @@ final class LtExtender
         $element = $dom->createElementNS(Ns::XADES, 'xades:SignatureTimeStamp');
         $element->setAttribute('Id', $id);
         // DSS refuses to verify a timestamp whose canonicalization is unstated.
-        $method = $dom->createElementNS(Ns::DS, 'ds:CanonicalizationMethod');
-        $method->setAttribute('Algorithm', Ns::C14N_EXC);
+        $method = $dom->createElementNS(DsigNs::DS, 'ds:CanonicalizationMethod');
+        $method->setAttribute('Algorithm', DsigNs::C14N_EXC);
         $element->appendChild($method);
         $encapsulated = $dom->createElementNS(Ns::XADES, 'xades:EncapsulatedTimeStamp', base64_encode($result->token->der()));
         $encapsulated->setAttribute('Id', 'E' . $id);

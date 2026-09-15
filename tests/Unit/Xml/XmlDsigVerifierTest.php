@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Tests\Unit\Xades;
+namespace Allkiri\Tests\Unit\Xml;
 
 use Allkiri\Container\AsicReader;
 use Allkiri\Signing\ContainerReferenceResolver;
 use Allkiri\Tests\Support\Xades\SignatureWrapping;
-use Allkiri\Xades\Dsig\ArrayReferenceResolver;
-use Allkiri\Xades\Dsig\Canonicalizer;
-use Allkiri\Xades\Dsig\XmlDsigVerifier;
-use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\Dsig\ArrayReferenceResolver;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\XmlDsigVerifier;
+use Allkiri\Xml\InvalidXmlException;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -70,7 +70,7 @@ final class XmlDsigVerifierTest extends TestCase
                 self::assertSame([], $result->problems, $name);
                 self::assertNotNull($result->certificate, $name);
                 self::assertStringContainsString($expectedAlgorithm, $result->signatureMethod, $name);
-                self::assertSame(Ns::C14N_EXC, $result->canonicalizationMethod, $name);
+                self::assertSame(DsigNs::C14N_EXC, $result->canonicalizationMethod, $name);
                 self::assertCount(2, $result->references, $name . ': one data file plus SignedProperties');
                 foreach ($result->references as $reference) {
                     self::assertTrue($reference->resolved, $name . ' ' . $reference->uri);
@@ -160,10 +160,10 @@ final class XmlDsigVerifierTest extends TestCase
         self::assertSame([], $result->problems);
         self::assertTrue($result->isValid(), 'the trusted list signature verifies');
         self::assertSame('Test TSL', $result->certificate?->commonName());
-        self::assertSame(Ns::C14N_EXC, $result->canonicalizationMethod);
+        self::assertSame(DsigNs::C14N_EXC, $result->canonicalizationMethod);
         $enveloped = $result->reference('');
         self::assertNotNull($enveloped);
-        self::assertContains(Ns::TRANSFORM_ENVELOPED, $enveloped->transforms);
+        self::assertContains(DsigNs::TRANSFORM_ENVELOPED, $enveloped->transforms);
         self::assertTrue($enveloped->isSameDocument());
     }
 
@@ -185,18 +185,18 @@ final class XmlDsigVerifierTest extends TestCase
         $child = $element->firstChild;
         self::assertNotNull($child);
 
-        self::assertTrue(Canonicalizer::supports(Ns::C14N_EXC));
-        self::assertTrue(Canonicalizer::supports(Ns::C14N_10));
-        self::assertFalse(Canonicalizer::supports(Ns::C14N_11));
+        self::assertTrue(Canonicalizer::supports(DsigNs::C14N_EXC));
+        self::assertTrue(Canonicalizer::supports(DsigNs::C14N_10));
+        self::assertFalse(Canonicalizer::supports(DsigNs::C14N_11));
 
         // Exclusive c14n drops namespaces the subtree does not use; inclusive keeps them.
-        self::assertSame('<c xmlns:a="urn:a" a:x="1">  text  </c>', $canonicalizer->canonicalize($child, Ns::C14N_EXC));
-        self::assertStringContainsString('xmlns:unused="urn:u"', $canonicalizer->canonicalize($child, Ns::C14N_10));
-        self::assertStringContainsString('<!-- note -->', $canonicalizer->canonicalize($element, Ns::C14N_EXC_WITH_COMMENTS));
-        self::assertStringNotContainsString('<!-- note -->', $canonicalizer->canonicalize($element, Ns::C14N_EXC));
+        self::assertSame('<c xmlns:a="urn:a" a:x="1">  text  </c>', $canonicalizer->canonicalize($child, DsigNs::C14N_EXC));
+        self::assertStringContainsString('xmlns:unused="urn:u"', $canonicalizer->canonicalize($child, DsigNs::C14N_10));
+        self::assertStringContainsString('<!-- note -->', $canonicalizer->canonicalize($element, DsigNs::C14N_EXC_WITH_COMMENTS));
+        self::assertStringNotContainsString('<!-- note -->', $canonicalizer->canonicalize($element, DsigNs::C14N_EXC));
 
-        $this->expectException(\Allkiri\Xades\CanonicalizationException::class);
-        $canonicalizer->canonicalize($element, Ns::C14N_11);
+        $this->expectException(\Allkiri\Xml\Dsig\CanonicalizationException::class);
+        $canonicalizer->canonicalize($element, DsigNs::C14N_11);
     }
 
     public function testDocumentLoadingRefusesDoctypesAndMalformedXml(): void
@@ -204,17 +204,17 @@ final class XmlDsigVerifierTest extends TestCase
         try {
             SignatureDocument::parse('<!DOCTYPE r [<!ENTITY x "y">]><r>&x;</r>');
             self::fail('DOCTYPE accepted');
-        } catch (SignatureStructureException $e) {
+        } catch (InvalidXmlException $e) {
             self::assertStringContainsString('DOCTYPE', $e->getMessage());
         }
         try {
             SignatureDocument::parse('<r><unclosed></r>');
             self::fail('malformed XML accepted');
-        } catch (SignatureStructureException $e) {
+        } catch (InvalidXmlException $e) {
             self::assertStringContainsString('well-formed', $e->getMessage());
         }
 
-        $this->expectException(SignatureStructureException::class);
+        $this->expectException(InvalidXmlException::class);
         SignatureDocument::parse('');
     }
 

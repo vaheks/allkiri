@@ -33,13 +33,13 @@ use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Tests\Support\Trust\SwitchableTrustStore;
 use Allkiri\Trust\ChainBuildingException;
 use Allkiri\Trust\TrustedList\TrustedListException;
-use Allkiri\Xades\Dsig\ArrayReferenceResolver;
-use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\Model\XadesSignatureParser;
-use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\SignatureProfile;
+use Allkiri\Xml\Dsig\ArrayReferenceResolver;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\XmlDsigVerifier;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -103,7 +103,7 @@ final class SigningServiceTest extends TestCase
         self::assertNotNull($parsed->signingCertificateReferences[0]['issuerSerialV2']);
         self::assertFalse($parsed->hasSignaturePolicyIdentifier, 'BDOC-TM is dead and must not appear');
         self::assertCount(1, $parsed->signatureTimestamps);
-        self::assertSame(Ns::C14N_EXC, $parsed->signatureTimestamps[0]['canonicalizationMethod']);
+        self::assertSame(DsigNs::C14N_EXC, $parsed->signatureTimestamps[0]['canonicalizationMethod']);
         self::assertCount(1, $parsed->ocspValues);
         self::assertNotSame([], $parsed->certificateValues);
         self::assertSame(0, $parsed->archiveTimestampCount);
@@ -132,9 +132,9 @@ final class SigningServiceTest extends TestCase
 
         // The timestamp's imprint is the digest of the canonicalised SignatureValue element.
         $token = \Allkiri\Crypto\Tsp\TimestampToken::fromDer($parsed->signatureTimestamps[0]['token']);
-        $signatureValue = \Allkiri\Xades\Dsig\Xml::element($document->xpath(), 'ds:SignatureValue', $document->signatures()[0]);
+        $signatureValue = \Allkiri\Xml\Xml::element($document->xpath(), 'ds:SignatureValue', $document->signatures()[0]);
         self::assertNotNull($signatureValue);
-        $expected = \Allkiri\Crypto\HashAlgorithm::SHA256->digest((new \Allkiri\Xades\Dsig\Canonicalizer())->canonicalize($signatureValue, Ns::C14N_EXC));
+        $expected = \Allkiri\Crypto\HashAlgorithm::SHA256->digest((new \Allkiri\Xml\Dsig\Canonicalizer())->canonicalize($signatureValue, DsigNs::C14N_EXC));
         self::assertSame($expected, $token->tstInfo()->messageImprint);
 
         // The OCSP response answers about the signer's certificate.
@@ -754,7 +754,7 @@ final class SigningServiceTest extends TestCase
     {
         $signature = $document->signature($signatureId);
         self::assertNotNull($signature);
-        $unsigned = \Allkiri\Xades\Dsig\Xml::element(
+        $unsigned = \Allkiri\Xml\Xml::element(
             $document->xpath(),
             'ds:Object/xades:QualifyingProperties/xades:UnsignedProperties/xades:UnsignedSignatureProperties',
             $signature,

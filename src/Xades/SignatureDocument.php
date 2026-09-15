@@ -4,50 +4,24 @@ declare(strict_types=1);
 
 namespace Allkiri\Xades;
 
-use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\InvalidXmlException;
+use Allkiri\Xml\Xml;
 
 /**
  * A signatures*.xml document (or any XML carrying ds:Signature elements),
- * loaded without network access, entities or DTDs, with whitespace kept
- * exactly as it is so canonicalisation reproduces what the signer saw.
+ * loaded by the hardened loader and searched with the XAdES prefixes.
  */
 final class SignatureDocument
 {
     private function __construct(private readonly \DOMDocument $document) {}
 
+    /**
+     * @throws InvalidXmlException when the bytes are empty, not well-formed, or carry a DOCTYPE
+     */
     public static function parse(string $xml): self
     {
-        if ($xml === '') {
-            throw new SignatureStructureException('Empty XML document');
-        }
-        // A cheap early exit, but only for encodings that spell "<!DOCTYPE" in
-        // ASCII. The parsed document is checked again below.
-        if (preg_match('/<!DOCTYPE/i', $xml) === 1) {
-            throw new SignatureStructureException('XML documents with a DOCTYPE are not accepted');
-        }
-        $document = new \DOMDocument('1.0', 'UTF-8');
-        $document->preserveWhiteSpace = true;
-        $document->formatOutput = false;
-        $previous = libxml_use_internal_errors(true);
-        try {
-            $ok = $document->loadXML($xml, LIBXML_NONET | LIBXML_NOCDATA);
-            $errors = libxml_get_errors();
-            libxml_clear_errors();
-        } finally {
-            libxml_use_internal_errors($previous);
-        }
-        if (!$ok) {
-            $first = $errors[0] ?? null;
-            throw new SignatureStructureException('XML is not well-formed' . ($first instanceof \LibXMLError ? ': ' . trim($first->message) : ''));
-        }
-        // UTF-16 puts a zero byte between the characters of "<!DOCTYPE", so the
-        // search above misses it and libxml parses the DTD. Only the parsed
-        // document can say whether there was one.
-        if ($document->doctype !== null) {
-            throw new SignatureStructureException('XML documents with a DOCTYPE are not accepted');
-        }
-
-        return new self($document);
+        return new self(Xml::load($xml));
     }
 
     public static function wrap(\DOMDocument $document): self
@@ -62,7 +36,7 @@ final class SignatureDocument
 
     public function xpath(): \DOMXPath
     {
-        return Xml::xpath($this->document);
+        return Xml::xpath($this->document, Ns::PREFIXES);
     }
 
     /**
@@ -71,7 +45,7 @@ final class SignatureDocument
     public function signatures(): array
     {
         $signatures = [];
-        foreach ($this->document->getElementsByTagNameNS(Ns::DS, 'Signature') as $element) {
+        foreach ($this->document->getElementsByTagNameNS(DsigNs::DS, 'Signature') as $element) {
             $signatures[] = $element;
         }
 

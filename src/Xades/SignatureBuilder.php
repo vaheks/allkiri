@@ -10,7 +10,9 @@ use Allkiri\Crypto\Asn1\Asn1;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Exception\InvalidArgumentException;
-use Allkiri\Xades\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\CanonicalizationException;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -51,19 +53,19 @@ final class SignatureBuilder
 
         $root = $document->createElementNS(SignatureFile::NS_ASIC, 'asic:XAdESSignatures');
         $document->appendChild($root);
-        $signature = $document->createElementNS(Ns::DS, 'ds:Signature');
+        $signature = $document->createElementNS(DsigNs::DS, 'ds:Signature');
         $signature->setAttribute('Id', $id);
         $root->appendChild($signature);
 
         $signedInfo = $this->signedInfo($document, $signature, $dataFiles, $algorithm, $profile, $id);
 
-        $signatureValue = $document->createElementNS(Ns::DS, 'ds:SignatureValue');
+        $signatureValue = $document->createElementNS(DsigNs::DS, 'ds:SignatureValue');
         $signatureValue->setAttribute('Id', 'value-' . $id);
         $signature->appendChild($signatureValue);
 
-        $keyInfo = $document->createElementNS(Ns::DS, 'ds:KeyInfo');
-        $x509Data = $document->createElementNS(Ns::DS, 'ds:X509Data');
-        $x509Data->appendChild($document->createElementNS(Ns::DS, 'ds:X509Certificate', $signer->base64()));
+        $keyInfo = $document->createElementNS(DsigNs::DS, 'ds:KeyInfo');
+        $x509Data = $document->createElementNS(DsigNs::DS, 'ds:X509Data');
+        $x509Data->appendChild($document->createElementNS(DsigNs::DS, 'ds:X509Certificate', $signer->base64()));
         $keyInfo->appendChild($x509Data);
         $signature->appendChild($keyInfo);
 
@@ -84,30 +86,30 @@ final class SignatureBuilder
      */
     private function signedInfo(\DOMDocument $document, \DOMElement $signature, array $dataFiles, SignatureAlgorithm $algorithm, SignatureProfile $profile, string $id): \DOMElement
     {
-        $signedInfo = $document->createElementNS(Ns::DS, 'ds:SignedInfo');
+        $signedInfo = $document->createElementNS(DsigNs::DS, 'ds:SignedInfo');
         $signature->appendChild($signedInfo);
 
-        $c14n = $document->createElementNS(Ns::DS, 'ds:CanonicalizationMethod');
+        $c14n = $document->createElementNS(DsigNs::DS, 'ds:CanonicalizationMethod');
         $c14n->setAttribute('Algorithm', $profile->canonicalizationMethod);
         $signedInfo->appendChild($c14n);
 
-        $method = $document->createElementNS(Ns::DS, 'ds:SignatureMethod');
+        $method = $document->createElementNS(DsigNs::DS, 'ds:SignatureMethod');
         $method->setAttribute('Algorithm', $algorithm->xmlUri());
         $signedInfo->appendChild($method);
 
         foreach ($dataFiles as $index => $file) {
-            $reference = $document->createElementNS(Ns::DS, 'ds:Reference');
+            $reference = $document->createElementNS(DsigNs::DS, 'ds:Reference');
             $reference->setAttribute('Id', self::referenceId($id, $index));
             $reference->setAttribute('URI', self::encodeUri($file->name));
             $this->appendDigest($document, $reference, $profile, $file->digest($profile->digestAlgorithm));
             $signedInfo->appendChild($reference);
         }
 
-        $reference = $document->createElementNS(Ns::DS, 'ds:Reference');
+        $reference = $document->createElementNS(DsigNs::DS, 'ds:Reference');
         $reference->setAttribute('Type', Ns::TYPE_SIGNED_PROPERTIES);
         $reference->setAttribute('URI', '#xades-' . $id);
-        $transforms = $document->createElementNS(Ns::DS, 'ds:Transforms');
-        $transform = $document->createElementNS(Ns::DS, 'ds:Transform');
+        $transforms = $document->createElementNS(DsigNs::DS, 'ds:Transforms');
+        $transform = $document->createElementNS(DsigNs::DS, 'ds:Transform');
         $transform->setAttribute('Algorithm', $profile->canonicalizationMethod);
         $transforms->appendChild($transform);
         $reference->appendChild($transforms);
@@ -122,7 +124,7 @@ final class SignatureBuilder
      */
     private function qualifyingProperties(\DOMDocument $document, \DOMElement $signature, array $dataFiles, Certificate $signer, SignatureProfile $profile, string $id): \DOMElement
     {
-        $object = $document->createElementNS(Ns::DS, 'ds:Object');
+        $object = $document->createElementNS(DsigNs::DS, 'ds:Object');
         $signature->appendChild($object);
         $qualifying = $document->createElementNS(Ns::XADES, 'xades:QualifyingProperties');
         $qualifying->setAttribute('Target', '#' . $id);
@@ -163,10 +165,10 @@ final class SignatureBuilder
         $element->appendChild($cert);
 
         $digest = $document->createElementNS(Ns::XADES, 'xades:CertDigest');
-        $method = $document->createElementNS(Ns::DS, 'ds:DigestMethod');
+        $method = $document->createElementNS(DsigNs::DS, 'ds:DigestMethod');
         $method->setAttribute('Algorithm', $profile->digestAlgorithm->xmlUri());
         $digest->appendChild($method);
-        $digest->appendChild($document->createElementNS(Ns::DS, 'ds:DigestValue', base64_encode($signer->fingerprint($profile->digestAlgorithm))));
+        $digest->appendChild($document->createElementNS(DsigNs::DS, 'ds:DigestValue', base64_encode($signer->fingerprint($profile->digestAlgorithm))));
         $cert->appendChild($digest);
 
         if ($v2) {
@@ -181,8 +183,8 @@ final class SignatureBuilder
             $cert->appendChild($document->createElementNS(Ns::XADES, 'xades:IssuerSerialV2', base64_encode($issuerSerial)));
         } else {
             $issuerSerial = $document->createElementNS(Ns::XADES, 'xades:IssuerSerial');
-            $issuerSerial->appendChild($document->createElementNS(Ns::DS, 'ds:X509IssuerName', $signer->issuerDn()));
-            $issuerSerial->appendChild($document->createElementNS(Ns::DS, 'ds:X509SerialNumber', $signer->serialNumber()));
+            $issuerSerial->appendChild($document->createElementNS(DsigNs::DS, 'ds:X509IssuerName', $signer->issuerDn()));
+            $issuerSerial->appendChild($document->createElementNS(DsigNs::DS, 'ds:X509SerialNumber', $signer->serialNumber()));
             $cert->appendChild($issuerSerial);
         }
 
@@ -220,15 +222,15 @@ final class SignatureBuilder
 
     private function appendDigest(\DOMDocument $document, \DOMElement $reference, SignatureProfile $profile, string $digest): void
     {
-        $method = $document->createElementNS(Ns::DS, 'ds:DigestMethod');
+        $method = $document->createElementNS(DsigNs::DS, 'ds:DigestMethod');
         $method->setAttribute('Algorithm', $profile->digestAlgorithm->xmlUri());
         $reference->appendChild($method);
-        $reference->appendChild($document->createElementNS(Ns::DS, 'ds:DigestValue', $digest === '' ? '' : base64_encode($digest)));
+        $reference->appendChild($document->createElementNS(DsigNs::DS, 'ds:DigestValue', $digest === '' ? '' : base64_encode($digest)));
     }
 
     private function signedPropertiesReference(\DOMElement $signedInfo): \DOMElement
     {
-        foreach ($signedInfo->getElementsByTagNameNS(Ns::DS, 'Reference') as $reference) {
+        foreach ($signedInfo->getElementsByTagNameNS(DsigNs::DS, 'Reference') as $reference) {
             if ($reference->getAttribute('Type') === Ns::TYPE_SIGNED_PROPERTIES) {
                 return $reference;
             }
@@ -239,7 +241,7 @@ final class SignatureBuilder
 
     private function setDigestValue(\DOMElement $reference, string $digest): void
     {
-        foreach ($reference->getElementsByTagNameNS(Ns::DS, 'DigestValue') as $value) {
+        foreach ($reference->getElementsByTagNameNS(DsigNs::DS, 'DigestValue') as $value) {
             $value->textContent = base64_encode($digest);
 
             return;

@@ -2,15 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades\Dsig;
+namespace Allkiri\Xml\Dsig;
 
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\SignatureAlgorithm;
-use Allkiri\Xades\CanonicalizationException;
-use Allkiri\Xades\Ns;
+use Allkiri\Xml\Xml;
 
 /**
  * Verifies a ds:Signature element: every reference digest (same-document
@@ -31,7 +30,7 @@ final class XmlDsigVerifier
      */
     public function verify(\DOMElement $signature, ReferenceResolver $resolver, ?Certificate $certificate = null): DsigVerificationResult
     {
-        $xpath = Xml::xpath($signature);
+        $xpath = Xml::xpath($signature, DsigNs::PREFIXES);
         $problems = [];
 
         $signedInfo = Xml::element($xpath, 'ds:SignedInfo', $signature);
@@ -156,7 +155,7 @@ final class XmlDsigVerifier
         $c14nPrefixes = null;
         $enveloped = false;
         foreach ($transforms as $index => $algorithm) {
-            if ($algorithm === Ns::TRANSFORM_ENVELOPED) {
+            if ($algorithm === DsigNs::TRANSFORM_ENVELOPED) {
                 $enveloped = true;
             } elseif (Canonicalizer::supports($algorithm)) {
                 $c14n = $algorithm;
@@ -170,7 +169,7 @@ final class XmlDsigVerifier
             $node = self::withoutSignature($document, $node, $signature);
         }
 
-        return $this->canonicalizer->canonicalize($node, $c14n ?? Ns::C14N_10, $c14nPrefixes);
+        return $this->canonicalizer->canonicalize($node, $c14n ?? DsigNs::C14N_10, $c14nPrefixes);
     }
 
     /**
@@ -200,7 +199,7 @@ final class XmlDsigVerifier
     private static function allSignatures(\DOMDocument $document): array
     {
         $signatures = [];
-        foreach ($document->getElementsByTagNameNS(Ns::DS, 'Signature') as $element) {
+        foreach ($document->getElementsByTagNameNS(DsigNs::DS, 'Signature') as $element) {
             $signatures[] = $element;
         }
 

@@ -39,14 +39,15 @@ use Allkiri\Validation\Report\SignatureInfo;
 use Allkiri\Validation\Report\SignatureReport;
 use Allkiri\Validation\Report\SignatureScope;
 use Allkiri\Validation\Report\SubIndication;
-use Allkiri\Xades\Dsig\Canonicalizer;
-use Allkiri\Xades\Dsig\Xml;
-use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\Lta\ArchiveTimestampData;
 use Allkiri\Xades\Model\XadesSignature;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\Ns;
-use Allkiri\Xades\XadesException;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
+use Allkiri\Xml\Dsig\XmlDsigVerifier;
+use Allkiri\Xml\Xml;
+use Allkiri\Xml\XmlException;
 
 /**
  * Decides whether one XAdES signature in a container is valid, and says why
@@ -394,7 +395,7 @@ final class SignatureValidator
 
             return null;
         }
-        $signatureValue = Xml::element(Xml::xpath($signature->element), 'ds:SignatureValue', $signature->element);
+        $signatureValue = Xml::element(Xml::xpath($signature->element, Ns::PREFIXES), 'ds:SignatureValue', $signature->element);
         if ($signatureValue === null) {
             return null;
         }
@@ -408,7 +409,7 @@ final class SignatureValidator
                 continue;
             }
 
-            $method = $entry['canonicalizationMethod'] === '' ? Ns::C14N_EXC : $entry['canonicalizationMethod'];
+            $method = $entry['canonicalizationMethod'] === '' ? DsigNs::C14N_EXC : $entry['canonicalizationMethod'];
             if (!Canonicalizer::supports($method)) {
                 $findings[] = Finding::error(FindingCodes::TIMESTAMP_INVALID, \sprintf('The timestamp uses canonicalization method "%s", which is not supported', $method), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
@@ -694,7 +695,7 @@ final class SignatureValidator
         ?TimestampToken $signatureTimestamp,
         array &$findings,
     ): ?\DateTimeImmutable {
-        $archives = Xml::elements(Xml::xpath($element), './/xadesv141:ArchiveTimeStamp', $element);
+        $archives = Xml::elements(Xml::xpath($element, Ns::PREFIXES), './/xadesv141:ArchiveTimeStamp', $element);
         if ($archives === []) {
             return null;
         }
@@ -711,7 +712,7 @@ final class SignatureValidator
         foreach ($archives as $index => $archive) {
             $number = $index + 1;
 
-            $encoded = Xml::base64(Xml::xpath($archive), './/xades:EncapsulatedTimeStamp', $archive);
+            $encoded = Xml::base64(Xml::xpath($archive, Ns::PREFIXES), './/xades:EncapsulatedTimeStamp', $archive);
             if ($encoded === null) {
                 $findings[] = $this->archiveFinding($number, 'carries no token');
                 continue;
@@ -737,7 +738,7 @@ final class SignatureValidator
 
             try {
                 $covered = $this->archiveTimestampData->forExistingTimestamp($element, $archive, $resolver);
-            } catch (XadesException $e) {
+            } catch (XmlException $e) {
                 $findings[] = $this->archiveFinding($number, 'covers something that cannot be reconstructed: ' . $e->getMessage());
                 continue;
             }

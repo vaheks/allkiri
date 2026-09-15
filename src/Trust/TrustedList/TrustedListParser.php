@@ -9,9 +9,8 @@ use Allkiri\Crypto\CertificateException;
 use Allkiri\Trust\ServiceStatus;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
-use Allkiri\Xades\Dsig\Xml;
-use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\InvalidXmlException;
+use Allkiri\Xml\Xml;
 
 /**
  * Reads an ETSI TS 119 612 trusted list into trust anchors.
@@ -31,13 +30,12 @@ final class TrustedListParser
     public function parse(string $xml, string $source = 'trusted-list'): TrustedList
     {
         try {
-            $document = SignatureDocument::parse($xml);
-        } catch (SignatureStructureException $e) {
+            $document = Xml::load($xml);
+        } catch (InvalidXmlException $e) {
             throw new TrustedListException(TrustedListException::REASON_MALFORMED, 'Trusted list is not well-formed XML: ' . $e->getMessage(), $e);
         }
-        $xpath = Xml::xpath($document->document());
-        $xpath->registerNamespace('tsl', self::NS_TSL);
-        $root = $document->document()->documentElement;
+        $xpath = Xml::xpath($document, ['tsl' => self::NS_TSL]);
+        $root = $document->documentElement;
         if ($root === null || $root->localName !== 'TrustServiceStatusList') {
             throw new TrustedListException(TrustedListException::REASON_MALFORMED, 'Document is not a TrustServiceStatusList');
         }

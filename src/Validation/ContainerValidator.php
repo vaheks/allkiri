@@ -15,7 +15,7 @@ use Allkiri\Validation\Report\SignatureReport;
 use Allkiri\Validation\Report\SubIndication;
 use Allkiri\Validation\Report\ValidationReport;
 use Allkiri\Xades\SignatureDocument;
-use Allkiri\Xades\SignatureStructureException;
+use Allkiri\Xml\InvalidXmlException;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -59,7 +59,7 @@ final class ContainerValidator
         foreach ($container->signatureFiles as $file) {
             try {
                 $document = SignatureDocument::parse($file->xml);
-            } catch (SignatureStructureException $e) {
+            } catch (InvalidXmlException $e) {
                 $signatures[] = $this->unreadable($file->name, 'The signature file is not well-formed XML: ' . $e->getMessage());
                 continue;
             }

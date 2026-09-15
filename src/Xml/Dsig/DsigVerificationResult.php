@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades\Dsig;
+namespace Allkiri\Xml\Dsig;
 
 use Allkiri\Crypto\Certificate;
 
