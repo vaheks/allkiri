@@ -16,10 +16,24 @@ level max, and the Unit test suite. Fix style with `composer cs:fix`.
 - Coding standard: PER-CS 2.0 via php-cs-fixer, see `.php-cs-fixer.dist.php`.
 - Static analysis: PHPStan level max with strict rules. No baseline; fix or
   narrow types instead.
-- Namespaces mirror `src/` (`Allkiri\Xades\...`). Keep the layering:
-  `Crypto` and `Trust` know nothing about containers; `Container` and `Xades`
-  know nothing about Mobile-ID, Smart-ID or Web eID; the `Signing` and `Auth`
-  layers tie them together.
+- Namespaces mirror `src/` (`Allkiri\Xades\...`). The parts of the library
+  form one graph without cycles. From the bottom up:
+
+  1. `Exception`, `Clock`
+  2. `Resources`, `Http`
+  3. `Crypto`
+  4. `StoredData`, `Auth`, `Xml`
+  5. `Container`, `Trust`
+  6. `Xades`, `Config`
+  7. `Signing`
+  8. `Validation`, `MobileId`, `SmartId`, `WebEid`
+  9. the `Allkiri` facade
+
+  A part refers only to parts on lower levels, though not to all of them.
+  `tests/Unit/NamespaceLayeringTest.php` holds the exact table of which part
+  uses which, and fails on any reference outside it, an Allkiri class named in
+  a comment included. A new dependency goes into that table first, where a
+  cycle shows at once.
 - Every exception implements `Allkiri\Exception\AllkiriException`. A programmer
   or configuration error throws `Allkiri\Exception\InvalidArgumentException`;
   everything else extends `\RuntimeException` through its module's base class.
