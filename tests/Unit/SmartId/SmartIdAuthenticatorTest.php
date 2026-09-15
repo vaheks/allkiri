@@ -770,8 +770,8 @@ final class SmartIdAuthenticatorTest extends TestCase
 
         $status = new SmartIdSessionStatus(
             SmartIdSessionStatus::STATE_COMPLETE,
-            SmartIdEndResult::Ok,
-            new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
+            result: SmartIdEndResult::Ok,
+            documentNumber: new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
             certificate: $this->service->certificate(),
             certificateLevel: CertificateLevel::Qualified,
             signatureProtocol: AcspV2Payload::PROTOCOL,
@@ -790,8 +790,8 @@ final class SmartIdAuthenticatorTest extends TestCase
 
         $status = new SmartIdSessionStatus(
             SmartIdSessionStatus::STATE_COMPLETE,
-            SmartIdEndResult::Ok,
-            new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
+            result: SmartIdEndResult::Ok,
+            documentNumber: new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER),
             signatureProtocol: AcspV2Payload::PROTOCOL,
         );
 

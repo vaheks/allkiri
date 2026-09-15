@@ -234,6 +234,9 @@ signatures with a local key, and the API the eID means will plug into.
 - New finding code `TRUST_ANCHORS_UNAVAILABLE`, INDETERMINATE with
   NO_CERTIFICATE_CHAIN_FOUND, for a signature validated while the trust anchors
   cannot be loaded.
+- `MobileIdPoller` and `SmartIdPoller` run on one internal polling loop. What
+  each returns or throws is unchanged: Mobile-ID's `wait()` throws on a refusal
+  or a timeout, Smart-ID's returns the status.
 
 ### Fixed
 

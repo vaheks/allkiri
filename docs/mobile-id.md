@@ -201,6 +201,9 @@ $result = $signer->sign($container, $identity);
 
 Both use `MobileIdPoller`, which long-polls within the session budget. Do not
 use them in a web request: they hold the thread for as long as the person takes.
+`MobileIdPoller::wait()` throws `MobileIdSessionException` when the person
+refuses or the phone cannot be reached, and with the result `TIMEOUT` when
+`sessionTimeoutSeconds` passes first.
 
 ## Errors
 
