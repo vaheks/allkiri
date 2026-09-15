@@ -38,16 +38,26 @@ and without the router PHP before 8.4 answers 404 for a path that looks like a
 file it cannot find.
 
 Mobile-ID, Smart-ID and validation work over plain HTTP. **The ID card does
-not**: the Web eID extension refuses to work on an insecure origin. For that you
-need HTTPS and an origin the server agrees with:
+not**: the Web eID extension refuses to work on an insecure origin, so the page
+needs HTTPS, on the origin the server expects. `php -S` does not speak TLS, so
+put something that does in front of it. With [Caddy](https://caddyserver.com),
+in two terminals:
 
 ```bash
-ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public examples/demo-app/public/index.php
+php -S 127.0.0.1:8080 -t examples/demo-app/public examples/demo-app/public/index.php
+caddy reverse-proxy --from localhost:8443 --to 127.0.0.1:8080
 ```
 
-with a TLS terminator in front, or run it behind whatever you normally use.
-`ALLKIRI_ORIGIN` must be exactly what the browser reports as
-`location.origin`, because the card signs it.
+Then open <https://localhost:8443>. That is the origin the demo expects by
+default, so nothing needs configuring. Caddy issues the certificate for
+`localhost` from a certificate authority of its own, and tries to add that
+authority to the system's trust store the first time, which may ask for an
+administrator's password. The browser accepts the page only once it is there.
+
+Anything else that terminates TLS works the same way. What matters is that
+`ALLKIRI_ORIGIN` is exactly what the browser reports as `location.origin`,
+because the card signs it: set it whenever the page is served from anywhere but
+`https://localhost:8443`.
 
 If every HTTPS call fails with curl error 60, your PHP has no `curl.cainfo`
 configured, which is common on Windows. Point it at a bundle:

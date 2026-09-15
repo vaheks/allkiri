@@ -104,7 +104,9 @@ php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index
 A small application that signs in with Mobile-ID, Smart-ID or an ID card, signs
 an upload with any of them, archives the result and validates a container. It
 runs against the free test services with published test credentials, so nothing
-real is involved. See [examples/demo-app/README.md](examples/demo-app/README.md).
+real is involved. See [examples/demo-app/README.md](examples/demo-app/README.md),
+which also shows how to put HTTPS in front of it: the ID card works only over
+HTTPS.
 
 ## Roadmap
 

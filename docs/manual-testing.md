@@ -112,16 +112,19 @@ script. It signs in with a card, signs an upload with one, and validates the
 result, which is all four items in one sitting.
 
 The Web eID extension refuses to work on an insecure origin, so the demo needs
-HTTPS and an origin the server agrees with exactly:
+HTTPS and an origin the server agrees with exactly. `php -S` does not speak TLS,
+so serve it behind something that does; with Caddy, in two terminals:
 
 ```bash
-ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public examples/demo-app/public/index.php
+php -S 127.0.0.1:8080 -t examples/demo-app/public examples/demo-app/public/index.php
+caddy reverse-proxy --from localhost:8443 --to 127.0.0.1:8080
 ```
 
-with a TLS terminator in front. An origin mismatch is the failure to expect
-first, and it is indistinguishable from a rejected token unless you look: the
-card signs the origin, so the server refuses a token signed for anything else.
-See `examples/demo-app/README.md`.
+and open <https://localhost:8443>, the origin the demo expects by default.
+`examples/demo-app/README.md` says what Caddy needs the first time. An origin
+mismatch is the failure to expect first, and it is indistinguishable from a
+rejected token unless you look: the card signs the origin, so the server refuses
+a token signed for anything else.
 
 Item 15 is about the extension rather than about this library, but a browser
 that cannot reach the card at all is worth knowing before someone reports it as
