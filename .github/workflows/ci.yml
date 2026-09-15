@@ -63,6 +63,11 @@ jobs:
       - name: Browser helper contract
         run: node tests/js/http-contract.mjs
 
+      # The Smart-ID QR loop: one link request at a time, cancelled on stop,
+      # and a page's own abort signal honoured.
+      - name: Device-link QR loop
+        run: node tests/js/device-link-qr.mjs
+
       # The one that matters: everything this encoder makes is read back by a
       # decoder that had no hand in making it. A reversed generator polynomial
       # passes every structural check and scans as nothing.

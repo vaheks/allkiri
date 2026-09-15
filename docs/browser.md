@@ -149,8 +149,14 @@ echo json_encode(['link' => $link->url($session->sessionSecret, $session->elapse
 See [smart-id.md](smart-id.md) for the whole flow and for what must stay on the
 server.
 
-`stop()` ends both the redrawing and the polling. The promise settles when the
-session does, either way.
+`stop()` ends both the redrawing and the polling, and cancels the link request
+in flight; an aborted `signal`, if you pass one, does the same. The promise
+settles when the session does, either way, and rejects as cancelled once
+stopped.
+
+Only one link request is in flight at a time, so a slow link endpoint is not
+asked again before it has answered. One still unanswered after three intervals
+is cancelled and replaced, since the link it would bring back is stale.
 
 ## The QR encoder on its own
 
