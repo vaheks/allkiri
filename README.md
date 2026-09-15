@@ -146,10 +146,11 @@ PHP 8.2 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zlib`.
 `intl` is optional: a Web eID site whose domain name is not ASCII needs it, or
 its origin configured in Punycode.
 
-No `zip` extension: the ASiC-E container layer is written here, because
-`ZipArchive` cannot be made to emit the uncompressed first entry the format
-requires. Running the test suite does need it, for cross-checking what our own
-writer produced.
+No `zip` extension: the ASiC-E container layer reads and writes ZIP itself,
+because a validator has to see what `ZipArchive` does not show (which entry is
+first, whether it is stored, whether it carries an extra field), and appending a
+signature has to leave the entries already there byte for byte. Running the test
+suite does need it, for cross-checking what our own writer produced.
 
 Framework-agnostic: bring your own PSR-18 HTTP client, PSR-3 logger and PSR-16
 cache, or use the built-in ones. The library never touches sessions, files or

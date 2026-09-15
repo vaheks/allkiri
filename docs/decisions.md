@@ -19,6 +19,16 @@ directory and local headers for the structural checks the validator needs
 Byte-level tests guard the writer's behaviour so a different libzip shows up
 in CI.
 
+**Superseded the same day.** The container layer (`96474d7`) reads and writes
+ZIP itself, and the library no longer uses the zip extension; only the test
+suite does, to cross-check the writer. `ZipArchive` answers what an entry
+contains, not what a validator has to ask: which entry comes first, whether it
+is stored, whether it carries an extra field. The own writer also re-emits the
+entries a container already had from their compressed bytes, so appending a
+signature cannot disturb what was signed, and it uses a fixed timestamp, so
+writing is reproducible. The spike above still stands as a fact about libzip
+1.11.2; it just stopped deciding anything.
+
 ### Exclusive canonicalisation via `DOMNode::C14N` matches DSS/digidoc4j
 
 For every digidoc4j test container tried (ECDSA P-256, ECDSA P-384, RSA,
