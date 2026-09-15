@@ -13,8 +13,10 @@ declare(strict_types=1);
  * somewhere: the challenge, the signing session, the container being signed.
  * The library never touches sessions itself.
  *
- * Not for production. It has no accounts, no authorisation, no rate limiting,
- * and it keeps uploaded files in a temporary directory.
+ * Not for production. It refuses cross-site requests with a token of its own,
+ * where a real application would use its framework's protection, and it has no
+ * accounts, no authorisation and no rate limiting. It keeps uploaded files in a
+ * temporary directory.
  *
  * Which services it talks to, and whose credentials it uses, is decided in
  * config.php. That is the only file here that reads the environment.

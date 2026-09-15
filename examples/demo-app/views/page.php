@@ -1,9 +1,10 @@
 <?php
 /**
  * The page. Everything it needs from the server is $config, so that a live-mode
- * page cannot look like a demo-mode one.
+ * page cannot look like a demo-mode one, and the token it sends back.
  *
  * @var \Allkiri\Demo\Config $config
+ * @var string               $csrfToken every call that changes something carries it back
  */
 $live = $config->isLive();
 // In live mode nothing is prefilled: the published test numbers belong to
@@ -16,6 +17,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="<?= htmlspecialchars($csrfToken, ENT_QUOTES) ?>">
 <title>allkiri demo</title>
 <style>
   :root { color-scheme: light dark; --line: #8884; --ink: inherit; }
@@ -128,6 +130,12 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
 
+  // The server refuses any call that changes something unless it carries this
+  // token. allkiri.js adds it to every call it makes; the two uploads below add
+  // it themselves.
+  var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  allkiri.configure({ csrfToken: csrfToken });
+
   function say(id, message, bad) {
     var el = $(id);
     el.textContent = message;
@@ -186,7 +194,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
     if (!file) { say('upload-status', 'Choose a file first', true); return; }
     var form = new FormData();
     form.append('file', file);
-    fetch('/api/upload', { method: 'POST', body: form })
+    fetch('/api/upload', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: form })
       .then(function (r) { return r.json(); })
       .then(function (answer) {
         if (answer.error) { throw new Error(answer.error); }
@@ -249,7 +257,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
     var form = new FormData();
     form.append('file', file);
     $('check-report').hidden = true;
-    fetch('/api/validate', { method: 'POST', body: form })
+    fetch('/api/validate', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: form })
       .then(function (r) { return r.json(); })
       .then(function (answer) {
         if (answer.error) { throw new Error(answer.error); }

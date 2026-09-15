@@ -7,11 +7,12 @@ namespace Allkiri\Tests\Support\Http;
 /**
  * PHP's built-in web server on the loopback address, for the few tests that
  * need a real socket: what the cURL client does with an answer too large to
- * accept.
+ * accept, and what the demo application answers over HTTP.
  *
  * The suite stays offline. The server listens on 127.0.0.1 only, on a port the
- * operating system chose, and answers from tests/fixtures/http/router.php.
- * Start it once per test class and stop it in tearDownAfterClass().
+ * operating system chose, and answers from tests/fixtures/http/router.php or
+ * from the directory it was given. Start it once per test class and stop it in
+ * tearDownAfterClass().
  */
 final class LocalHttpServer
 {
@@ -35,9 +36,15 @@ final class LocalHttpServer
         $this->stop();
     }
 
-    public static function start(): self
+    /**
+     * @param string|null           $documentRoot a directory to serve as `php -S -t` does, its index.php answering
+     *                                            every path that is not a file; the test router when null
+     * @param array<string, string> $environment  variables for the server, on top of this process's own. A value
+     *                                            must not be empty: on Windows the server would see it as unset
+     */
+    public static function start(?string $documentRoot = null, array $environment = []): self
     {
-        $router = \dirname(__DIR__, 2) . '/fixtures/http/router.php';
+        $serve = $documentRoot === null ? [\dirname(__DIR__, 2) . '/fixtures/http/router.php'] : ['-t', $documentRoot];
         $nowhere = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $failure = 'it was not tried';
         for ($attempt = 1; $attempt <= self::ATTEMPTS; ++$attempt) {
@@ -45,9 +52,11 @@ final class LocalHttpServer
             // server binding it, which is what the retries are for.
             $port = self::freePort();
             $process = proc_open(
-                [PHP_BINARY, '-S', '127.0.0.1:' . $port, $router],
+                [PHP_BINARY, '-S', '127.0.0.1:' . $port, ...$serve],
                 [0 => ['file', $nowhere, 'r'], 1 => ['file', $nowhere, 'w'], 2 => ['file', $nowhere, 'w']],
                 $pipes,
+                null,
+                $environment === [] ? null : [...getenv(), ...$environment],
             );
             if (!\is_resource($process)) {
                 $failure = 'proc_open() failed';

@@ -307,6 +307,13 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The demo application answered any request, by any method and from any site:
+  a form elsewhere could start a Mobile-ID or Smart-ID request to a phone,
+  replace the card challenge, consume a finished session, or buy a timestamp in
+  live mode. Every call that changes something is now a POST carrying a token
+  the page holds, which `allkiri.configure()` and the page's two uploads send;
+  the download is the one GET. No page of the demo can be framed, and a download
+  before any upload is a JSON error rather than a crash.
 - `LtExtender`, asked for LTA, said archive timestamps were not implemented,
   although `LtaExtender` and `SigningService` add them. It now says that, and
   `docs/signing.md` lists LTA among the levels.
