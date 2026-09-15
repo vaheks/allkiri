@@ -204,6 +204,28 @@ final class OcspTest extends TestCase
         }
     }
 
+    /**
+     * #27: a responder that signs with RSASSA-PSS, under a certificate the CA
+     * also signed with it.
+     */
+    public function testAResponderSigningWithRsassaPssIsAccepted(): void
+    {
+        $responder = TestCertificates::issue(
+            TestPki::signerRsa(),
+            ['id-at-commonName' => 'allkiri PSS OCSP Responder'],
+            ['id-ce-extKeyUsage' => [['id-kp-OCSPSigning'], false]],
+            signature: TestCertificateSignature::Pss256,
+        );
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock, $responder)->sign = TestSignatures::pss(TestKey::fixture('signer-rsa'));
+
+        $result = (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+
+        self::assertSame(CertStatus::Good, $result->verification->status());
+        self::assertSame('1.2.840.113549.1.1.10', $result->verification->basic->signatureAlgorithmOid());
+    }
+
     public function testMissingNonceIsToleratedWhenNotRequired(): void
     {
         $clock = new FrozenClock('2026-03-01T10:00:00Z');

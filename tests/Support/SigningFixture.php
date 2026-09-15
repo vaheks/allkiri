@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Tests\Support;
 
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspVerificationOptions;
 use Allkiri\Crypto\Tsp\TspClient;
@@ -46,20 +47,26 @@ final class SigningFixture
     public readonly SigningService $signingService;
 
     /**
-     * @param list<Certificate> $extraCas trusted as qualified CAs beside the test CA, for signing with certificates issued in a test
+     * @param list<Certificate> $extraCas      trusted as qualified CAs beside the test CA, for signing with certificates issued in a test
+     * @param KeyPair|null      $tsa           the timestamp authority, trusted as one; the committed test TSA when null
+     * @param KeyPair|null      $ocspResponder the OCSP responder, trusted as one; the committed test responder when null
      */
     public function __construct(
         public readonly FrozenClock $clock = new FrozenClock('2026-03-01T10:00:00Z'),
         array $extraCas = [],
+        ?KeyPair $tsa = null,
+        ?KeyPair $ocspResponder = null,
     ) {
+        $tsa ??= TestPki::tsa();
+        $ocspResponder ??= TestPki::ocspResponder();
         $this->http = new MockHttpClient();
-        $this->tsa = MockTsa::register($this->http, $this->clock);
-        $this->ocsp = MockOcspResponder::register($this->http, $this->clock);
+        $this->tsa = MockTsa::register($this->http, $this->clock, $tsa);
+        $this->ocsp = MockOcspResponder::register($this->http, $this->clock, $ocspResponder);
 
         $this->trustStore = new CompositeTrustStore(
             InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate, ...$extraCas], ServiceType::CaQc, 'test PKI'),
-            InMemoryTrustStore::fromCertificates([TestPki::tsa()->certificate], ServiceType::TsaQtst, 'test PKI'),
-            InMemoryTrustStore::fromCertificates([TestPki::ocspResponder()->certificate], ServiceType::OcspQc, 'test PKI'),
+            InMemoryTrustStore::fromCertificates([$tsa->certificate], ServiceType::TsaQtst, 'test PKI'),
+            InMemoryTrustStore::fromCertificates([$ocspResponder->certificate], ServiceType::OcspQc, 'test PKI'),
         );
         $this->chainBuilder = new ChainBuilder($this->trustStore);
 

@@ -78,6 +78,10 @@ finding is `INDETERMINATE` with `CRYPTO_CONSTRAINTS_FAILURE_NO_POE`, not
 `TOTAL-FAILED`: nothing was forged, but nothing shows the signature was made
 while its algorithm still counted. A certificate whose two signature algorithm
 fields differ, which RFC 5280 forbids, is not treated as signed at all.
+
+RSASSA-PSS is verified there as well, in the profile certificate authorities
+issue: SHA-256, SHA-384 or SHA-512, MGF1 with the same hash, and a salt as long
+as the digest. Other parameters are an algorithm allkiri does not support.
 10. **Order.** The revocation answer must not predate the timestamp; a gap
     beyond fifteen minutes warns and beyond a day fails.
 

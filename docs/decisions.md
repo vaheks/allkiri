@@ -233,6 +233,26 @@ that got furthest along one. Otherwise the last candidate tried, often a
 certificate that merely shares a name with the real issuer, would decide the
 verdict.
 
+### RSASSA-PSS beneath a signature takes one profile
+
+Certificates, OCSP responses and timestamps signed with RSASSA-PSS are accepted
+only with SHA-256, SHA-384 or SHA-512, MGF1 over the same hash, a salt as long
+as the digest, and the standard trailer. That is what RFC 4055 recommends and
+what OpenSSL and phpseclib write. Nothing else is in use, and each other
+combination would be one more way to be wrong about a signature.
+
+The parameters are read field by field rather than through phpseclib's map,
+because that map fills in defaults. An absent hash means SHA-1 and an absent
+salt length means 20 bytes, and both have to be refused rather than read as
+something else. The parser is checked against a certificate OpenSSL issued as
+well as against the test encoder.
+
+One limit remains. phpseclib does not check that a PSS signature's salt has the
+length it is told to expect, so the parameters are checked as declared, and a
+signature made with another salt length would still verify. That is not a
+forgery risk, and enforcing it would mean switching a phpseclib setting that is
+global to the process.
+
 ### A certificate is judged for the job it does
 
 A signing certificate must carry nonRepudiation, as ETSI EN 319 412-2 requires

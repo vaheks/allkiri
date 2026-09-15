@@ -98,6 +98,25 @@ final class Asn1Encoders
         return Asn1::sequence($parts);
     }
 
+    /**
+     * AlgorithmIdentifier { id-RSASSA-PSS, RSASSA-PSS-params } in the profile
+     * allkiri accepts: MGF1 with the same hash, a salt as long as the digest,
+     * explicit NULL hash parameters and the trailer field left out.
+     */
+    public static function pssAlgorithmIdentifier(HashAlgorithm $hash): string
+    {
+        $hashIdentifier = self::algorithmIdentifier($hash->oid(), true);
+
+        return Asn1::sequence([
+            Asn1::primitive(PhpseclibAsn1::TYPE_OBJECT_IDENTIFIER, Oids::RSASSA_PSS),
+            Asn1::sequence([
+                Asn1::explicit(0, $hashIdentifier),
+                Asn1::explicit(1, Asn1::sequence([Asn1::primitive(PhpseclibAsn1::TYPE_OBJECT_IDENTIFIER, Oids::MGF1), $hashIdentifier])),
+                Asn1::explicit(2, Asn1::integer($hash->digestLength())),
+            ]),
+        ]);
+    }
+
     public static function attribute(string $oid, string $valueDer): string
     {
         return Asn1::sequence([Asn1::primitive(PhpseclibAsn1::TYPE_OBJECT_IDENTIFIER, $oid), Asn1::set([$valueDer])]);

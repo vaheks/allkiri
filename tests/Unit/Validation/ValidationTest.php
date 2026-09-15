@@ -441,6 +441,30 @@ final class ValidationTest extends TestCase
         self::assertTrue($signature->has(FindingCodes::CHAIN_CONSTRAINT_VIOLATED));
     }
 
+    /**
+     * #27: RSASSA-PSS everywhere beneath the signature: on the signer's
+     * certificate, on the timestamp and on the revocation answer.
+     */
+    public function testASignatureRestingOnRsassaPssValidates(): void
+    {
+        $tsa = TestCertificates::issue(TestPki::signerRsa(), ['id-at-commonName' => 'allkiri PSS TSA'], ['id-ce-extKeyUsage' => [['id-kp-timeStamping'], true]], signature: TestCertificateSignature::Pss256);
+        $responder = TestCertificates::issue(TestPki::signerRsa(), ['id-at-commonName' => 'allkiri PSS OCSP Responder'], ['id-ce-extKeyUsage' => [['id-kp-OCSPSigning'], false]], signature: TestCertificateSignature::Pss256);
+        $signer = TestCertificates::issue(
+            TestKey::ec(label: 'signer issued with PSS'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            signature: TestCertificateSignature::Pss256,
+        );
+        $fixture = new SigningFixture(tsa: $tsa, ocspResponder: $responder);
+        $fixture->tsa->sign = TestSignatures::pss(TestKey::fixture('signer-rsa'));
+        $fixture->ocsp->sign = TestSignatures::pss(TestKey::fixture('signer-rsa'));
+
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($signer));
+        $signature = self::validator($fixture)->validate((new AsicWriter())->write($result->container))->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+    }
+
     public function testATimestampSignedWithSha1IsIndeterminate(): void
     {
         $fixture = new SigningFixture();

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Support\Pki;
 
+use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\Phpseclib;
+use Allkiri\Crypto\SignatureAlgorithm;
 use phpseclib3\Crypt\RSA;
 
 /**
@@ -34,5 +36,18 @@ final class TestSignatures
 
             return [Asn1Encoders::algorithmIdentifier('1.2.840.10045.4.1'), Phpseclib::string($signer->sign($data))];
         };
+    }
+
+    /**
+     * RSASSA-PSS with SHA-256, MGF1 with SHA-256 and a 32-byte salt, from an RSA key.
+     *
+     * @return \Closure(string): array{string, string} the AlgorithmIdentifier DER, and the signature over the data
+     */
+    public static function pss(TestKey $key): \Closure
+    {
+        return static fn(string $data): array => [
+            Asn1Encoders::pssAlgorithmIdentifier(HashAlgorithm::SHA256),
+            $key->privateKey->sign(SignatureAlgorithm::PS256, $data),
+        ];
     }
 }

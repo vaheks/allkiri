@@ -56,6 +56,17 @@ final class SignatureAlgorithmIdentifierTest extends TestCase
         self::assertTrue(SignatureAlgorithmIdentifier::isKnownOid('1.2.840.113549.1.1.5'));
     }
 
+    public function testRsassaPssIsReadWithItsParameters(): void
+    {
+        $pss = SignatureAlgorithmIdentifier::fromDer(Asn1Encoders::pssAlgorithmIdentifier(HashAlgorithm::SHA384));
+
+        self::assertSame('1.2.840.113549.1.1.10', $pss->oid);
+        self::assertSame(KeyType::RSA, $pss->keyType);
+        self::assertSame(HashAlgorithm::SHA384, $pss->hash());
+        self::assertSame(48, $pss->pss?->saltLength);
+        self::assertNull(SignatureAlgorithmIdentifier::fromOid('1.2.840.113549.1.1.11')->pss);
+    }
+
     /**
      * @return iterable<string, array{string}>
      */
@@ -63,6 +74,7 @@ final class SignatureAlgorithmIdentifierTest extends TestCase
     {
         yield 'an unknown algorithm' => [Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.14', true)];
         yield 'RSASSA-PSS without its parameters' => [Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.10')];
+        yield 'RSASSA-PSS with NULL parameters' => [Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.10', true)];
         yield 'not a SEQUENCE' => ["\x05\x00"];
         yield 'trailing bytes' => [Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.11', true) . "\x00"];
     }

@@ -71,7 +71,7 @@ final class PublicKeyVerifier
 
         try {
             if ($algorithm->keyType === KeyType::RSA) {
-                return $key instanceof RSA\PublicKey && Phpseclib::bool($this->rsa($key, $algorithm->hashName, false)->verify($data, $signature));
+                return $key instanceof RSA\PublicKey && Phpseclib::bool($this->rsa($key, $algorithm->hashName, $algorithm->pss !== null, $algorithm->pss?->saltLength)->verify($data, $signature));
             }
 
             return $key instanceof EC\PublicKey && Phpseclib::bool($this->ec($key, $algorithm->hashName, 'ASN1')->verify($data, $signature));
@@ -80,18 +80,26 @@ final class PublicKeyVerifier
         }
     }
 
+    /**
+     * Whether {@see verifyWithOid()} can verify this algorithm. RSASSA-PSS is
+     * not among them, because it cannot be verified from its OID alone; it is
+     * verified through {@see verifyWithAlgorithmIdentifier()}.
+     */
     public function supportsOid(string $signatureAlgorithmOid): bool
     {
         return SignatureAlgorithmIdentifier::isKnownOid($signatureAlgorithmOid);
     }
 
-    private function rsa(RSA\PublicKey $key, string $hashName, bool $pss): RSA\PublicKey
+    /**
+     * @param int|null $saltLength the declared PSS salt length; the digest length when null
+     */
+    private function rsa(RSA\PublicKey $key, string $hashName, bool $pss, ?int $saltLength = null): RSA\PublicKey
     {
         $key = Phpseclib::rsaPublic($key->withHash($hashName));
         if (!$pss) {
             return Phpseclib::rsaPublic($key->withPadding(RSA::SIGNATURE_PKCS1));
         }
-        $saltLength = \strlen(hash($hashName, '', true));
+        $saltLength ??= \strlen(hash($hashName, '', true));
         $key = Phpseclib::rsaPublic($key->withPadding(RSA::SIGNATURE_PSS));
         $key = Phpseclib::rsaPublic($key->withMGFHash($hashName));
 
