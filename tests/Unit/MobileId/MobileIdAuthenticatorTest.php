@@ -357,6 +357,29 @@ final class MobileIdAuthenticatorTest extends TestCase
         $authenticator->poll($session);
     }
 
+    /**
+     * #14: sign-in holds a certificate's issuer to the same algorithms as
+     * validation. This one names the right person and is genuinely issued by
+     * the trusted CA, only with SHA-1.
+     */
+    public function testACertificateIssuedWithSha1IsRefused(): void
+    {
+        $sha1 = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::signerEc256(), [
+            'id-at-countryName' => 'EE',
+            'id-at-serialNumber' => 'PNOEE-' . self::IDENTITY_CODE,
+        ], signature: \Allkiri\Tests\Support\Pki\TestCertificateSignature::Sha1);
+        $this->http = new MockHttpClient();
+        $this->service = MockMobileIdService::register($this->http, $sha1);
+        $this->client = new MobileIdClient($this->service->configuration(), $this->http);
+        $authenticator = $this->authenticator();
+        $session = $authenticator->start(self::identity());
+        $this->service->expectToSign($session->challenge);
+
+        $this->expectExceptionMessageMatches('/does not chain to a trusted authority/');
+
+        $authenticator->poll($session);
+    }
+
     public function testASigningSessionCannotBeCompletedAsAnAuthentication(): void
     {
         $signing = new MobileIdSession('abc', MobileIdSession::TYPE_SIGNATURE, '1234', self::identity());

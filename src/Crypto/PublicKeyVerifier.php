@@ -14,18 +14,6 @@ use phpseclib3\Crypt\RSA;
  */
 final class PublicKeyVerifier
 {
-    /** X.509 / CMS / OCSP signature algorithm OIDs allkiri can verify: OID => [key type, php hash name] */
-    private const OID_TABLE = [
-        '1.2.840.113549.1.1.5' => [KeyType::RSA, 'sha1'],
-        '1.2.840.113549.1.1.11' => [KeyType::RSA, 'sha256'],
-        '1.2.840.113549.1.1.12' => [KeyType::RSA, 'sha384'],
-        '1.2.840.113549.1.1.13' => [KeyType::RSA, 'sha512'],
-        '1.2.840.10045.4.1' => [KeyType::EC, 'sha1'],
-        '1.2.840.10045.4.3.2' => [KeyType::EC, 'sha256'],
-        '1.2.840.10045.4.3.3' => [KeyType::EC, 'sha384'],
-        '1.2.840.10045.4.3.4' => [KeyType::EC, 'sha512'],
-    ];
-
     /**
      * Verify an XML-DSig / JWS style signature: RSA PKCS#1 or PSS bytes, or raw r‖s for ECDSA.
      */
@@ -66,18 +54,27 @@ final class PublicKeyVerifier
      */
     public function verifyWithOid(PublicKey $key, string $signatureAlgorithmOid, string $data, string $signature): bool
     {
-        $entry = self::OID_TABLE[$signatureAlgorithmOid] ?? throw new UnsupportedAlgorithmException(\sprintf('Unsupported signature algorithm OID "%s"', $signatureAlgorithmOid));
-        [$keyType, $hashName] = $entry;
+        return $this->verifyWithAlgorithmIdentifier($key, SignatureAlgorithmIdentifier::fromOid($signatureAlgorithmOid), $data, $signature);
+    }
+
+    /**
+     * Verify a signature under the algorithm its AlgorithmIdentifier names.
+     *
+     * This only says whether the signature is genuine. Whether its algorithm
+     * and key are still acceptable is for {@see AlgorithmConstraints} to decide.
+     */
+    public function verifyWithAlgorithmIdentifier(PublicKey $key, SignatureAlgorithmIdentifier $algorithm, string $data, string $signature): bool
+    {
         if ($signature === '') {
             return false;
         }
 
         try {
-            if ($keyType === KeyType::RSA) {
-                return $key instanceof RSA\PublicKey && Phpseclib::bool($this->rsa($key, $hashName, false)->verify($data, $signature));
+            if ($algorithm->keyType === KeyType::RSA) {
+                return $key instanceof RSA\PublicKey && Phpseclib::bool($this->rsa($key, $algorithm->hashName, false)->verify($data, $signature));
             }
 
-            return $key instanceof EC\PublicKey && Phpseclib::bool($this->ec($key, $hashName, 'ASN1')->verify($data, $signature));
+            return $key instanceof EC\PublicKey && Phpseclib::bool($this->ec($key, $algorithm->hashName, 'ASN1')->verify($data, $signature));
         } catch (\Throwable) {
             return false;
         }
@@ -85,7 +82,7 @@ final class PublicKeyVerifier
 
     public function supportsOid(string $signatureAlgorithmOid): bool
     {
-        return isset(self::OID_TABLE[$signatureAlgorithmOid]);
+        return SignatureAlgorithmIdentifier::isKnownOid($signatureAlgorithmOid);
     }
 
     private function rsa(RSA\PublicKey $key, string $hashName, bool $pss): RSA\PublicKey

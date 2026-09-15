@@ -206,6 +206,33 @@ body is read, and the body is counted as it arrives for an answer that
 announces none. An answer over the limit is refused rather than truncated,
 because part of a trusted list is not a smaller valid one.
 
+### What a signature rests on meets the same algorithms as the signature
+
+A signature is only as strong as the signatures beneath it: those on its
+certificate chain, its revocation answer and its timestamps. allkiri held the
+XAdES signature itself to SHA-2 and a 2048-bit RSA floor, and verified
+everything beneath it with SHA-1 still allowed and no floor at all. Both now
+meet the same floor, when a signature is made and when someone signs in as well
+as when a signature is validated.
+
+In validation, a weak algorithm beneath a signature is INDETERMINATE with
+`CRYPTO_CONSTRAINTS_FAILURE_NO_POE`, not TOTAL-FAILED. Nothing was forged; what
+is missing is proof that the signature existed while its algorithm still
+counted. allkiri does not yet treat archive timestamps as that proof, so an
+archived container with a SHA-1 link reads as indeterminate. SiVa's BDOC policy
+only warns on SHA-1, so the two can disagree about such containers.
+
+Verifying an algorithm and accepting it are separate steps. SHA-1 is still
+verified, so a signature made with it is reported as weak rather than as
+unreadable or forged. An algorithm allkiri cannot verify at all is no evidence
+of forgery either, so a chain that meets one is reported as not found rather
+than invalid.
+
+When several paths are tried and none works, the reason given is the failure
+that got furthest along one. Otherwise the last candidate tried, often a
+certificate that merely shares a name with the real issuer, would decide the
+verdict.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry

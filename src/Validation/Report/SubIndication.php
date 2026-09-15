@@ -17,6 +17,9 @@ enum SubIndication: string
     case NoCertificateChainFound = 'NO_CERTIFICATE_CHAIN_FOUND';
     case CertificateChainGeneralFailure = 'CERTIFICATE_CHAIN_GENERAL_FAILURE';
     case CryptoConstraintsFailure = 'CRYPTO_CONSTRAINTS_FAILURE';
+
+    /** An algorithm or key that is no longer acceptable, with no proof the signature existed while it still was. */
+    case CryptoConstraintsFailureNoPoe = 'CRYPTO_CONSTRAINTS_FAILURE_NO_POE';
     case Expired = 'EXPIRED';
     case NotYetValid = 'NOT_YET_VALID';
     case OutOfBoundsNotRevoked = 'OUT_OF_BOUNDS_NOT_REVOKED';

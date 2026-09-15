@@ -26,11 +26,12 @@ final class Asn1Encoders
      * A CMS SignedData ContentInfo over the content, signed by the key pair
      * with SHA-256 and an ESSCertIDv2 attribute.
      *
-     * @param string $eContentTypeOid    e.g. Oids::ID_CT_TST_INFO
-     * @param bool   $includeCertificate whether to ship the signer certificate
-     * @param bool   $corruptSignature   flip a bit in the signature (negative tests)
+     * @param string                                          $eContentTypeOid    e.g. Oids::ID_CT_TST_INFO
+     * @param bool                                            $includeCertificate whether to ship the signer certificate
+     * @param bool                                            $corruptSignature   flip a bit in the signature (negative tests)
+     * @param (\Closure(string): array{string, string})|null $sign               signs the attributes in place of the key's usual algorithm, returning the AlgorithmIdentifier DER and the signature
      */
-    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false): string
+    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false, ?\Closure $sign = null): string
     {
         $cert = $signer->certificate;
         $essCertId = Asn1::encode(['certs' => [['certHash' => HashAlgorithm::SHA256->digest($cert->der())]]], CmsMaps::SIGNING_CERTIFICATE_V2);
@@ -41,23 +42,27 @@ final class Asn1Encoders
             self::attribute(Oids::ID_AA_SIGNING_CERTIFICATE_V2, $essCertId),
         ]);
 
-        $algorithm = $signer->privateKey->keyType() === KeyType::EC ? SignatureAlgorithm::ES256 : SignatureAlgorithm::RS256;
-        $signature = $signer->privateKey->sign($algorithm, $signedAttrs);
-        if ($algorithm->keyType() === KeyType::EC) {
-            $signature = EcdsaSignature::rawToDer($signature);
+        if ($sign !== null) {
+            [$signatureAlgorithm, $signature] = $sign($signedAttrs);
+        } else {
+            $algorithm = $signer->privateKey->keyType() === KeyType::EC ? SignatureAlgorithm::ES256 : SignatureAlgorithm::RS256;
+            $signature = $signer->privateKey->sign($algorithm, $signedAttrs);
+            if ($algorithm->keyType() === KeyType::EC) {
+                $signature = EcdsaSignature::rawToDer($signature);
+            }
+            $signatureAlgorithm = self::algorithmIdentifier($algorithm->oid() ?? throw new \LogicException('algorithm without OID'), $algorithm->keyType() === KeyType::RSA);
         }
         if ($corruptSignature) {
             $middle = intdiv(\strlen($signature), 2);
             $signature[$middle] = \chr(\ord($signature[$middle]) ^ 0x01);
         }
-        $signatureAlgorithmOid = $algorithm->oid() ?? throw new \LogicException('algorithm without OID');
 
         $signerInfo = Asn1::sequence([
             Asn1::integer(1),
             Asn1::sequence([$cert->issuerNameDer(), Asn1::integer($cert->serialNumber())]),
             self::algorithmIdentifier(Oids::SHA256),
             Asn1::implicit(0, $signedAttrs),
-            self::algorithmIdentifier($signatureAlgorithmOid, $algorithm->keyType() === KeyType::RSA),
+            $signatureAlgorithm,
             Asn1::primitive(PhpseclibAsn1::TYPE_OCTET_STRING, $signature),
         ]);
 

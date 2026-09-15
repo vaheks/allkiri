@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Tests\Unit\Crypto\Ocsp;
 
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\Ocsp\CertId;
 use Allkiri\Crypto\Ocsp\CertificateRevokedException;
 use Allkiri\Crypto\Ocsp\CertStatus;
@@ -20,8 +21,13 @@ use Allkiri\Crypto\Ocsp\OcspVerificationOptions;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Crypto\FixedNonceGenerator;
 use Allkiri\Tests\Support\Http\MockHttpClient;
+use Allkiri\Tests\Support\Pki\Asn1Encoders;
 use Allkiri\Tests\Support\Pki\MockOcspResponder;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestCertificateSignature;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Pki\TestSignatures;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
@@ -108,6 +114,93 @@ final class OcspTest extends TestCase
             } catch (OcspVerificationException $e) {
                 self::assertSame($reason, $e->reason, $knob);
             }
+        }
+    }
+
+    /**
+     * A genuine answer signed with SHA-1 is refused, and only once nothing else
+     * is wrong with it, so the reason names the real problem.
+     */
+    public function testAnAnswerSignedWithSha1IsNotAccepted(): void
+    {
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock)->sign = TestSignatures::sha1(TestKey::fixture('ocsp'));
+
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('an answer signed with SHA-1 was accepted');
+        } catch (OcspVerificationException $e) {
+            self::assertSame(OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertSame('OCSP response is signed with SHA-1, which is no longer accepted', $e->getMessage());
+        }
+    }
+
+    public function testADelegatedResponderCertificateIssuedWithSha1IsNotAccepted(): void
+    {
+        $responder = TestCertificates::issue(
+            TestKey::fixture('ocsp'),
+            ['id-at-commonName' => 'allkiri SHA-1 OCSP Responder'],
+            ['id-ce-extKeyUsage' => [['id-kp-OCSPSigning'], false]],
+            signature: TestCertificateSignature::Sha1,
+        );
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock, $responder);
+
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('a responder certificate issued with SHA-1 was accepted');
+        } catch (OcspVerificationException $e) {
+            self::assertSame(OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertStringStartsWith('OCSP responder certificate is signed with SHA-1', $e->getMessage());
+        }
+    }
+
+    public function testAResponderWithASmallRsaKeyIsNotAccepted(): void
+    {
+        $responder = TestCertificates::issue(
+            TestKey::rsa(1024),
+            ['id-at-commonName' => 'allkiri 1024-bit OCSP Responder'],
+            ['id-ce-extKeyUsage' => [['id-kp-OCSPSigning'], false]],
+        );
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock, $responder);
+
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('a 1024-bit responder was accepted');
+        } catch (OcspVerificationException $e) {
+            self::assertSame(OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertStringContainsString('1024-bit', $e->getMessage());
+        }
+    }
+
+    /**
+     * An algorithm allkiri cannot verify on the responder's certificate is a
+     * reason like any other, not an exception from somewhere underneath.
+     */
+    public function testAResponderCertificateWithAnUnknownAlgorithmIsReportedAsUnsupported(): void
+    {
+        $responder = TestPki::ocspResponder();
+        // sha224WithRSAEncryption, named in both places a certificate names its algorithm.
+        $der = str_replace(
+            Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.11', true),
+            Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.14', true),
+            $responder->certificate->der(),
+            $count,
+        );
+        self::assertSame(2, $count);
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock, new KeyPair($responder->privateKey, Certificate::fromDer($der)));
+
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('a responder certificate with an unknown algorithm was accepted');
+        } catch (OcspVerificationException $e) {
+            self::assertSame(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
         }
     }
 

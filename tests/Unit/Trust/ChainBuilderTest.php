@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Trust;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Tests\Support\Pki\Asn1Encoders;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestCertificateSignature;
+use Allkiri\Tests\Support\Pki\TestIssuer;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ChainBuildingException;
@@ -123,6 +129,86 @@ final class ChainBuilderTest extends TestCase
 
         $this->expectException(ChainBuildingException::class);
         (new ChainBuilder($store))->build($leaf, [], new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+    }
+
+    public function testACertificateSignedWithSha1IsNotAccepted(): void
+    {
+        $leaf = TestCertificates::issue(TestKey::ec(label: 'sha1-leaf'), ['id-at-commonName' => 'allkiri SHA-1 leaf'], signature: TestCertificateSignature::Sha1)->certificate;
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+
+        try {
+            (new ChainBuilder($store))->build($leaf, [], new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+            self::fail('a certificate signed with SHA-1 was accepted');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertStringEndsWith('is signed with SHA-1, which is no longer accepted', $e->getMessage());
+        }
+    }
+
+    public function testTheRsaKeyFloorAppliesToTheIssuersKey(): void
+    {
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+        $leaf = TestPki::signerEc256()->certificate;
+        $at = new \DateTimeImmutable('2026-01-01T00:00:00Z');
+        self::assertSame(2, (new ChainBuilder($store))->build($leaf, [], $at, ServiceType::caTypes())->length());
+
+        try {
+            (new ChainBuilder($store, new AlgorithmConstraints(4096)))->build($leaf, [], $at, ServiceType::caTypes());
+            self::fail('the 3072-bit CA key met a 4096-bit floor');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertStringContainsString('3072-bit', $e->getMessage());
+        }
+    }
+
+    /**
+     * An algorithm allkiri cannot verify says nothing about whether the
+     * certificate is genuine, so it is not reported as a bad signature.
+     */
+    public function testAnUnsupportedAlgorithmIsNotReportedAsABadSignature(): void
+    {
+        // sha224WithRSAEncryption, named in both places a certificate names its algorithm.
+        $der = str_replace(
+            Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.11', true),
+            Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.14', true),
+            TestPki::signerEc256()->certificate->der(),
+            $count,
+        );
+        self::assertSame(2, $count);
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+
+        try {
+            (new ChainBuilder($store))->build(Certificate::fromDer($der), [], new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+            self::fail('a certificate with an unknown algorithm was accepted');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
+        }
+    }
+
+    /**
+     * When no path works, the report names the failure that got furthest. A
+     * real intermediate signed with SHA-1 sits beside a same-named certificate
+     * that never signed the leaf; whichever is tried last, the SHA-1 link is
+     * what is reported, not the certificate that was never the issuer.
+     */
+    public function testTheFailureThatGotFurthestIsReported(): void
+    {
+        $name = ['id-at-commonName' => 'allkiri Test Intermediate'];
+        $asCa = ['id-ce-basicConstraints' => [['cA' => true], true], 'id-ce-keyUsage' => [['keyCertSign', 'cRLSign'], true]];
+        $key = TestKey::ec(label: 'ranked-intermediate');
+        $intermediate = TestCertificates::issue($key, $name, $asCa, signature: TestCertificateSignature::Sha1)->certificate;
+        $impostor = TestCertificates::issue(TestKey::ec(label: 'ranked-impostor'), $name, $asCa)->certificate;
+        $leaf = TestCertificates::issue(TestKey::ec(label: 'ranked-leaf'), ['id-at-commonName' => 'allkiri Test Leaf'], issuer: new TestIssuer($intermediate, $key))->certificate;
+        $builder = new ChainBuilder(InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc));
+
+        foreach ([[$intermediate, $impostor], [$impostor, $intermediate]] as $intermediates) {
+            try {
+                $builder->build($leaf, $intermediates, new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+                self::fail('a chain through a SHA-1 link was built');
+            } catch (ChainBuildingException $e) {
+                self::assertSame(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            }
+        }
     }
 
     public function testStatusHistoryAndServiceTypeHelpers(): void

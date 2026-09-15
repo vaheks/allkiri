@@ -4,24 +4,27 @@ declare(strict_types=1);
 
 namespace Allkiri\Crypto\Ocsp;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Certificate;
 
 final readonly class OcspVerificationOptions
 {
     /**
-     * @param list<Certificate> $trustedResponders responder certificates trusted
-     *                                             outright (trusted-list OCSP/QC
-     *                                             anchors), in addition to the
-     *                                             issuing CA itself and delegated
-     *                                             responders it has issued
-     * @param int               $clockSkewSeconds  tolerance for thisUpdate / producedAt being slightly in the future
-     * @param int|null          $maxAgeSeconds     when set, producedAt must not be older than this at the validation time (signing-time freshness)
+     * @param list<Certificate>    $trustedResponders    responder certificates trusted
+     *                                                   outright (trusted-list OCSP/QC
+     *                                                   anchors), in addition to the
+     *                                                   issuing CA itself and delegated
+     *                                                   responders it has issued
+     * @param int                  $clockSkewSeconds     tolerance for thisUpdate / producedAt being slightly in the future
+     * @param int|null             $maxAgeSeconds        when set, producedAt must not be older than this at the validation time (signing-time freshness)
+     * @param AlgorithmConstraints $algorithmConstraints what the response's signature, and a delegated responder certificate's, must meet
      */
     public function __construct(
         public NonceMode $nonceMode = NonceMode::Required,
         public array $trustedResponders = [],
         public int $clockSkewSeconds = 300,
         public ?int $maxAgeSeconds = null,
+        public AlgorithmConstraints $algorithmConstraints = new AlgorithmConstraints(),
     ) {}
 
     public static function forSigning(NonceMode $nonceMode = NonceMode::Required): self
@@ -39,6 +42,11 @@ final readonly class OcspVerificationOptions
      */
     public function withTrustedResponders(array $trustedResponders): self
     {
-        return new self($this->nonceMode, $trustedResponders, $this->clockSkewSeconds, $this->maxAgeSeconds);
+        return new self($this->nonceMode, $trustedResponders, $this->clockSkewSeconds, $this->maxAgeSeconds, $this->algorithmConstraints);
+    }
+
+    public function withAlgorithmConstraints(AlgorithmConstraints $constraints): self
+    {
+        return new self($this->nonceMode, $this->trustedResponders, $this->clockSkewSeconds, $this->maxAgeSeconds, $constraints);
     }
 }

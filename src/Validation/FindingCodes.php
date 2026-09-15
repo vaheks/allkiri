@@ -31,6 +31,9 @@ final class FindingCodes
 
     /** It is dated before something it covers. */
     public const ARCHIVE_TIMESTAMP_ORDER = 'ARCHIVE_TIMESTAMP_ORDER';
+
+    /** Its token, or its authority's certificate, is signed with SHA-1 or a key below the minimum. */
+    public const ARCHIVE_TIMESTAMP_WEAK_ALGORITHM = 'ARCHIVE_TIMESTAMP_WEAK_ALGORITHM';
     public const CRL_NOT_SUPPORTED = 'CRL_NOT_SUPPORTED';
 
     // Cryptography
@@ -61,13 +64,22 @@ final class FindingCodes
     public const TIMESTAMP_NOT_TRUSTED = 'TIMESTAMP_NOT_TRUSTED';
     public const NO_POE_CLAIMED_TIME_USED = 'NO_POE_CLAIMED_TIME_USED';
 
+    /** The timestamp, or its authority's certificate, is signed with SHA-1 or a key below the minimum. */
+    public const TIMESTAMP_WEAK_ALGORITHM = 'TIMESTAMP_WEAK_ALGORITHM';
+
     // Chain and revocation
     public const CHAIN_NOT_FOUND = 'CHAIN_NOT_FOUND';
     public const CHAIN_INVALID = 'CHAIN_INVALID';
+
+    /** A certificate in the signer's chain is signed with SHA-1 or a key below the minimum. */
+    public const CHAIN_WEAK_ALGORITHM = 'CHAIN_WEAK_ALGORITHM';
     public const SIGNING_CERTIFICATE_EXPIRED = 'SIGNING_CERTIFICATE_EXPIRED';
     public const SIGNING_CERTIFICATE_NOT_YET_VALID = 'SIGNING_CERTIFICATE_NOT_YET_VALID';
     public const REVOCATION_MISSING = 'REVOCATION_MISSING';
     public const REVOCATION_INVALID = 'REVOCATION_INVALID';
+
+    /** The only usable revocation answer, or its responder's certificate, is signed with SHA-1 or a key below the minimum. */
+    public const REVOCATION_WEAK_ALGORITHM = 'REVOCATION_WEAK_ALGORITHM';
     public const CERTIFICATE_REVOKED = 'CERTIFICATE_REVOKED';
     public const CERTIFICATE_STATUS_UNKNOWN = 'CERTIFICATE_STATUS_UNKNOWN';
     public const OCSP_BEFORE_TIMESTAMP = 'OCSP_BEFORE_TIMESTAMP';
