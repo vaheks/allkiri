@@ -43,9 +43,8 @@ below 1.0.
 # 1. The checklist is filled in, with dates and results.
 $EDITOR docs/manual-testing.md
 
-# 2. Unreleased becomes the version, with today's date. The alpha tags never
-#    had sections of their own, so this is the first dated one: drop the note
-#    that says so, point the Unreleased link at the new tag, and add a compare
+# 2. Unreleased becomes the version, with today's date, under a new empty
+#    Unreleased. Point the Unreleased link at the new tag, and add a compare
 #    link for the version.
 $EDITOR CHANGELOG.md
 
@@ -77,6 +76,14 @@ submit `https://github.com/vaheks/allkiri` at
 <https://packagist.org/packages/submit> and enable the GitHub hook, so every
 later tag, alpha or not, publishes itself. When an alpha moves past the range
 the README's install line names, the line moves with it.
+
+An alpha waits for no gates, only for the same care:
+
+1. Unreleased becomes the version in `CHANGELOG.md`, as in step 2 above.
+2. `composer check && composer test:js` pass, and CI is green on the commit.
+3. `git tag -a <version> -m "…"` with a title line, what the release brings and
+   what is still alpha, like the tags before it. Then push the tag.
+4. If the version left the README's install range, the install line follows.
 
 ## Versioning
 
