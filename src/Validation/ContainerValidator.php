@@ -21,8 +21,9 @@ use Psr\Clock\ClockInterface;
 /**
  * Validates a whole container: its structure, then every signature in it.
  *
- * Nothing here throws for a bad container. A report that says what is wrong
- * is the deliverable, and callers should be able to show it to a user.
+ * Nothing here throws, for a bad container or for trust anchors that cannot be
+ * loaded. A report that says what is wrong is the deliverable, and callers
+ * should be able to show it to a user.
  */
 final class ContainerValidator
 {

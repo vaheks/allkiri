@@ -342,6 +342,23 @@ The loader wrote a list back to the cache on every read. That renewed the
 entry's lifetime each time, so under steady use a cached list was never fetched
 again and would have stayed overdue. It is now written only when fetched.
 
+### Trust anchors that cannot be loaded are a finding
+
+`SignatureValidator` promised never to throw, but a trusted list that could not
+be fetched, verified or parsed escaped as a `TrustedListException` from the
+first check that needed an anchor. Production trust is loaded over the network
+on first use, so a caller validating a container got an exception instead of a
+report whenever the list's publisher could not be reached.
+
+The checks that need trust now run inside one catch. The signature gets
+`TRUST_ANCHORS_UNAVAILABLE`, INDETERMINATE with NO_CERTIFICATE_CHAIN_FOUND,
+which is what an unknown CA gives, and a message carrying the list's reason.
+Findings made before the failure stay, so a changed data file is still
+TOTAL-FAILED. The failure is not remembered: each signature tries the lists
+again, which with the network down means waiting out the HTTP timeouts once per
+signature. Signing and signing in still throw, because they have no report to
+put the problem in.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry
