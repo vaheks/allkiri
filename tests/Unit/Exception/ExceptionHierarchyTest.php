@@ -7,6 +7,7 @@ namespace Allkiri\Tests\Unit\Exception;
 use Allkiri\Exception\AllkiriException;
 use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Http\CurlHttpClient;
+use Allkiri\Tests\Support\SourceTree;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -22,29 +23,11 @@ use PHPUnit\Framework\TestCase;
 final class ExceptionHierarchyTest extends TestCase
 {
     /**
-     * @return array<string, string> source path => class name, for every file in src
-     */
-    private static function sources(): array
-    {
-        $root = (string) realpath(__DIR__ . '/../../../src');
-        $sources = [];
-        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)) as $file) {
-            if (!$file instanceof \SplFileInfo || $file->getExtension() !== 'php') {
-                continue;
-            }
-            $relative = substr((string) $file->getRealPath(), \strlen($root) + 1, -4);
-            $sources[(string) $file->getRealPath()] = 'Allkiri\\' . str_replace(['/', '\\'], '\\', $relative);
-        }
-
-        return $sources;
-    }
-
-    /**
      * @return iterable<string, array{class-string<\Throwable>}>
      */
     public static function exceptions(): iterable
     {
-        foreach (self::sources() as $class) {
+        foreach (SourceTree::classes() as $class) {
             if (class_exists($class) && is_subclass_of($class, \Throwable::class)) {
                 yield $class => [$class];
             }
@@ -89,7 +72,7 @@ final class ExceptionHierarchyTest extends TestCase
     public function testNothingInSrcCreatesAnExceptionOutsideTheFamily(): void
     {
         $offenders = [];
-        foreach (array_keys(self::sources()) as $path) {
+        foreach (array_keys(SourceTree::classes()) as $path) {
             $tokens = array_values(\PhpToken::tokenize((string) file_get_contents($path)));
             foreach ($tokens as $index => $token) {
                 if (!$token->is(T_NEW)) {

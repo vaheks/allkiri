@@ -11,7 +11,7 @@ use Psr\Log\LogLevel;
 /**
  * Wraps another client and logs every request it makes.
  *
- * One of these around the client you give to {@see \Allkiri\Allkiri} records
+ * One of these around the client you give to the Allkiri facade records
  * every remote call the library performs: Mobile-ID, Smart-ID, timestamps,
  * revocation checks and trusted lists all go through the same interface.
  *

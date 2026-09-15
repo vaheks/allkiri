@@ -888,3 +888,19 @@ change for a caller: `archive()` on a signature file that is not XML throws
 `InvalidXmlException`, which is not a `XadesException`, and
 `CanonicalizationException` is no longer a `XadesException`. Neither was ever
 released.
+
+### One graph, no cycles
+
+CONTRIBUTING.md described a layering the imports did not follow. Container and
+Xades, Signing and Xades, and Trust and Xades imported each other, and the HTTP
+client reached up to the facade for its User-Agent, which alone tied fourteen of
+the seventeen parts into one knot. Nothing checked any of it.
+
+After the moves in this batch the parts form one graph without cycles, in nine
+levels, and `NamespaceLayeringTest` holds it as an exact table. Every part of
+`src` has a row, the table has no cycle, no reference goes outside it, and every
+dependency it allows is used, so the table cannot drift from the code in either
+direction. A reference is an import, a qualified or fully qualified name, or an
+Allkiri class named in a comment: a `{@see}` that points upward is a dependency
+a reader follows too. The two that did, in `AlgorithmConstraints` and
+`LoggingHttpClient`, became plain words.

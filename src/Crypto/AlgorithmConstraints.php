@@ -16,7 +16,7 @@ use phpseclib3\Crypt\RSA;
  * whether a genuine one is still strong enough to count: SHA-1 is refused, and
  * so is an RSA key shorter than the minimum. The defaults apply wherever
  * allkiri signs or signs someone in; validation takes the minimum from its
- * {@see \Allkiri\Validation\ValidationPolicy}.
+ * policy.
  */
 final readonly class AlgorithmConstraints
 {
