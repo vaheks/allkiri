@@ -2,15 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades;
+namespace Allkiri\Signing;
 
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspException;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\Tsp\TspClient;
-use Allkiri\Signing\SignatureLevel;
-use Allkiri\Signing\SigningException;
 use Allkiri\Trust\CertificateChain;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ChainBuildingException;
@@ -19,6 +17,9 @@ use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustStore;
 use Allkiri\Xades\Dsig\Canonicalizer;
 use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xades\Ns;
+use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xades\SignatureStructureException;
 
 /**
  * Raises a completed BES signature to T and then to LT.

@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades;
+namespace Allkiri\Signing;
 
 use Allkiri\Crypto\Tsp\TimestampToken;
 use Allkiri\Crypto\Tsp\TspClient;
-use Allkiri\Signing\SignatureLevel;
 use Allkiri\Xades\Dsig\ReferenceResolver;
 use Allkiri\Xades\Dsig\Xml;
 use Allkiri\Xades\Lta\ArchiveTimestampData;
+use Allkiri\Xades\Ns;
+use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xades\XadesException;
 use Psr\Log\LoggerInterface;
 
 /**

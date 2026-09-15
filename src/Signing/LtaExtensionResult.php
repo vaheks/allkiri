@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Xades;
-
-use Allkiri\Signing\SignatureLevel;
+namespace Allkiri\Signing;
 
 /**
  * What adding an archive timestamp produced.
