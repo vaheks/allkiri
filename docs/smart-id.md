@@ -231,6 +231,11 @@ if ($result !== null) {
 }
 ```
 
+The container passed to `poll()` must be the one the signature was started for,
+down to the bytes of its data files;
+[signing.md](signing.md#between-the-two-requests) says where to keep it in
+between.
+
 `startDeviceLink()` is the same with a link instead of a notification.
 
 The digest algorithm comes from the configuration

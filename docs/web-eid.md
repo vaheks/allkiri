@@ -134,7 +134,9 @@ file_put_contents('leping.asice', $allkiri->writer()->write($result->container))
 ```
 
 The container passed to `complete()` must be the same one passed to
-`prepare()`, down to the bytes of its data files. Card signing has no session
+`prepare()`, down to the bytes of its data files;
+[signing.md](signing.md#between-the-two-requests) says where to keep it in
+between. Card signing has no session
 timeout of its own: the only limit is the one on every prepared signature, ten
 minutes by default (see [signing.md](signing.md#how-long-a-prepared-signature-lasts)).
 A person who takes longer has to start again.

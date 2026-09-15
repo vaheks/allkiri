@@ -83,6 +83,68 @@ ECDSA values are accepted in either form: the raw `r‖s` that Web eID,
 Mobile-ID and Smart-ID return, or the DER that OpenSSL and some card
 middleware produce. RSA values are passed through as they are.
 
+## Between the two requests
+
+Signing with a person in the middle takes at least two requests, often handled
+by different PHP processes, so two things have to survive between them.
+
+**The prepared signature, or the eID signing session.** `DataToBeSigned` and the
+Mobile-ID, Smart-ID and Web eID signing sessions serialise to JSON. Keep that in
+the PHP session, or in a database row tied to the person. The Smart-ID session
+carries a secret, so keep all of them on the server.
+
+**The container.** `finalize()`, and the signers' `poll()` and `complete()`,
+need the container the signature was prepared for. Keep it on the server as
+well: a file or an object under a random name, with the name in the session, or
+a database row. It need not be the same ZIP bytes, but it must hold the same data
+files, with the same names, media types and contents, and must not have gained
+another signature meanwhile, or `SessionMismatchException` says so.
+`examples/demo-app` does this, in its `var/` folder.
+
+Three things follow.
+
+- **It expires.** A prepared signature is refused after ten minutes, so a
+  container nobody has finished by then can go.
+- **Delete what nobody finishes.** Abandoned containers otherwise pile up. The
+  demo never cleans up; a real application has to.
+- **Finish once.** Two tabs, or a double click, can finish the same session at
+  the same moment, and each would buy a timestamp. Take the stored session out
+  before finishing, in a request that holds the session's lock (PHP's file
+  sessions do, many other handlers do not), so a second request finds nothing
+  to finish.
+
+For the ID card, the two requests look like this:
+
+```php
+// POST /sign/start: the page sent the card's certificate and algorithms.
+$id = bin2hex(random_bytes(16));
+file_put_contents("/var/lib/app/signing/{$id}.asice", $allkiri->writer()->write($container));
+
+$session = $allkiri->webEidSigner()->prepare($container, $certificate, $supportedSignatureAlgorithms);
+$_SESSION['signing'] = ['container' => $id, 'session' => json_encode($session)];
+
+echo json_encode($session->forBrowser());
+```
+
+```php
+// POST /sign/finish: the page sent the signature and the algorithm it used.
+['container' => $id, 'session' => $json] = $_SESSION['signing'];
+unset($_SESSION['signing']);   // finish once
+
+$path = "/var/lib/app/signing/{$id}.asice";
+$result = $allkiri->webEidSigner()->complete(
+    $allkiri->reader()->read(file_get_contents($path)),
+    WebEidSigningSession::fromJson($json),
+    $signature,
+    CardAlgorithm::fromArray($signatureAlgorithm),
+);
+
+file_put_contents($path, $allkiri->writer()->write($result->container));
+```
+
+Mobile-ID and Smart-ID have the same shape, with a poll in between; their guides
+show the calls.
+
 ## Levels
 
 | Level | What it adds | When |

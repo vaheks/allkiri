@@ -234,7 +234,8 @@ the Smart-ID session secret, and the Web eID challenge.
 **Never cache a container you are signing.** The signing session is bound to the
 exact set of data files by a fingerprint, so a container that changes underneath
 makes `finalize()` refuse. That is the intended behaviour, not an obstacle to
-work around.
+work around. Keep it on the server between the two requests instead, as
+[signing.md](signing.md#between-the-two-requests) describes.
 
 ## Long-running processes
 

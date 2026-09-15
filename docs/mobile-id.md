@@ -204,6 +204,8 @@ if ($result !== null) {
 The container you pass to `poll()` must be the same one you passed to
 `start()`, down to the bytes of its data files; otherwise you get a
 `SessionMismatchException` rather than a signature over something else.
+[signing.md](signing.md#between-the-two-requests) says where to keep it in
+between.
 
 Mobile-ID returns ECDSA values DER-encoded while XML-DSig needs `r‖s`. The
 library converts, and verifies the finished signature against the certificate
