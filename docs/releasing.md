@@ -53,7 +53,7 @@ $EDITOR CHANGELOG.md
 $EDITOR README.md
 
 # 4. Everything is green.
-composer check && node tests/js/qr-golden.mjs
+composer check && composer test:js
 gh workflow run integration.yml
 
 # 5. Tag it. Tags carry no "v", like the ones before.

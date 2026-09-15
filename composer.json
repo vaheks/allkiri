@@ -91,7 +91,7 @@
         ]
     },
     "scripts-descriptions": {
-        "check": "Run coding-standard check, static analysis and unit tests (what CI runs).",
+        "check": "Run the coding-standard check, static analysis and unit tests, as CI does on every PHP version.",
         "test:live": "The production smoke test: real signatures against the live services. Needs ALLKIRI_LIVE_SMOKE=1, ALLKIRI_MODE=live and a phone in your hand.",
         "test:coverage": "Unit tests with line coverage, written to coverage/. Needs pcov, or Xdebug with XDEBUG_MODE=coverage."
     },

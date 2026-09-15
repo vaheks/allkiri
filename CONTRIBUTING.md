@@ -7,8 +7,19 @@ composer install
 composer check
 ```
 
-`composer check` runs exactly what CI runs: php-cs-fixer (dry run), PHPStan at
-level max, and the Unit test suite. Fix style with `composer cs:fix`.
+`composer check` runs the PHP checks CI runs on every supported version:
+php-cs-fixer (dry run), PHPStan at level max, and the Unit test suite. Fix style
+with `composer cs:fix`.
+
+CI runs more than that. It also runs `composer validate --strict`, measures
+coverage with `composer test:coverage` (which needs pcov or Xdebug), and tests
+the browser helper with `composer test:js` and a QR round trip through an
+independent decoder:
+
+```bash
+composer test:js
+npm install --no-save jsqr && node tests/js/qr-roundtrip.mjs
+```
 
 ## Conventions
 
