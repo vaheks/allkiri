@@ -96,5 +96,9 @@ final class FindingCodes
     public const OCSP_TIMESTAMP_DELTA_TOO_LARGE = 'OCSP_TIMESTAMP_DELTA_TOO_LARGE';
     public const OCSP_TIMESTAMP_DELTA_WARNING = 'OCSP_TIMESTAMP_DELTA_WARNING';
 
+    // Trust
+    /** A trusted list the signature rests on is past its next update: a warning, or an error once the policy's grace period is over. */
+    public const TRUSTED_LIST_EXPIRED = 'TRUSTED_LIST_EXPIRED';
+
     private function __construct() {}
 }

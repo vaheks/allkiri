@@ -41,9 +41,13 @@ final readonly class TrustedList
         return array_values(array_filter($this->anchors, static fn(TrustAnchor $a): bool => \in_array($a->serviceType, $types, true)));
     }
 
+    /**
+     * Past its next update, or naming none: either way a list that may be
+     * missing withdrawals published since.
+     */
     public function isExpiredAt(\DateTimeInterface $time): bool
     {
-        return $this->nextUpdate !== null && $this->nextUpdate < $time;
+        return $this->nextUpdate === null || $this->nextUpdate < $time;
     }
 
     /**

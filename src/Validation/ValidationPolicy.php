@@ -7,6 +7,7 @@ namespace Allkiri\Validation;
 use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Exception\InvalidArgumentException;
 
 /**
  * What a signature has to satisfy to be called valid.
@@ -21,6 +22,7 @@ final readonly class ValidationPolicy
      * @param list<HashAlgorithm>      $allowedDigestAlgorithms
      * @param list<SignatureAlgorithm> $allowedSignatureAlgorithms
      * @param bool                     $requireSignatureTimestamp  whether a signature without a signature timestamp can pass; without one only the signer's own claim says when it was made
+     * @param int|null                 $trustedListGraceSeconds    how long after a trusted list's next update its anchors still count: null for always, with a warning; 0 to refuse them at once
      */
     public function __construct(
         public string $name = 'allkiri BDOC 2.1.2 / ASiC-E',
@@ -33,7 +35,12 @@ final readonly class ValidationPolicy
         public int $ocspDelayErrorSeconds = 86400,
         public int $clockSkewSeconds = 300,
         public bool $requireSignatureTimestamp = true,
-    ) {}
+        public ?int $trustedListGraceSeconds = null,
+    ) {
+        if ($trustedListGraceSeconds !== null && $trustedListGraceSeconds < 0) {
+            throw new InvalidArgumentException('The trusted list grace period cannot be negative');
+        }
+    }
 
     public static function bdoc(): self
     {

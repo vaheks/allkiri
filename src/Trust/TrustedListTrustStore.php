@@ -9,6 +9,7 @@ use Allkiri\Trust\TrustedList\TrustedList;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use Allkiri\Trust\TrustedList\TrustedListSource;
+use Allkiri\Trust\TrustedList\TrustedListStatus;
 
 /**
  * Anchors from one or more trusted lists, loaded on first use.
@@ -62,7 +63,8 @@ final class TrustedListTrustStore implements TrustStore
         $anchors = [];
         foreach ($lists as $list) {
             foreach ($list->anchors() as $anchor) {
-                $anchors[] = $anchor;
+                // A list built in code has no parser to stamp its anchors.
+                $anchors[] = $anchor->trustedList === null ? $anchor->withTrustedList(TrustedListStatus::of($list, $list->territory)) : $anchor;
             }
         }
         $store->loaded = new InMemoryTrustStore($anchors);

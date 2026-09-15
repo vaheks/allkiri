@@ -68,7 +68,12 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    whose service was in a trustworthy status then. Every CA in it keeps to its
    path length constraint, counted as RFC 5280 counts it, and every intermediate
    is allowed to sign certificates. A chain that breaks either is
-   `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`.
+   `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`. The anchor's trusted list
+   is checked as well: past its next update it gives a `TRUSTED_LIST_EXPIRED`
+   warning, or, beyond the policy's `trustedListGraceSeconds`, the anchor is not
+   trusted. The same holds for the timestamp authorities of step 7 and for a
+   responder a list names directly in step 9. See
+   [When a list is not renewed](trust.md#when-a-list-is-not-renewed).
 9. **Revocation.** The embedded OCSP response answers about this certificate,
    was signed by an authorised responder, and says `good`. When the signature
    carries several responses, a revoked one decides. Otherwise the newest one
@@ -101,13 +106,16 @@ $policy = new ValidationPolicy(
     allowedDigestAlgorithms: [HashAlgorithm::SHA256, HashAlgorithm::SHA512],
     minimumRsaKeyBits: 3072,
     ocspDelayWarningSeconds: 900,
+    trustedListGraceSeconds: 7 * 86400,
 );
 $allkiri = new Allkiri(Environment::demo(), policy: $policy);
 ```
 
 The defaults follow Estonian practice for BDOC 2.1.2: SHA-256 and above,
 RSA-2048 and above, `DataObjectFormat` mandatory, the fifteen-minute and
-one-day OCSP thresholds digidoc4j uses, and a signature timestamp required.
+one-day OCSP thresholds digidoc4j uses, and a signature timestamp required. A
+trusted list past its next update is only a warning until
+`trustedListGraceSeconds` says how long to tolerate it.
 
 `minimumRsaKeyBits` also sets the floor for the keys that sign the
 certificates, OCSP responses and timestamps a signature rests on. A policy
@@ -151,6 +159,7 @@ accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 | CRL revocation data | reported, not checked | checked |
 | SHA-1 in a chain, an OCSP response or a timestamp | `INDETERMINATE` | a warning, for BDOC |
 | A signature without a timestamp (level B) | `INDETERMINATE`, `TIMESTAMP_MISSING`; judged on its claimed time with `requireSignatureTimestamp: false` | not accepted for ASiC-E |
+| A trusted list past its next update | a warning; `INDETERMINATE` beyond `trustedListGraceSeconds` | fails |
 
 Where both validate the same signature, they should agree. The integration
 suite compares them on every run.

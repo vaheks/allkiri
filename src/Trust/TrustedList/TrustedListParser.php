@@ -50,12 +50,14 @@ final class TrustedListParser
         $sequence = (int) trim(Xml::text($xpath, 'tsl:TSLSequenceNumber', $info) ?? '0');
         $issueDate = self::time(Xml::text($xpath, 'tsl:ListIssueDateTime', $info));
         $nextUpdate = self::time(Xml::text($xpath, 'tsl:NextUpdate/tsl:dateTime', $info));
+        // Every anchor remembers its list, so validation can tell when a signature rests on one that is overdue.
+        $listStatus = new TrustedListStatus($source, $nextUpdate);
 
         $anchors = [];
         foreach (Xml::elements($xpath, 'tsl:TrustServiceProviderList/tsl:TrustServiceProvider', $root) as $provider) {
             $providerName = trim(Xml::text($xpath, 'tsl:TSPInformation/tsl:TSPName/tsl:Name', $provider) ?? '');
             foreach (Xml::elements($xpath, 'tsl:TSPServices/tsl:TSPService', $provider) as $service) {
-                foreach ($this->anchorsOfService($xpath, $service, $providerName, $source) as $anchor) {
+                foreach ($this->anchorsOfService($xpath, $service, $providerName, $source, $listStatus) as $anchor) {
                     $anchors[] = $anchor;
                 }
             }
@@ -75,7 +77,7 @@ final class TrustedListParser
     /**
      * @return list<TrustAnchor>
      */
-    private function anchorsOfService(\DOMXPath $xpath, \DOMElement $service, string $providerName, string $source): array
+    private function anchorsOfService(\DOMXPath $xpath, \DOMElement $service, string $providerName, string $source, TrustedListStatus $listStatus): array
     {
         $info = Xml::element($xpath, 'tsl:ServiceInformation', $service);
         if ($info === null) {
@@ -114,7 +116,7 @@ final class TrustedListParser
             } catch (CertificateException) {
                 continue; // a digital identity we cannot read is simply not an anchor
             }
-            $anchors[] = new TrustAnchor($certificate, $type, $name, $history, $source);
+            $anchors[] = new TrustAnchor($certificate, $type, $name, $history, $source, $listStatus);
         }
 
         return $anchors;

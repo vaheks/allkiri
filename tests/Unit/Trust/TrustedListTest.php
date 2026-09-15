@@ -162,6 +162,26 @@ final class TrustedListTest extends TestCase
         }
     }
 
+    /**
+     * Writing a cache hit back would renew the entry every time, and under
+     * steady use a list past its next update would never be fetched again.
+     */
+    public function testTheLoaderWritesToTheCacheOnlyWhenItFetched(): void
+    {
+        $cache = new ArrayCache();
+        $http = (new MockHttpClient())->respond(self::TL_URL, 200, 'application/xml', self::tlXml());
+        $loader = new TrustedListLoader($http, $cache);
+        $source = new TrustedListSource(self::TL_URL, [self::signer()]);
+
+        $loader->load($source);
+        self::assertSame(1, $cache->writes, 'a fetched list is stored');
+
+        $loader->load($source);
+        $loader->load($source);
+        self::assertSame(1, $http->requestCount());
+        self::assertSame(1, $cache->writes, 'a list read from the cache is not stored again');
+    }
+
     public function testLoaderReportsTransportFailures(): void
     {
         $http = (new MockHttpClient())->respond(self::TL_URL, 503, 'text/plain', 'maintenance');

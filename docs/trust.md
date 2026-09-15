@@ -55,6 +55,43 @@ $allkiri = new Allkiri($environment, cache: $psr16Cache);
 The cache holds the XML, not parsed anchors, and the signature is re-verified
 on every read. A poisoned cache cannot introduce a trust anchor.
 
+A list is written to the cache when it is fetched, not again when it is read
+from there, so the cache lifetime decides how soon a fresh copy is fetched.
+
+## When a list is not renewed
+
+Every trusted list names its next update, the date by which a newer one is due.
+A list past that date may be missing a withdrawal published since, and so may
+every list reached through a list of lists that is itself overdue. A list that
+names no next update counts as overdue from the start.
+
+Each anchor remembers the list it came from, so validation can say when a
+signature rests on an overdue one. By default the anchors are still used, and
+the signature carries a `TRUSTED_LIST_EXPIRED` warning naming the list and what
+rested on it: the signer's certificate authority, a timestamp authority, or an
+OCSP responder the list names directly. A responder the certificate's own CA
+delegated to is vouched for by that CA's chain, and does not count.
+
+A policy can refuse those anchors instead, once a grace period has passed:
+
+```php
+$policy = new ValidationPolicy(trustedListGraceSeconds: 7 * 86400);
+```
+
+Past the next update plus the grace period, the anchors are left out, and the
+part of the signature that needed one is `INDETERMINATE` with
+`TRUSTED_LIST_EXPIRED`, under the sub-indication a missing anchor gives:
+`NO_CERTIFICATE_CHAIN_FOUND` for the CA, `NO_POE` for a timestamp authority,
+`TRY_LATER` for a responder. `0` refuses them as soon as the date passes. An
+anchor for the same certificate from elsewhere, such as one added with
+`withExtraTrustAnchors()`, still serves; anchors added by hand never expire.
+
+Only validation looks at this. Signing and signing people in keep using the
+loaded list, and the loader logs a warning when the list it loads is overdue.
+Expiry is judged at the validation time, against the lists loaded now. A
+long-running process that loaded its trust store once keeps those lists until
+it loads them again.
+
 ## Anchors a list does not carry
 
 Estonian ID-cards issued from November 2025 are Thales cards under Zetes'
