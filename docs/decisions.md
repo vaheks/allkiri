@@ -314,6 +314,34 @@ drive validation at all, which is not done yet. A signature with neither a
 timestamp nor a signing time used to skip its chain check without a word; it now
 carries the same finding.
 
+### An overdue trusted list is named, and refused only on request
+
+A trusted list names the date its successor is due. allkiri used a list past that
+date without a trace in the report: a container validated TOTAL-PASSED against
+it, and the only sign was a log line, written only when the loader had a clock.
+Anchors did not know which list they came from, so neither a national list's
+next update nor that of the list of lists reached them.
+
+Each anchor now carries its list's label and next update, and the list of lists
+it was reached through. A signature whose CA, timestamp authority or directly
+listed responder rests on an overdue list carries a `TRUSTED_LIST_EXPIRED`
+warning. DSS treats TLNotExpired as a warning by default; SiVa and digidoc4j
+fail it. A warning is the default here because a failure would turn every
+signature INDETERMINATE the moment a publisher is late, and how late publishers
+actually run was not measured. For the same reason no grace period is
+suggested: `ValidationPolicy::$trustedListGraceSeconds` refuses the anchors once
+the next update plus that period has passed, and `0` refuses them at once.
+
+A refused anchor gives the sub-indication its absence would, so a caller that
+branches on NO_CERTIFICATE_CHAIN_FOUND, NO_POE or TRY_LATER sees the same thing
+whether the anchor was never configured or came from a stale list; the finding
+code tells them apart. A list with no next update counts as overdue, as DSS
+treats it.
+
+The loader wrote a list back to the cache on every read. That renewed the
+entry's lifetime each time, so under steady use a cached list was never fetched
+again and would have stayed overdue. It is now written only when fetched.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry

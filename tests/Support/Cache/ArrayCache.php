@@ -15,6 +15,9 @@ final class ArrayCache implements CacheInterface
     /** @var array<string, mixed> */
     private array $values = [];
 
+    /** How many times a value has been stored. */
+    public int $writes = 0;
+
     public function get(string $key, mixed $default = null): mixed
     {
         return $this->values[$key] ?? $default;
@@ -23,6 +26,7 @@ final class ArrayCache implements CacheInterface
     public function set(string $key, mixed $value, null|int|\DateInterval $ttl = null): bool
     {
         $this->values[$key] = $value;
+        ++$this->writes;
 
         return true;
     }

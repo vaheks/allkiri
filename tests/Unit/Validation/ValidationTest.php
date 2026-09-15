@@ -20,6 +20,7 @@ use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampRequest;
 use Allkiri\Crypto\Tsp\TimestampResponse;
 use Allkiri\Crypto\Tsp\TimestampToken;
+use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Http\HttpRequest;
 use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\LocalKeySigner;
@@ -28,6 +29,7 @@ use Allkiri\Signing\SigningOptions;
 use Allkiri\Signing\SigningResult;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Crypto\DerPatch;
+use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\Pki\MockOcspResponder;
 use Allkiri\Tests\Support\Pki\MockTsa;
 use Allkiri\Tests\Support\Pki\TestCertificates;
@@ -38,8 +40,15 @@ use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Tests\Support\Xades\SignatureWrapping;
+use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceType;
+use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\TrustedListLoader;
+use Allkiri\Trust\TrustedList\TrustedListSource;
+use Allkiri\Trust\TrustedList\TrustedListStatus;
+use Allkiri\Trust\TrustedListTrustStore;
+use Allkiri\Trust\TrustStore;
 use Allkiri\Validation\ContainerValidator;
 use Allkiri\Validation\FindingCodes;
 use Allkiri\Validation\Report\Indication;
@@ -699,6 +708,147 @@ final class ValidationTest extends TestCase
         self::assertContains(FindingCodes::TIMESTAMP_INVALID, $signature->codes());
         self::assertContains(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, $signature->codes());
         self::assertStringContainsString('after the claimed signing time', implode("\n", array_map(static fn($f): string => $f->message, $signature->errors())));
+    }
+
+    /**
+     * The store with every anchor restamped as published in the trusted list
+     * "EE_T", due for its next update at the given moment.
+     */
+    private static function listed(TrustStore $store, string $nextUpdate): TrustStore
+    {
+        $status = new TrustedListStatus('EE_T', new \DateTimeImmutable($nextUpdate));
+
+        return new InMemoryTrustStore(array_map(static fn(TrustAnchor $anchor): TrustAnchor => $anchor->withTrustedList($status), $store->anchors()));
+    }
+
+    /**
+     * #17: a list past its next update may be missing withdrawals published
+     * since, and the report says which list the signature rests on.
+     */
+    public function testAnOverdueTrustedListIsAWarningByDefault(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $options = new ValidationOptions(new \DateTimeImmutable('2026-03-05T00:00:00Z'), self::listed($fixture->trustStore, '2026-02-01T00:00:00Z'));
+
+        $signature = self::validator($fixture)->validate((new AsicWriter())->write($result->container), 'a.asice', $options)->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $signature->warnings()));
+        self::assertStringContainsString('Trusted list "EE_T" was due for its next update on 2026-02-01T00:00:00+00:00', $signature->warnings()[0]->message);
+        self::assertStringContainsString('the signature timestamp\'s authority and the signer\'s certificate authority rest on it', $signature->warnings()[0]->message);
+    }
+
+    /**
+     * @return iterable<string, array{int, bool}>
+     */
+    public static function gracePeriods(): iterable
+    {
+        // The list was due on 2026-02-01, 32 days before the validation.
+        yield 'forty days' => [40 * 86400, true];
+        yield 'twenty-seven days' => [27 * 86400, false];
+        yield 'none' => [0, false];
+    }
+
+    #[DataProvider('gracePeriods')]
+    public function testAGracePeriodDecidesWhenAnOverdueListIsRefused(int $graceSeconds, bool $passes): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $options = new ValidationOptions(new \DateTimeImmutable('2026-03-05T00:00:00Z'), self::listed($fixture->trustStore, '2026-02-01T00:00:00Z'));
+        $validator = self::validator($fixture, new ValidationPolicy(trustedListGraceSeconds: $graceSeconds));
+
+        $signature = $validator->validate((new AsicWriter())->write($result->container), 'a.asice', $options)->signatures[0];
+
+        if ($passes) {
+            self::assertSame(Indication::TotalPassed, $signature->indication);
+            self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $signature->warnings()));
+
+            return;
+        }
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::NoPoe, $signature->subIndication, 'the timestamp authority is refused first, which leaves only the claimed time');
+        self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED, FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $signature->errors()));
+        $messages = implode("\n", array_map(static fn($f): string => $f->message, $signature->errors()));
+        self::assertStringContainsString('so the signature timestamp\'s authority is not trusted', $messages);
+        self::assertStringContainsString('so the signer\'s certificate authority is not trusted', $messages);
+    }
+
+    public function testAnAnchorFromElsewhereStillServesWhenAListIsRefused(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $store = new CompositeTrustStore(self::listed($fixture->trustStore, '2026-02-01T00:00:00Z'), $fixture->trustStore);
+        $validator = self::validator($fixture, new ValidationPolicy(trustedListGraceSeconds: 0));
+
+        $signature = $validator->validate((new AsicWriter())->write($result->container), 'a.asice', new ValidationOptions(new \DateTimeImmutable('2026-03-05T00:00:00Z'), $store))->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        self::assertSame([], $signature->warnings(), 'nothing rests on the refused list');
+    }
+
+    public function testAResponderOnlyAnOverdueListVouchesForIsNamed(): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        // A responder the signer's CA did not issue, trusted only because a list names it.
+        $responder = TestCertificates::issue(TestKey::ec('secp256r1', 'listed-responder'), ['id-at-commonName' => 'Listed OCSP responder'], [], TestIssuer::of(TestPki::tsa(), TestKey::fixture('tsa')));
+        $answer = (new MockOcspResponder($fixture->clock, $responder))->handle(HttpRequest::post(
+            MockOcspResponder::URL,
+            'application/ocsp-request',
+            OcspRequest::build(CertId::for($keyPair->certificate, TestPki::ca()->certificate))->der,
+        ))->body;
+        $bytes = self::withEncapsulated($result, 'EncapsulatedOCSPValue', $answer);
+        $store = new CompositeTrustStore(
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc),
+            InMemoryTrustStore::fromCertificates([TestPki::tsa()->certificate], ServiceType::TsaQtst),
+            new InMemoryTrustStore([TrustAnchor::manual($responder->certificate, ServiceType::OcspQc)->withTrustedList(new TrustedListStatus('EE_T', new \DateTimeImmutable('2026-02-01T00:00:00Z')))]),
+        );
+        $options = new ValidationOptions(new \DateTimeImmutable('2026-03-05T00:00:00Z'), $store);
+
+        $warned = self::validator($fixture)->validate($bytes, 'a.asice', $options)->signatures[0];
+        self::assertSame(Indication::TotalPassed, $warned->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $warned->errors())));
+        self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $warned->warnings()));
+        self::assertStringContainsString('; the OCSP responder rests on it', $warned->warnings()[0]->message);
+
+        $refused = self::validator($fixture, new ValidationPolicy(trustedListGraceSeconds: 0))->validate($bytes, 'a.asice', $options)->signatures[0];
+        self::assertSame(Indication::Indeterminate, $refused->indication);
+        self::assertSame(SubIndication::TryLater, $refused->subIndication, 'as when no responder is trusted at all');
+        self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $refused->errors()));
+        self::assertStringContainsString('so the OCSP responder is not trusted', $refused->errors()[0]->message);
+    }
+
+    /**
+     * #17, as the issue puts it: Estonia's test list and a container signed
+     * under it, validated the day after the list's next update.
+     */
+    public function testAContainerValidatedAgainstAnOverdueTrustedListNamesTheList(): void
+    {
+        $url = 'https://open-eid.github.io/test-TL/EE_T.xml';
+        $http = (new MockHttpClient())->respond($url, 200, 'application/xml', (string) file_get_contents(__DIR__ . '/../../fixtures/captured/test-tl-EE_T.xml'));
+        $listSigner = Certificate::fromPem((string) file_get_contents(__DIR__ . '/../../fixtures/certs/Test_TSL_signer.pem'));
+        $store = new TrustedListTrustStore(new TrustedListLoader($http), [new TrustedListSource($url, [$listSigner], null, 'EE_T')]);
+        $clock = new FrozenClock('2030-01-02T00:00:00Z');
+
+        $signature = (new ContainerValidator(new SignatureValidator($store), $clock))->validateFile(self::CONTAINERS . 'valid-asice-esteid2018.asice')->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        self::assertCount(1, $signature->warnings());
+        self::assertSame(FindingCodes::TRUSTED_LIST_EXPIRED, $signature->warnings()[0]->code);
+        self::assertStringContainsString('Trusted list "EE_T" was due for its next update on 2030-01-01', $signature->warnings()[0]->message);
+
+        $policy = new ValidationPolicy(trustedListGraceSeconds: 0);
+        $refused = (new ContainerValidator(new SignatureValidator($store, $policy), $clock, $policy))->validateFile(self::CONTAINERS . 'valid-asice-esteid2018.asice')->signatures[0];
+        self::assertSame(Indication::Indeterminate, $refused->indication);
+        self::assertTrue($refused->has(FindingCodes::TRUSTED_LIST_EXPIRED));
+    }
+
+    public function testATrustedListGracePeriodCannotBeNegative(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new ValidationPolicy(trustedListGraceSeconds: -1);
     }
 
     public function testLevelsBAndTAreReportedAsWhatTheyAre(): void

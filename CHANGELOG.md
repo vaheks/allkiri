@@ -222,8 +222,23 @@ signatures with a local key, and the API the eID means will plug into.
   which is true by default. With it off, a B-level signature is judged on its
   claimed signing time and carries `NO_POE_CLAIMED_TIME_USED`. New finding code
   `REVOCATION_NOT_BOUND_TO_SIGNING_TIME`.
+- A trusted list past its next update, or naming none, is reported on each
+  signature that rests on it as a `TRUSTED_LIST_EXPIRED` warning. The new
+  `ValidationPolicy::$trustedListGraceSeconds`, null by default, refuses such
+  anchors once the next update plus the grace period has passed. `TrustAnchor`
+  gains a trailing `trustedList` argument and `withTrustedList()`; new
+  `TrustedListStatus` and `WithoutExpiredListsTrustStore`.
+  `TrustedList::isExpiredAt()` now counts a list with no next update as expired.
+- `TrustedListLoader` writes a list to the cache only when it fetched it, not
+  again when it read it from the cache.
 
 ### Fixed
+
+- A signature resting on a trusted list past its next update is no longer
+  reported as if the list were current. It validated TOTAL-PASSED with no
+  finding, and the only trace was a log line when the loader had a clock. A
+  cached list was also written back on every read, which kept renewing the
+  entry, so it was never fetched again.
 
 - Without a verified timestamp, a revocation answer is held to the claimed
   signing time. An embedded OCSP response was compared only with itself: a

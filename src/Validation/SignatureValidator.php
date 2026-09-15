@@ -9,7 +9,9 @@ use Allkiri\Container\MimeTypes;
 use Allkiri\Container\SignatureFile;
 use Allkiri\Crypto\Asn1\Asn1;
 use Allkiri\Crypto\Asn1\Asn1Exception;
+use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CryptoException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\Ocsp\CertStatus;
 use Allkiri\Crypto\Ocsp\NonceMode;
@@ -27,6 +29,7 @@ use Allkiri\Signing\SignatureLevel;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ChainBuildingException;
 use Allkiri\Trust\ServiceType;
+use Allkiri\Trust\TrustAnchor;
 use Allkiri\Trust\TrustStore;
 use Allkiri\Validation\Report\Finding;
 use Allkiri\Validation\Report\Indication;
@@ -66,7 +69,7 @@ final class SignatureValidator
 
     public function validate(AsicContainer $container, SignatureFile $file, \DOMElement $element, \DateTimeImmutable $validationTime, ?TrustStore $trustStore = null): SignatureReport
     {
-        $store = $trustStore ?? $this->trustStore;
+        $expiry = new TrustedListExpiry($trustStore ?? $this->trustStore, $validationTime, $this->policy->trustedListGraceSeconds);
         $signature = $this->parser->parse($element);
         $findings = [];
         foreach ($signature->warnings as $warning) {
@@ -82,7 +85,7 @@ final class SignatureValidator
         $this->checkSigningCertificateUsage($signer, $findings);
         $this->checkReferences($container, $signature, $element, $signer, $findings);
 
-        $timestamp = $this->checkTimestamps($signature, $store, $findings);
+        $timestamp = $this->checkTimestamps($signature, $expiry, $findings);
         $bestSignatureTime = $timestamp?->genTime();
         if ($bestSignatureTime === null && $signature->signingTime !== null) {
             $bestSignatureTime = $signature->signingTime;
@@ -97,9 +100,9 @@ final class SignatureValidator
             $findings[] = Finding::error(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, 'Neither a verified timestamp nor a signing time says when the signature was made, so its certificate chain and revocation status cannot be checked', Indication::Indeterminate, SubIndication::NoPoe);
         }
         if ($signer !== null && $bestSignatureTime !== null) {
-            $chain = $this->checkChain($signature, $signer, $bestSignatureTime, $store, $findings);
+            $chain = $this->checkChain($signature, $signer, $bestSignatureTime, $expiry, $findings);
             if ($chain !== null) {
-                $ocsp = $this->checkRevocation($signature, $signer, $chain, $bestSignatureTime, $store, $findings);
+                $ocsp = $this->checkRevocation($signature, $signer, $chain, $bestSignatureTime, $expiry, $findings);
             }
         }
         if ($ocsp !== null && $timestamp !== null) {
@@ -108,7 +111,8 @@ final class SignatureValidator
             $this->checkRevocationAgainstClaimedTime($bestSignatureTime, $ocsp, $validationTime, $findings);
         }
 
-        $archiveTime = $this->checkArchiveTimestamps($container, $element, $store, $timestamp, $findings);
+        $archiveTime = $this->checkArchiveTimestamps($container, $element, $expiry, $timestamp, $findings);
+        array_push($findings, ...$expiry->warnings());
 
         [$indication, $subIndication] = $this->verdict($findings);
 
@@ -359,7 +363,7 @@ final class SignatureValidator
     /**
      * @param list<Finding> $findings
      */
-    private function checkTimestamps(XadesSignature $signature, TrustStore $store, array &$findings): ?TimestampToken
+    private function checkTimestamps(XadesSignature $signature, TrustedListExpiry $expiry, array &$findings): ?TimestampToken
     {
         if ($signature->signatureTimestamps === []) {
             // Without one, only the signer's own claim says when the signature was
@@ -396,7 +400,8 @@ final class SignatureValidator
             }
 
             $canonical = $this->canonicalizer->canonicalize($signatureValue, $method);
-            $tsaCandidates = array_map(static fn($anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::tsaTypes()));
+            // Candidates only identify the authority; the chain below decides whether it is trusted.
+            $tsaCandidates = array_map(static fn($anchor): Certificate => $anchor->certificate, $expiry->unfiltered->anchors(ServiceType::tsaTypes()));
 
             try {
                 $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($canonical), null, array_values($tsaCandidates), $constraints);
@@ -408,13 +413,19 @@ final class SignatureValidator
             }
 
             try {
-                (new ChainBuilder($store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+                $tsaChain = (new ChainBuilder($expiry->store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
+                $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()));
+                if ($refused !== null) {
+                    $findings[] = $expiry->refusal($refused, 'the signature timestamp\'s authority', SubIndication::NoPoe);
+                    continue;
+                }
                 $findings[] = $e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED
                     ? Finding::error(FindingCodes::TIMESTAMP_WEAK_ALGORITHM, 'The timestamp authority\'s certificate cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe)
                     : Finding::error(FindingCodes::TIMESTAMP_NOT_TRUSTED, 'The timestamp authority is not trusted: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
             }
+            $expiry->relyOn($tsaChain->anchor, 'the signature timestamp\'s authority');
 
             return $token;
         }
@@ -427,11 +438,17 @@ final class SignatureValidator
      *
      * @return \Allkiri\Trust\CertificateChain|null
      */
-    private function checkChain(XadesSignature $signature, Certificate $signer, \DateTimeImmutable $at, TrustStore $store, array &$findings): ?\Allkiri\Trust\CertificateChain
+    private function checkChain(XadesSignature $signature, Certificate $signer, \DateTimeImmutable $at, TrustedListExpiry $expiry, array &$findings): ?\Allkiri\Trust\CertificateChain
     {
         try {
-            return (new ChainBuilder($store, $this->policy->algorithmConstraints()))->build($signer, $signature->certificateValues, $at, ServiceType::caTypes());
+            $chain = (new ChainBuilder($expiry->store, $this->policy->algorithmConstraints()))->build($signer, $signature->certificateValues, $at, ServiceType::caTypes());
         } catch (ChainBuildingException $e) {
+            $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $signer, $signature->certificateValues, $at, ServiceType::caTypes()));
+            if ($refused !== null) {
+                $findings[] = $expiry->refusal($refused, 'the signer\'s certificate authority', SubIndication::NoCertificateChainFound);
+
+                return null;
+            }
             $findings[] = match ($e->reason) {
                 ChainBuildingException::REASON_NOT_VALID_AT_TIME => $this->validityFinding($signer, $at, $e),
                 ChainBuildingException::REASON_SIGNATURE => Finding::error(FindingCodes::CHAIN_INVALID, $e->getMessage(), Indication::TotalFailed, SubIndication::CertificateChainGeneralFailure),
@@ -443,6 +460,25 @@ final class SignatureValidator
                 default => Finding::error(FindingCodes::CHAIN_NOT_FOUND, 'The signer\'s certificate does not chain to a trusted CA: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoCertificateChainFound),
             };
 
+            return null;
+        }
+        $expiry->relyOn($chain->anchor, 'the signer\'s certificate authority');
+
+        return $chain;
+    }
+
+    /**
+     * The anchor a chain from the certificate ends in with the given store, or
+     * null when none can be built.
+     *
+     * @param list<Certificate> $intermediates
+     * @param list<ServiceType> $types
+     */
+    private function anchorOf(TrustStore $store, Certificate $certificate, array $intermediates, \DateTimeImmutable $at, array $types): ?TrustAnchor
+    {
+        try {
+            return (new ChainBuilder($store, $this->policy->algorithmConstraints()))->build($certificate, $intermediates, $at, $types)->anchor;
+        } catch (ChainBuildingException) {
             return null;
         }
     }
@@ -459,7 +495,7 @@ final class SignatureValidator
     /**
      * @param list<Finding> $findings
      */
-    private function checkRevocation(XadesSignature $signature, Certificate $signer, \Allkiri\Trust\CertificateChain $chain, \DateTimeImmutable $at, TrustStore $store, array &$findings): ?OcspVerificationResult
+    private function checkRevocation(XadesSignature $signature, Certificate $signer, \Allkiri\Trust\CertificateChain $chain, \DateTimeImmutable $at, TrustedListExpiry $expiry, array &$findings): ?OcspVerificationResult
     {
         if ($signature->ocspValues === []) {
             $findings[] = Finding::error(FindingCodes::REVOCATION_MISSING, 'The signature carries no revocation data, so it cannot be shown that the certificate was valid when it was used', Indication::Indeterminate, SubIndication::TryLater);
@@ -468,31 +504,7 @@ final class SignatureValidator
         }
 
         $issuer = $chain->issuerOfLeaf();
-        $trustedResponders = array_map(static fn($anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::ocspTypes()));
-        $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints()))->withTrustedResponders(array_values($trustedResponders));
-
-        $verified = [];
-        $lastProblem = null;
-        $weakness = null;
-        foreach ($signature->ocspValues as $der) {
-            try {
-                $response = OcspResponse::fromDer($der);
-            } catch (Asn1Exception $e) {
-                $lastProblem = $e->getMessage();
-                continue;
-            }
-            $producedAt = $response->basic()?->producedAt() ?? $at;
-
-            try {
-                $verified[] = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
-            } catch (OcspException $e) {
-                if ($e->reason === \Allkiri\Crypto\Ocsp\OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED) {
-                    $weakness = $e->getMessage();
-                } else {
-                    $lastProblem = $e->getMessage();
-                }
-            }
-        }
+        [$verified, $lastProblem, $weakness] = $this->verifiedResponses($signature, $signer, $issuer, $at, $expiry->store);
 
         if ($verified === []) {
             // An answer that holds up in every other way but is signed with what no
@@ -502,12 +514,31 @@ final class SignatureValidator
 
                 return null;
             }
+            $refused = $expiry->refusedAnchor(function (TrustStore $every) use ($signature, $signer, $issuer, $at): ?TrustAnchor {
+                foreach ($this->verifiedResponses($signature, $signer, $issuer, $at, $every)[0] as $answer) {
+                    $anchor = self::listedResponder($every, $answer, $issuer);
+                    if ($anchor !== null) {
+                        return $anchor;
+                    }
+                }
+
+                return null;
+            });
+            if ($refused !== null) {
+                $findings[] = $expiry->refusal($refused, 'the OCSP responder', SubIndication::TryLater);
+
+                return null;
+            }
             $findings[] = Finding::error(FindingCodes::REVOCATION_INVALID, 'No usable OCSP response' . ($lastProblem === null ? '' : ': ' . $lastProblem), Indication::Indeterminate, SubIndication::TryLater);
 
             return null;
         }
 
         $chosen = $this->preferredResponse($verified, $at);
+        $listed = self::listedResponder($expiry->store, $chosen, $issuer);
+        if ($listed !== null) {
+            $expiry->relyOn($listed, 'the OCSP responder');
+        }
         if ($chosen->status() === CertStatus::Revoked) {
             $findings[] = Finding::error(FindingCodes::CERTIFICATE_REVOKED, \sprintf('The signer\'s certificate was revoked%s', $chosen->single->revokedAt === null ? '' : ' on ' . $chosen->single->revokedAt->format(DATE_ATOM)), Indication::TotalFailed, SubIndication::Revoked);
         } elseif ($chosen->status() === CertStatus::Unknown) {
@@ -561,6 +592,69 @@ final class SignatureValidator
     }
 
     /**
+     * Every embedded answer that verifies, with the store's listed responders
+     * trusted to give one.
+     *
+     * @return array{list<OcspVerificationResult>, ?string, ?string} the verified answers, the last problem with one that did not verify, and the weak algorithm of one that otherwise did
+     */
+    private function verifiedResponses(XadesSignature $signature, Certificate $signer, Certificate $issuer, \DateTimeImmutable $at, TrustStore $store): array
+    {
+        $trustedResponders = array_map(static fn(TrustAnchor $anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::ocspTypes()));
+        $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints()))->withTrustedResponders(array_values($trustedResponders));
+
+        $verified = [];
+        $lastProblem = null;
+        $weakness = null;
+        foreach ($signature->ocspValues as $der) {
+            try {
+                $response = OcspResponse::fromDer($der);
+            } catch (Asn1Exception $e) {
+                $lastProblem = $e->getMessage();
+                continue;
+            }
+            $producedAt = $response->basic()?->producedAt() ?? $at;
+
+            try {
+                $verified[] = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
+            } catch (OcspException $e) {
+                if ($e->reason === \Allkiri\Crypto\Ocsp\OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED) {
+                    $weakness = $e->getMessage();
+                } else {
+                    $lastProblem = $e->getMessage();
+                }
+            }
+        }
+
+        return [$verified, $lastProblem, $weakness];
+    }
+
+    /**
+     * The trusted-list anchor an answer's responder was accepted through: one
+     * that is listed and is neither the certificate's CA nor a responder the CA
+     * delegated to, both of which the CA's own chain already vouches for.
+     */
+    private static function listedResponder(TrustStore $store, OcspVerificationResult $answer, Certificate $issuer): ?TrustAnchor
+    {
+        if (!$answer->responderFromTrustList || $answer->responderIsIssuer) {
+            return null;
+        }
+        try {
+            if ($answer->responder->hasExtendedKeyUsage(Oids::ID_KP_OCSP_SIGNING) && $answer->responder->isSignedBy($issuer)) {
+                return null;
+            }
+        } catch (CryptoException) {
+            // Not shown to be delegated, so the list is what it rests on.
+        }
+        foreach ($store->anchors(ServiceType::ocspTypes()) as $anchor) {
+            if ($anchor->certificate->equals($answer->responder)) {
+                return $anchor;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Verify every archive timestamp: what it covers, its own signature, and
      * that its authority is trusted.
      *
@@ -576,7 +670,7 @@ final class SignatureValidator
     private function checkArchiveTimestamps(
         AsicContainer $container,
         \DOMElement $element,
-        TrustStore $store,
+        TrustedListExpiry $expiry,
         ?TimestampToken $signatureTimestamp,
         array &$findings,
     ): ?\DateTimeImmutable {
@@ -588,7 +682,7 @@ final class SignatureValidator
         $resolver = new ContainerReferenceResolver($container);
         $tsaCandidates = array_values(array_map(
             static fn(\Allkiri\Trust\TrustAnchor $anchor): Certificate => $anchor->certificate,
-            $store->anchors(ServiceType::tsaTypes()),
+            $expiry->unfiltered->anchors(ServiceType::tsaTypes()),
         ));
         $latest = null;
         $previous = $signatureTimestamp?->genTime();
@@ -638,8 +732,13 @@ final class SignatureValidator
             }
 
             try {
-                (new ChainBuilder($store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+                $tsaChain = (new ChainBuilder($expiry->store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
+                $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()));
+                if ($refused !== null) {
+                    $findings[] = $expiry->refusal($refused, \sprintf('archive timestamp %d\'s authority', $number), SubIndication::NoPoe);
+                    continue;
+                }
                 if ($e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED) {
                     $findings[] = $this->archiveWeakFinding($number, $e->getMessage());
                     continue;
@@ -652,6 +751,7 @@ final class SignatureValidator
                 );
                 continue;
             }
+            $expiry->relyOn($tsaChain->anchor, \sprintf('archive timestamp %d\'s authority', $number));
 
             // Each archive timestamp covers the ones before it, so its own time
             // has to come after theirs, or the chain of proof runs backwards.

@@ -7,6 +7,7 @@ namespace Allkiri\Trust;
 use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
+use Allkiri\Trust\TrustedList\TrustedListStatus;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -50,7 +51,10 @@ final class ListOfListsTrustStore implements TrustStore
             return;
         }
 
-        $listOfLists = $this->loader->load($this->source->toSource());
+        $listOfListsSource = $this->source->toSource();
+        $listOfLists = $this->loader->load($listOfListsSource);
+        // Anchors reached through the list of lists rest on it being current too.
+        $listOfListsStatus = TrustedListStatus::of($listOfLists, $listOfListsSource->label());
         $this->logger?->info('Loaded the list of trusted lists: sequence {sequence}, {pointers} pointers', [
             'sequence' => $listOfLists->sequenceNumber,
             'pointers' => \count($listOfLists->pointers),
@@ -66,9 +70,10 @@ final class ListOfListsTrustStore implements TrustStore
                 );
             }
 
-            $list = $this->loader->load($this->source->sourceFor($pointer, $this->serviceTypes));
+            $nationalSource = $this->source->sourceFor($pointer, $this->serviceTypes);
+            $list = $this->loader->load($nationalSource);
             foreach ($list->anchors($this->serviceTypes) as $anchor) {
-                $anchors[] = $anchor;
+                $anchors[] = $anchor->withTrustedList(($anchor->trustedList ?? TrustedListStatus::of($list, $nationalSource->label()))->withListOfLists($listOfListsStatus));
             }
             $this->logger?->info('Loaded the {territory} trusted list: {anchors} anchors', [
                 'territory' => $territory,

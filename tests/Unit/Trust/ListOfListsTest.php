@@ -214,6 +214,32 @@ final class ListOfListsTest extends TestCase
         self::assertStringContainsString('ESTEID2018', $names);
     }
 
+    /**
+     * A national list is only as current as the list of lists that named its
+     * signers, so its anchors carry both.
+     */
+    public function testNationalAnchorsKnowTheListOfListsTheyWereReachedThrough(): void
+    {
+        $http = new MockHttpClient();
+        $http->respond('https://lotl.test/', 200, 'application/vnd.etsi.tsl+xml', (string) file_get_contents('tests/fixtures/captured/test-lotl-tl-mp-test-EE.xml'));
+        $http->respond('https://open-eid.github.io/test-TL/EE_T.xml', 200, 'application/vnd.etsi.tsl+xml', (string) file_get_contents('tests/fixtures/captured/test-tl-EE_T.xml'));
+        $signer = Certificate::fromPem((string) file_get_contents('resources/trust/test/test-tsl-signer.pem'));
+        $store = new ListOfListsTrustStore($this->loader($http), new ListOfListsSource('https://lotl.test/lotl.xml', [$signer], ['EE_T']));
+
+        $store->load();
+        $anchors = $store->anchors();
+
+        self::assertNotSame([], $anchors);
+        foreach ($anchors as $anchor) {
+            self::assertStringContainsString('EE_T', (string) $anchor->trustedList?->label);
+            self::assertSame('EU list of trusted lists', $anchor->trustedList?->listOfLists?->label);
+        }
+        $status = $anchors[0]->trustedList;
+        self::assertNotNull($status);
+        self::assertNull($status->expiredAt(new \DateTimeImmutable('2027-08-20T00:00:00Z')));
+        self::assertSame('EU list of trusted lists', $status->expiredAt(new \DateTimeImmutable('2027-09-01T00:00:00Z'))?->label, 'the list of lists runs out first');
+    }
+
     // --- the environment ----------------------------------------------------
 
     public function testTheProductionEnvironmentShipsTheJournalCertificates(): void

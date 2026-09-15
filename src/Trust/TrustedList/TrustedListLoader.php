@@ -35,14 +35,20 @@ final class TrustedListLoader
      */
     public function load(TrustedListSource $source): TrustedList
     {
-        $xml = $this->cached($source) ?? $this->fetch($source);
+        $cached = $this->cached($source);
+        $xml = $cached ?? $this->fetch($source);
         $this->verifier->verify($xml, $source->allowedSigners);
         $list = $this->parser->parse($xml, $source->label());
-        $this->store($source, $xml);
+        // Stored when fetched, not again on every hit. Storing it again would
+        // renew the entry's lifetime each time, and under steady use a list past
+        // its next update would never be fetched again.
+        if ($cached === null) {
+            $this->store($source, $xml);
+        }
 
         $now = $this->clock?->now();
         if ($now !== null && $list->isExpiredAt($now)) {
-            $this->logger?->warning('Trusted list {list} expired on {nextUpdate}; its anchors are being used anyway', [
+            $this->logger?->warning('Trusted list {list} expired on {nextUpdate}; its anchors are still loaded, and validation reports each signature that rests on them', [
                 'list' => $source->label(),
                 'nextUpdate' => $list->nextUpdate?->format(DATE_ATOM) ?? 'an unknown date',
             ]);

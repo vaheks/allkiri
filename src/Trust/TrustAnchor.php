@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Trust;
 
 use Allkiri\Crypto\Certificate;
+use Allkiri\Trust\TrustedList\TrustedListStatus;
 
 /**
  * A certificate that is trusted for a service type, with the status history
@@ -18,6 +19,7 @@ final readonly class TrustAnchor
 
     /**
      * @param list<array{status: ServiceStatus, since: \DateTimeImmutable}> $statusHistory
+     * @param TrustedListStatus|null                                        $trustedList   the list that published the anchor; null for one configured by hand, which never expires
      */
     public function __construct(
         public Certificate $certificate,
@@ -25,9 +27,15 @@ final readonly class TrustAnchor
         public string $serviceName,
         array $statusHistory,
         public string $source,
+        public ?TrustedListStatus $trustedList = null,
     ) {
         usort($statusHistory, static fn(array $a, array $b): int => $a['since'] <=> $b['since']);
         $this->statusHistory = $statusHistory;
+    }
+
+    public function withTrustedList(TrustedListStatus $trustedList): self
+    {
+        return new self($this->certificate, $this->serviceType, $this->serviceName, $this->statusHistory, $this->source, $trustedList);
     }
 
     /**
