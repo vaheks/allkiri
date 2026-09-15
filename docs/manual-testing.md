@@ -23,7 +23,6 @@ directly, which is the quickest check:
 
 ```bash
 "C:/Program Files/DigiDoc4 Client/digidoc-tool.exe" open --tslurl=https://open-eid.github.io/test-TL/tl-mp-test-EE.xml --tslcert=C:/path/to/allkiri/resources/trust/test/test-tsl-signer.pem leping.asice
-esources	rust	est	est-tsl-signer.pem leping.asice
 ```
 
 Both paths are absolute on purpose. `--tslcert` is resolved against the current
