@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Base of the trust layer's failures (trusted lists, anchors, chains).
  */
-class TrustException extends AllkiriException {}
+class TrustException extends \RuntimeException implements AllkiriException {}

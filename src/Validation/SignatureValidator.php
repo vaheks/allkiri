@@ -435,9 +435,9 @@ final class SignatureValidator
             try {
                 $tsaChain = (new ChainBuilder($expiry->store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
-                $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()));
-                if ($refused !== null) {
-                    $findings[] = $expiry->refusal($refused, 'the signature timestamp\'s authority', SubIndication::NoPoe);
+                $refusal = $expiry->refusal(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()), 'the signature timestamp\'s authority', SubIndication::NoPoe);
+                if ($refusal !== null) {
+                    $findings[] = $refusal;
                     continue;
                 }
                 $findings[] = $e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED
@@ -463,9 +463,9 @@ final class SignatureValidator
         try {
             $chain = (new ChainBuilder($expiry->store, $this->policy->algorithmConstraints()))->build($signer, $signature->certificateValues, $at, ServiceType::caTypes());
         } catch (ChainBuildingException $e) {
-            $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $signer, $signature->certificateValues, $at, ServiceType::caTypes()));
-            if ($refused !== null) {
-                $findings[] = $expiry->refusal($refused, 'the signer\'s certificate authority', SubIndication::NoCertificateChainFound);
+            $refusal = $expiry->refusal(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $signer, $signature->certificateValues, $at, ServiceType::caTypes()), 'the signer\'s certificate authority', SubIndication::NoCertificateChainFound);
+            if ($refusal !== null) {
+                $findings[] = $refusal;
 
                 return null;
             }
@@ -534,7 +534,7 @@ final class SignatureValidator
 
                 return null;
             }
-            $refused = $expiry->refusedAnchor(function (TrustStore $every) use ($signature, $signer, $issuer, $at): ?TrustAnchor {
+            $refusal = $expiry->refusal(function (TrustStore $every) use ($signature, $signer, $issuer, $at): ?TrustAnchor {
                 foreach ($this->verifiedResponses($signature, $signer, $issuer, $at, $every)[0] as $answer) {
                     $anchor = self::listedResponder($every, $answer, $issuer);
                     if ($anchor !== null) {
@@ -543,9 +543,9 @@ final class SignatureValidator
                 }
 
                 return null;
-            });
-            if ($refused !== null) {
-                $findings[] = $expiry->refusal($refused, 'the OCSP responder', SubIndication::TryLater);
+            }, 'the OCSP responder', SubIndication::TryLater);
+            if ($refusal !== null) {
+                $findings[] = $refusal;
 
                 return null;
             }
@@ -754,9 +754,9 @@ final class SignatureValidator
             try {
                 $tsaChain = (new ChainBuilder($expiry->store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
-                $refused = $expiry->refusedAnchor(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()));
-                if ($refused !== null) {
-                    $findings[] = $expiry->refusal($refused, \sprintf('archive timestamp %d\'s authority', $number), SubIndication::NoPoe);
+                $refusal = $expiry->refusal(fn(TrustStore $every): ?TrustAnchor => $this->anchorOf($every, $verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes()), \sprintf('archive timestamp %d\'s authority', $number), SubIndication::NoPoe);
+                if ($refusal !== null) {
+                    $findings[] = $refusal;
                     continue;
                 }
                 if ($e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED) {

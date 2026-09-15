@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * A signature could not be created.
  */
-class SigningException extends AllkiriException {}
+class SigningException extends \RuntimeException implements AllkiriException {}

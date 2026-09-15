@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Xades\Dsig;
 
+use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Xades\Ns;
 
 /**
@@ -21,7 +22,7 @@ final class Xml
     {
         $document = $context instanceof \DOMDocument ? $context : $context->ownerDocument;
         if ($document === null) {
-            throw new \LogicException('Node without an owner document');
+            throw new InvalidArgumentException('The node belongs to no document, so it cannot be searched');
         }
         $xpath = new \DOMXPath($document);
         $xpath->registerNamespace('ds', Ns::DS);
