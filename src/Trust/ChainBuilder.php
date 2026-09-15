@@ -11,8 +11,8 @@ use Allkiri\Crypto\UnsupportedAlgorithmException;
 /**
  * Finds a path from a certificate to a trust anchor that is valid at a given
  * moment: every certificate within its validity period, every signature
- * verified and made with an acceptable algorithm and key, the anchor's service
- * in a trustworthy status at that moment.
+ * verified and made with an acceptable algorithm and key, every CA within its
+ * own constraints, the anchor's service in a trustworthy status at that moment.
  *
  * Intermediates come from the caller (a signature's KeyInfo and
  * CertificateValues, an OCSP response's certs, a timestamp token's
@@ -90,7 +90,7 @@ final class ChainBuilder
 
         // Anchors that could have issued it.
         foreach ($this->store->findIssuerAnchors($current) as $anchor) {
-            if (!$this->signedBy($current, $anchor->certificate, $failure)) {
+            if (!$this->signedBy($current, $anchor->certificate, $failure) || !$this->mayIssue($anchor->certificate, $path, false, $failure)) {
                 continue;
             }
             $result = $this->acceptAnchor($anchor, [...$path, $anchor->certificate], $time, $acceptedAnchorTypes, $failure);
@@ -109,7 +109,7 @@ final class ChainBuilder
                     continue 2;
                 }
             }
-            if (!$this->signedBy($current, $candidate, $failure)) {
+            if (!$this->signedBy($current, $candidate, $failure) || !$this->mayIssue($candidate, $path, true, $failure)) {
                 continue;
             }
             $result = $this->search($candidate, $intermediates, $time, $acceptedAnchorTypes, $path, $failure);
@@ -169,6 +169,42 @@ final class ChainBuilder
         }
         if ($violation !== null) {
             self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, \sprintf('%s is %s', $subject->subjectDn(), $violation)));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether a CA's own constraints let it issue the certificate above
+     * everything already in the path.
+     *
+     * The path length counts the CA certificates between this issuer and the
+     * leaf, leaving out self-issued ones, as RFC 5280 §6.1.4 does; a trust
+     * anchor's limit is held to as well. An intermediate that restricts its key
+     * usage must allow keyCertSign.
+     *
+     * @param non-empty-list<Certificate> $below the path so far, leaf first, ending with the certificate this one would issue
+     */
+    private function mayIssue(Certificate $issuer, array $below, bool $intermediate, ?ChainBuildingException &$failure): bool
+    {
+        $limit = $issuer->pathLenConstraint();
+        if ($limit !== null) {
+            $following = 0;
+            foreach (\array_slice($below, 1) as $certificate) {
+                if (!$certificate->isSelfIssued()) {
+                    ++$following;
+                }
+            }
+            if ($following > $limit) {
+                self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_PATH_LENGTH, \sprintf('%s allows %d CA certificates below it, and the path has %d', $issuer->subjectDn(), $limit, $following)));
+
+                return false;
+            }
+        }
+        if ($intermediate && $issuer->hasExtension('id-ce-keyUsage') && !\in_array('keyCertSign', $issuer->keyUsage(), true)) {
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_CA_KEY_USAGE, \sprintf('%s is not allowed to sign certificates: its key usage lacks keyCertSign', $issuer->subjectDn())));
 
             return false;
         }

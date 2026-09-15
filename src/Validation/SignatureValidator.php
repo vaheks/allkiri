@@ -80,6 +80,7 @@ final class SignatureValidator
         $this->checkStructure($signature, $findings);
         $this->checkAlgorithms($signature, $signer, $findings);
         $this->checkSigningCertificateReference($signature, $signer, $findings);
+        $this->checkSigningCertificateUsage($signer, $findings);
         $this->checkReferences($container, $signature, $element, $signer, $findings);
 
         $timestamp = $this->checkTimestamps($signature, $store, $findings);
@@ -232,6 +233,23 @@ final class SignatureValidator
             return;
         }
         $this->checkIssuerSerial($reference, $signer, $findings);
+    }
+
+    /**
+     * A signature needs a certificate for signing. ETSI EN 319 412-2 requires
+     * nonRepudiation (X.509's contentCommitment) in the key usage of a
+     * certificate for electronic signatures; an authentication certificate from
+     * the same CA does not have it. Like DSS and SiVa, this is a failed
+     * certificate constraint rather than proof of forgery.
+     *
+     * @param list<Finding> $findings
+     */
+    private function checkSigningCertificateUsage(?Certificate $signer, array &$findings): void
+    {
+        if ($signer === null || \in_array('nonRepudiation', $signer->keyUsage(), true)) {
+            return;
+        }
+        $findings[] = Finding::error(FindingCodes::SIGNING_CERTIFICATE_KEY_USAGE, 'The signing certificate is not a certificate for signing: its key usage lacks nonRepudiation', Indication::Indeterminate, SubIndication::ChainConstraintsFailure);
     }
 
     /**
@@ -408,6 +426,8 @@ final class SignatureValidator
                 // Genuine, but made with what no longer counts: nothing here is
                 // forged, and nothing proves it was made while it still counted.
                 ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED => Finding::error(FindingCodes::CHAIN_WEAK_ALGORITHM, 'The signer\'s certificate chain cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe),
+                // A path through certificates the signature did not carry might still conform.
+                ChainBuildingException::REASON_PATH_LENGTH, ChainBuildingException::REASON_CA_KEY_USAGE => Finding::error(FindingCodes::CHAIN_CONSTRAINT_VIOLATED, 'The signer\'s certificate chain breaks a CA\'s constraints: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::ChainConstraintsFailure),
                 default => Finding::error(FindingCodes::CHAIN_NOT_FOUND, 'The signer\'s certificate does not chain to a trusted CA: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoCertificateChainFound),
             };
 

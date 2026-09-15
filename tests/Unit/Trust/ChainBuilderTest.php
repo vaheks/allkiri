@@ -19,6 +19,7 @@ use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceStatus;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
@@ -211,6 +212,76 @@ final class ChainBuilderTest extends TestCase
         }
     }
 
+    public function testAPathLengthConstraintIsHeldTo(): void
+    {
+        $at = new \DateTimeImmutable('2026-01-01T00:00:00Z');
+        $rootStore = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+        // A CA that may have no CA below it, and one below it anyway.
+        $limited = self::ca('allkiri Limited CA', pathLen: 0);
+        $below = self::ca('allkiri CA Below The Limit', $limited);
+        $leaf = self::leaf($below);
+
+        try {
+            (new ChainBuilder($rootStore))->build($leaf, [$below->certificate, $limited->certificate], $at, ServiceType::caTypes());
+            self::fail('a CA below a pathLen 0 CA was accepted');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_PATH_LENGTH, $e->reason);
+        }
+
+        // The limit holds when the limited CA is the trust anchor, too.
+        try {
+            (new ChainBuilder(InMemoryTrustStore::fromCertificates([$limited->certificate], ServiceType::CaQc)))->build($leaf, [$below->certificate], $at, ServiceType::caTypes());
+            self::fail('a trust anchor\'s pathLen 0 was ignored');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_PATH_LENGTH, $e->reason);
+        }
+
+        // A leaf directly below it is what pathLen 0 allows.
+        self::assertSame(3, (new ChainBuilder($rootStore))->build(self::leaf($limited), [$limited->certificate], $at, ServiceType::caTypes())->length());
+        // And pathLen 1 allows one CA below.
+        $roomier = self::ca('allkiri CA Allowing One', pathLen: 1);
+        $underRoomier = self::ca('allkiri CA Under One', $roomier);
+        self::assertSame(4, (new ChainBuilder($rootStore))->build(self::leaf($underRoomier), [$underRoomier->certificate, $roomier->certificate], $at, ServiceType::caTypes())->length());
+    }
+
+    /**
+     * A CA that certifies its own new key under the same name adds a
+     * certificate to the path but not a level, and RFC 5280 does not count it.
+     */
+    public function testASelfIssuedCertificateDoesNotCountTowardsThePathLength(): void
+    {
+        $limited = self::ca('allkiri Rollover CA', pathLen: 0);
+        $newKey = TestKey::ec(label: 'allkiri Rollover CA, new key');
+        $rolledOver = TestIssuer::of(TestCertificates::issue($newKey, ['id-at-commonName' => 'allkiri Rollover CA'], [
+            'id-ce-basicConstraints' => [['cA' => true, 'pathLenConstraint' => new BigInteger(0)], true],
+            'id-ce-keyUsage' => [['keyCertSign', 'cRLSign'], true],
+            'id-pe-authorityInfoAccess' => null,
+        ], $limited), $newKey);
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+
+        $chain = (new ChainBuilder($store))->build(self::leaf($rolledOver), [$rolledOver->certificate, $limited->certificate], new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+
+        self::assertSame(4, $chain->length());
+    }
+
+    public function testAnIntermediateNotAllowedToSignCertificatesIsRefused(): void
+    {
+        $at = new \DateTimeImmutable('2026-01-01T00:00:00Z');
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+        $notForCertificates = self::ca('allkiri CA Without keyCertSign', keyUsage: ['digitalSignature']);
+
+        try {
+            (new ChainBuilder($store))->build(self::leaf($notForCertificates), [$notForCertificates->certificate], $at, ServiceType::caTypes());
+            self::fail('an intermediate without keyCertSign issued a certificate');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_CA_KEY_USAGE, $e->reason);
+        }
+
+        // One that does not restrict its key usage at all is not refused for it.
+        $unrestricted = self::ca('allkiri CA Without Key Usage', keyUsage: null);
+        self::assertSame(3, (new ChainBuilder($store))->build(self::leaf($unrestricted), [$unrestricted->certificate], $at, ServiceType::caTypes())->length());
+    }
+
     public function testStatusHistoryAndServiceTypeHelpers(): void
     {
         $anchor = TrustAnchor::manual(TestPki::ca()->certificate, ServiceType::CaQc);
@@ -222,5 +293,28 @@ final class ChainBuilderTest extends TestCase
         self::assertTrue(ServiceType::OcspQc->isOcsp());
         self::assertFalse(ServiceType::CaPkc->isTsa());
         self::assertNull(ServiceType::tryFrom('http://uri.etsi.org/TrstSvc/Svctype/unknown'));
+    }
+
+    /**
+     * A CA issued in the test, by the committed test CA unless another issuer is given.
+     *
+     * @param list<string>|null $keyUsage null leaves the key usage extension out
+     */
+    private static function ca(string $name, ?TestIssuer $issuer = null, ?int $pathLen = null, ?array $keyUsage = ['keyCertSign', 'cRLSign']): TestIssuer
+    {
+        $key = TestKey::ec(label: $name);
+        $basicConstraints = $pathLen === null ? ['cA' => true] : ['cA' => true, 'pathLenConstraint' => new BigInteger($pathLen)];
+        $issued = TestCertificates::issue($key, ['id-at-commonName' => $name], [
+            'id-ce-basicConstraints' => [$basicConstraints, true],
+            'id-ce-keyUsage' => $keyUsage === null ? null : [$keyUsage, true],
+            'id-pe-authorityInfoAccess' => null,
+        ], $issuer);
+
+        return TestIssuer::of($issued, $key);
+    }
+
+    private static function leaf(TestIssuer $issuer): Certificate
+    {
+        return TestCertificates::issue(TestKey::ec(label: 'leaf of ' . $issuer->certificate->subjectDn()), ['id-at-commonName' => 'allkiri Test Leaf'], issuer: $issuer)->certificate;
     }
 }

@@ -233,6 +233,26 @@ that got furthest along one. Otherwise the last candidate tried, often a
 certificate that merely shares a name with the real issuer, would decide the
 verdict.
 
+### A certificate is judged for the job it does
+
+A signing certificate must carry nonRepudiation, as ETSI EN 319 412-2 requires
+of certificates for electronic signatures. digitalSignature is not required,
+because SK's signing certificates carry nonRepudiation alone. A signature by a
+certificate without it is INDETERMINATE with `CHAIN_CONSTRAINTS_FAILURE`, not
+TOTAL-FAILED. That matches how ETSI EN 319 102-1 treats a certificate that fails
+a validation constraint, and so what SiVa reports. The signing service refuses
+such a certificate before anything is built.
+
+A CA's path length constraint is held to as RFC 5280 counts it, and a trust
+anchor's limit is held to as well; none of the Estonian chains in the fixtures
+comes near a limit. An intermediate that restricts its key usage must allow
+keyCertSign.
+
+A timestamp authority's certificate must mark its timestamping purpose
+critical, as RFC 3161 requires, and every SK TSA certificate seen does. An OCSP
+responder's certificate is not held to the same: RFC 6960 does not ask for it,
+and several of SK's responder certificates mark OCSPSigning non-critical.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry

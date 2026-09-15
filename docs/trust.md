@@ -74,3 +74,12 @@ An anchor is trusted for one kind of service only. A certificate authority
 cannot vouch for a timestamp, and a timestamp authority cannot issue signing
 certificates. allkiri enforces that: chains are built against the service type
 the caller asks for.
+
+Within a chain, each CA's own constraints hold too. A path length constraint
+limits how many CA certificates may follow it, counted as RFC 5280 counts them,
+so a CA that certifies its own new key under the same name does not use up a
+level; a trust anchor's limit is held to as well. An intermediate whose key
+usage leaves out keyCertSign cannot issue certificates. A chain that breaks
+either is reported as `INDETERMINATE` with `CHAIN_CONSTRAINTS_FAILURE`, because
+a conforming path through certificates the signature did not carry could still
+exist.

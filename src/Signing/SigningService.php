@@ -43,9 +43,16 @@ final class SigningService
 
     /**
      * Build everything that is signed and return what the signer must sign.
+     *
+     * @throws CertificateNotForSigningException when the certificate's key usage lacks nonRepudiation
      */
     public function prepare(AsicContainer $container, Certificate $signer, SigningOptions $options = new SigningOptions()): DataToBeSigned
     {
+        // Every validator refuses such a signature, so it is refused before a
+        // person is asked for a PIN or a timestamp is bought.
+        if (!\in_array('nonRepudiation', $signer->keyUsage(), true)) {
+            throw new CertificateNotForSigningException('This certificate is not for signing: its key usage lacks nonRepudiation, which every certificate for electronic signatures has');
+        }
         if ($options->level !== SignatureLevel::B && $this->ltExtender === null) {
             throw new SigningException(\sprintf('Signing at level %s needs a timestamp and OCSP service; none is configured', $options->level->value));
         }

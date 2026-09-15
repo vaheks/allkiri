@@ -14,10 +14,12 @@ use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\Ocsp\CertId;
 use Allkiri\Crypto\Ocsp\OcspRequest;
+use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampRequest;
 use Allkiri\Crypto\Tsp\TimestampResponse;
 use Allkiri\Crypto\Tsp\TimestampToken;
 use Allkiri\Http\HttpRequest;
+use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningOptions;
@@ -43,6 +45,8 @@ use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationOptions;
 use Allkiri\Validation\ValidationPolicy;
 use Allkiri\Xades\Ns;
+use Allkiri\Xades\SignatureBuilder;
+use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -88,11 +92,19 @@ final class ValidationTest extends TestCase
         $swapped = preg_replace('#(<xades:' . $element . '[^>]*>)[^<]+#', '${1}' . base64_encode($der), $xml, 1);
         self::assertIsString($swapped);
 
+        return self::containerOfA($swapped);
+    }
+
+    /**
+     * The one-file container of a.txt, with the given signature file.
+     */
+    private static function containerOfA(string $signatureXml): string
+    {
         return (new ZipWriter())
             ->addStored('mimetype', Ns::MIME_ASICE)
             ->addDeflated('a.txt', 'x')
             ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'x')])->toXml())
-            ->addDeflated('META-INF/signatures0.xml', $swapped)
+            ->addDeflated('META-INF/signatures0.xml', $signatureXml)
             ->build();
     }
 
@@ -353,6 +365,80 @@ final class ValidationTest extends TestCase
         self::assertSame(SubIndication::CryptoConstraintsFailureNoPoe, $signature->subIndication);
         self::assertTrue($signature->has(FindingCodes::CHAIN_WEAK_ALGORITHM));
         self::assertFalse($signature->has(FindingCodes::CHAIN_INVALID));
+    }
+
+    /**
+     * #15: an authentication certificate from the same CA is not a certificate
+     * for signing. The signing service would refuse it, so the signature is
+     * finalised here without prepare(), as another tool could have made it.
+     */
+    public function testASignatureByACertificateNotForSigningIsIndeterminate(): void
+    {
+        $fixture = new SigningFixture();
+        $container = AsicContainer::create(DataFile::fromString('a.txt', 'x'));
+        $card = TestPki::cardAuth();
+        $algorithm = SignatureAlgorithm::forKey($card->certificate->publicKey());
+        $built = (new SignatureBuilder($fixture->clock))->build($container->dataFiles, $card->certificate, $algorithm);
+        $prepared = new DataToBeSigned(
+            $built->signatureId,
+            $container->nextSignatureFileName(),
+            $algorithm,
+            $built->digest(),
+            $built->signedInfoCanonical,
+            $built->document->toXml(),
+            $card->certificate,
+            $container->fingerprint(),
+            SignatureLevel::LT,
+            $fixture->clock->now(),
+        );
+        $result = $fixture->signingService->finalize($container, $prepared, LocalKeySigner::fromKeyPair($card)->sign($prepared));
+
+        $signature = self::validator($fixture)->validate((new AsicWriter())->write($result->container))->signatures[0];
+
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::ChainConstraintsFailure, $signature->subIndication);
+        self::assertSame([FindingCodes::SIGNING_CERTIFICATE_KEY_USAGE], array_map(static fn($f): string => $f->code, $signature->errors()));
+    }
+
+    /**
+     * #15: a CA with a path length constraint of 0, and a CA below it that it
+     * was not allowed to have, carried in the signature's own certificates.
+     */
+    public function testAChainThatBreaksAPathLengthConstraintIsIndeterminate(): void
+    {
+        $limitedKey = TestKey::ec(label: 'validation pathLen 0 CA');
+        $limited = TestIssuer::of(TestCertificates::issue($limitedKey, ['id-at-commonName' => 'allkiri Limited CA'], [
+            'id-ce-basicConstraints' => [['cA' => true, 'pathLenConstraint' => new BigInteger(0)], true],
+            'id-ce-keyUsage' => [['keyCertSign', 'cRLSign'], true],
+            'id-pe-authorityInfoAccess' => null,
+        ]), $limitedKey);
+        $belowKey = TestKey::ec(label: 'validation CA below pathLen 0');
+        $below = TestCertificates::issue($belowKey, ['id-at-commonName' => 'allkiri CA Below The Limit'], [
+            'id-ce-basicConstraints' => [['cA' => true], true],
+            'id-ce-keyUsage' => [['keyCertSign', 'cRLSign'], true],
+            'id-pe-authorityInfoAccess' => null,
+        ], $limited);
+        $signer = TestCertificates::issue(
+            TestKey::ec(label: 'validation signer below pathLen 0'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            TestIssuer::of($below, $belowKey),
+        );
+
+        // Signing trusts the lower CA directly; validation trusts only the root,
+        // with the limited CA added to the signature's certificates.
+        $fixture = new SigningFixture(extraCas: [$below->certificate]);
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($signer));
+        $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        $withLimited = str_replace('</xades:CertificateValues>', '<xades:EncapsulatedX509Certificate>' . $limited->certificate->base64() . '</xades:EncapsulatedX509Certificate></xades:CertificateValues>', $xml, $count);
+        self::assertSame(1, $count);
+
+        $rootOnly = (new SigningFixture($fixture->clock))->trustStore;
+        $signature = self::validator($fixture)->validate(self::containerOfA($withLimited), 'a.asice', new ValidationOptions(trustStore: $rootOnly))->signatures[0];
+
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::ChainConstraintsFailure, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::CHAIN_CONSTRAINT_VIOLATED));
     }
 
     public function testATimestampSignedWithSha1IsIndeterminate(): void

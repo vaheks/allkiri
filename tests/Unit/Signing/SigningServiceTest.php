@@ -11,6 +11,7 @@ use Allkiri\Container\DataFile;
 use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Signing\CertificateNotForSigningException;
 use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\InvalidSignatureValueException;
 use Allkiri\Signing\LocalKeySigner;
@@ -345,6 +346,24 @@ final class SigningServiceTest extends TestCase
         } catch (SigningException $e) {
             self::assertStringContainsString('before the timestamp', $e->getMessage());
         }
+    }
+
+    /**
+     * #15: an authentication certificate chains to the same CA as a signing
+     * one, but every validator refuses what it signs, so nothing is spent on it.
+     */
+    public function testACertificateThatIsNotForSigningIsRefusedBeforeAnythingIsSpent(): void
+    {
+        $fixture = new SigningFixture();
+
+        try {
+            $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::cardAuth()));
+            self::fail('an authentication certificate was used to sign');
+        } catch (CertificateNotForSigningException $e) {
+            self::assertStringContainsString('nonRepudiation', $e->getMessage());
+        }
+        self::assertSame(0, $fixture->tsa->requests);
+        self::assertSame(0, $fixture->ocsp->requests);
     }
 
     /**
