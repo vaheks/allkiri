@@ -340,9 +340,15 @@
    * mint those: the session secret that signs them must never reach a browser.
    * So this asks the server for each new link rather than building any itself.
    *
-   * Returns a handle with `stop()`; the promise settles when the session does.
+   * Returns a handle with `stop()`. The promise settles when the session does,
+   * and rejects as cancelled once `stop()` is called or `signal` aborts.
    *
-   * @param {{linkUrl: string, pollUrl: string, element: Element, interval?: number, size?: number, level?: 'L'|'M', onError?: Function}} options
+   * One link request is in flight at a time, so a slow server is not asked
+   * again before it has answered. A request still unanswered after three
+   * intervals is cancelled and replaced, since the link it would bring back is
+   * stale. `stop()` cancels the request in flight.
+   *
+   * @param {{linkUrl: string, pollUrl: string, element: Element, interval?: number, pollInterval?: number, timeout?: number, size?: number, level?: 'L'|'M', signal?: AbortSignal, headers?: object, credentials?: string, onError?: Function}} options
    * @returns {{promise: Promise<object>, stop: Function}}
    */
   function deviceLinkQr(options) {
@@ -353,15 +359,42 @@
       throw new Error('deviceLinkQr needs an element to draw into');
     }
 
+    var interval = options.interval || 1000;
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var stopped = false;
     var timer = null;
+    var inFlight = null;
 
     function draw() {
+      timer = null;
       if (stopped) {
         return;
       }
-      post(options.linkUrl, undefined, options).then(function (answer) {
+      if (inFlight !== null) {
+        if (Date.now() - inFlight.startedAt < interval * 3) {
+          schedule();
+          return;
+        }
+        // Unanswered for three rounds: whatever it brings back is stale.
+        if (inFlight.controller) {
+          inFlight.controller.abort();
+        }
+        inFlight = null;
+      }
+
+      var request = {
+        controller: typeof AbortController !== 'undefined' ? new AbortController() : null,
+        startedAt: Date.now()
+      };
+      inFlight = request;
+      post(options.linkUrl, undefined, {
+        headers: options.headers,
+        credentials: options.credentials,
+        signal: request.controller ? request.controller.signal : undefined
+      }).then(function (answer) {
+        if (inFlight === request) {
+          inFlight = null;
+        }
         if (stopped || !answer || !answer.link) {
           return;
         }
@@ -370,26 +403,55 @@
           level: options.level || 'M',
           title: 'Smart-ID'
         });
-      }).catch(function (error) {
-        if (!stopped && options.onError) {
+      }, function (error) {
+        if (inFlight === request) {
+          inFlight = null;
+        }
+        // A request this loop cancelled itself is not worth reporting.
+        if (!stopped && options.onError && !(error && error.name === 'AbortError')) {
           options.onError(error);
         }
       });
+      schedule();
     }
 
-    draw();
-    timer = setInterval(draw, options.interval || 1000);
+    function schedule() {
+      if (!stopped && timer === null) {
+        timer = setTimeout(draw, interval);
+      }
+    }
 
     function stop() {
+      if (stopped) {
+        return;
+      }
       stopped = true;
-      if (timer) {
-        clearInterval(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
         timer = null;
       }
+      if (inFlight !== null && inFlight.controller) {
+        inFlight.controller.abort();
+      }
+      inFlight = null;
       if (controller) {
         controller.abort();
       }
+      if (options.signal) {
+        options.signal.removeEventListener('abort', stop);
+      }
     }
+
+    // The page's own signal stops everything, as stop() does.
+    if (options.signal) {
+      if (options.signal.aborted) {
+        stop();
+      } else {
+        options.signal.addEventListener('abort', stop, { once: true });
+      }
+    }
+
+    draw();
 
     var promise = poll(options.pollUrl, {
       interval: options.pollInterval || 1500,

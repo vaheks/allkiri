@@ -307,6 +307,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- `allkiri.deviceLinkQr()` asked for a new link every interval whether or not
+  the last request had answered, so a slow server got overlapping requests, and
+  `stop()` could not cancel any of them. A `signal` passed in stopped nothing.
+  Now one link request is in flight at a time, one unanswered for three
+  intervals is replaced, `stop()` cancels the one in flight, and an aborted
+  `signal` stops the redrawing and the polling as `stop()` does.
 - `allkiri.poll()`, and so `notificationFlow()` and `deviceLinkQr()`, gave up on
   the first failure, including a dropped connection or a gateway's 502 while SK
   was still waiting for the person. A poll that got no answer from your server,

@@ -72,7 +72,8 @@
         "test:live": "phpunit --testsuite LiveSmoke",
         "test:js": [
             "node tests/js/qr-golden.mjs",
-            "node tests/js/http-contract.mjs"
+            "node tests/js/http-contract.mjs",
+            "node tests/js/device-link-qr.mjs"
         ],
         "phpstan": "phpstan analyse --memory-limit=1G",
         "cs:check": "php-cs-fixer fix --dry-run --diff",
