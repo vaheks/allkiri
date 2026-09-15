@@ -11,8 +11,9 @@ the server — are commented where they happen.
 
 **Not for production.** It refuses cross-site requests with a CSRF token of its
 own, where a real application would use its framework's protection, and it has
-no accounts, no authorisation and no rate limiting. Uploads live in a temporary
-directory keyed by session. It also reports errors verbatim, which a real
+no accounts, no authorisation and no rate limiting. Uploads are kept in
+`examples/demo-app/var/`, one container per browser session under a random
+name, and nothing deletes them. It also reports errors verbatim, which a real
 application must not do.
 
 It has two modes. In `demo` it talks to SK's free test services with the

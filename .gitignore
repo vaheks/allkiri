@@ -17,6 +17,9 @@
 .env.*
 !.env.example
 
+# The demo application's containers
+/examples/demo-app/var/
+
 # Editors and OS
 /.idea/
 /.vscode/
