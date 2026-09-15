@@ -267,6 +267,11 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A container with an entry whose name an unzip tool would place outside its
+  folder, such as an absolute path, a `..` segment, a backslash or a NUL byte,
+  is reported as `NOT_A_CONTAINER`. A data file named that way made
+  `ContainerValidator::validate()` throw `InvalidArgumentException`, and such
+  an entry under `META-INF/`, or a directory entry, was not refused at all.
 - A prepared signature no longer lasts for ever. `finalize()` refuses one
   prepared more than ten minutes earlier, by the signing time the signature
   carries, with the new `PreparedSignatureExpiredException`, and one dated more

@@ -23,9 +23,28 @@ final readonly class DataFile
         if (str_starts_with($name, 'META-INF/') || $name === 'mimetype') {
             throw new InvalidArgumentException(\sprintf('"%s" is reserved by the ASiC-E format', $name));
         }
-        if (str_contains($name, '\\') || str_starts_with($name, '/') || preg_match('#(^|/)\.\.(/|$)#', $name) === 1) {
+        if (self::unsafeNameProblem($name) !== null) {
             throw new InvalidArgumentException(\sprintf('Data file name "%s" must be a relative path without traversal', $name));
         }
+    }
+
+    /**
+     * What would make an unzip tool place an entry of this name outside the
+     * folder it extracts to, or make it a name no file system holds; null when
+     * nothing does.
+     *
+     * @internal
+     */
+    public static function unsafeNameProblem(string $name): ?string
+    {
+        return match (true) {
+            $name === '' => 'is empty',
+            str_contains($name, "\0") => 'contains a null byte',
+            str_contains($name, '\\') => 'contains a backslash, which Windows reads as a directory separator',
+            str_starts_with($name, '/') => 'is an absolute path',
+            preg_match('#(^|/)\.\.(/|$)#', $name) === 1 => 'climbs out of its folder with ".."',
+            default => null,
+        };
     }
 
     public static function fromString(string $name, string $content, ?string $mimeType = null): self

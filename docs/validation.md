@@ -256,6 +256,9 @@ libdigidocpp refuses the same archives. Also refused:
 
 - an entry whose local header gives a different name from the central
   directory, since that name is what a streaming reader sees;
+- an entry whose name an unzip tool would place outside the folder it extracts
+  to, or that no file system holds: an absolute path, a `..` segment, a
+  backslash, or a NUL byte, wherever in the archive the entry sits;
 - an entry whose content does not match its CRC-32, which goes further than
   libdigidocpp or digidoc4j check.
 

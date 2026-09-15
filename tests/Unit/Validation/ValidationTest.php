@@ -1055,6 +1055,45 @@ final class ValidationTest extends TestCase
         self::assertContains(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, $signature->codes());
     }
 
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function namesPlacedElsewhere(): iterable
+    {
+        yield 'a parent directory' => ['../x.txt'];
+        yield 'an absolute path' => ['/aa/x.tx'];
+        yield 'a null byte' => ["x\0.txt"];
+        yield 'a backslash' => ['a\\b.txt'];
+        yield 'a way out of META-INF' => ['META-INF/../x.txt'];
+        yield 'a directory that climbs out' => ['d/../../'];
+    }
+
+    /**
+     * An entry an unzip tool would write outside the folder it extracts to is
+     * an attack rather than a data file. A data file named so made validation
+     * throw; one under META-INF, or a directory, was not refused at all.
+     */
+    #[DataProvider('namesPlacedElsewhere')]
+    public function testEntriesAnUnzipToolWouldPlaceElsewhereAreNotAContainer(string $name): void
+    {
+        $placeholder = str_repeat('q', \strlen($name));
+        $sound = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored($placeholder, 'x')
+            ->build();
+        $hostile = str_replace($placeholder, $name, $sound, $count);
+        self::assertSame(2, $count, 'the name is in the local header and in the central directory');
+
+        $report = self::validator(new SigningFixture())->validate($hostile);
+
+        self::assertFalse($report->isValid());
+        self::assertSame(FindingCodes::NOT_A_CONTAINER, $report->containerFindings[0]->code);
+        self::assertStringStartsWith('Entry "', $report->containerFindings[0]->message);
+
+        $this->expectException(\Allkiri\Container\InvalidContainerException::class);
+        (new \Allkiri\Container\AsicReader())->read($hostile);
+    }
+
     public function testAnArchiveThatReadersCouldReadDifferentlyIsNotAContainer(): void
     {
         $sound = (new ZipWriter())

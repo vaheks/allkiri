@@ -45,6 +45,15 @@ final class AsicReader
         ));
         $findings = [];
 
+        // Before anything is classified: a name an unzip tool would write
+        // outside the folder it extracts to is an attack, wherever it sits.
+        foreach ($entries as $entry) {
+            $problem = DataFile::unsafeNameProblem($entry->name);
+            if ($problem !== null) {
+                throw new InvalidContainerException(\sprintf('Entry "%s" %s', addcslashes($entry->name, "\0..\37\\\""), $problem));
+            }
+        }
+
         $this->checkMimetype($entries, $findings);
 
         $manifest = null;
