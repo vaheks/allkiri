@@ -839,3 +839,15 @@ skew OCSP and validation already allow; otherwise preparing on a clock set ahead
 would stretch the limit. The limit is `preparedSignatureTtlSeconds` on the
 `Allkiri` constructor, and on `SigningService` for applications that build their
 own.
+
+### Configured URLs versus URLs from data
+
+A URL the application configures that is not http(s), such as an OCSP override or
+a trusted-list source, is a programmer error and stays an
+`InvalidArgumentException`. A URL that comes from data is not one: a certificate
+names its OCSP responder, and the list of trusted lists names where a national
+list lives. An address at another scheme there reached the HTTP client and
+escaped as `InvalidArgumentException`, from code that promised `OcspException` or
+`TrustedListException`. The OCSP client now skips an address that is not http(s)
+and falls back to the default responder, and a list-of-lists pointer to such a
+location is refused with `TrustedListException`.

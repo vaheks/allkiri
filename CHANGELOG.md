@@ -267,6 +267,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A certificate that names its OCSP responder at an address that is not http(s)
+  no longer makes `OcspClient::fetch()` throw `InvalidArgumentException`. The
+  address is skipped; without an http(s) one the default responder is asked, or
+  `OcspException` reports that none is known. A list of trusted lists that
+  places a national list at such a location is refused with
+  `TrustedListException`. `HttpRequest::isHttpUrl()` is new.
 - A container with an entry whose name an unzip tool would place outside its
   folder, such as an absolute path, a `..` segment, a backslash or a NUL byte,
   is reported as `NOT_A_CONTAINER`. A data file named that way made

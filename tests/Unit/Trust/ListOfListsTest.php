@@ -154,6 +154,19 @@ final class ListOfListsTest extends TestCase
         }
     }
 
+    public function testAPointerToALocationThatIsNotHttpIsRefused(): void
+    {
+        $source = new ListOfListsSource('https://example.test/lotl.xml', [self::certificate()], ['EE']);
+
+        try {
+            $source->sourceFor(new TrustedListPointer('EE', 'ldap://example.test/ee.xml', [self::certificate()], TrustedListPointer::MIME_XML));
+            self::fail('a list at an ldap:// location was going to be fetched');
+        } catch (TrustedListException $e) {
+            self::assertSame(TrustedListException::REASON_NO_SUCH_LIST, $e->reason);
+            self::assertStringContainsString('not an http(s) URL', $e->getMessage());
+        }
+    }
+
     public function testAPointerBecomesASourceCarryingItsOwnSigners(): void
     {
         $source = new ListOfListsSource(ListOfListsSource::EU_URL, [self::certificate()], ['EE']);

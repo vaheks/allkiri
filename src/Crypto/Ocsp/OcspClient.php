@@ -98,9 +98,12 @@ final class OcspClient
         if ($override !== null) {
             return $override;
         }
-        $aia = $subject->ocspUrls();
-        if ($aia !== []) {
-            return $aia[0];
+        // A certificate may name its responder at any scheme, and only http(s)
+        // can be asked; anything else is skipped rather than handed to the client.
+        foreach ($subject->ocspUrls() as $aia) {
+            if (HttpRequest::isHttpUrl($aia)) {
+                return $aia;
+            }
         }
 
         return $this->defaultUrl ?? throw new OcspException('OCSP_NO_RESPONDER_URL', \sprintf('No OCSP responder known for certificates issued by %s', $issuer->subjectDn()));

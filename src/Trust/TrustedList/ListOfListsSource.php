@@ -6,6 +6,7 @@ namespace Allkiri\Trust\TrustedList;
 
 use Allkiri\Crypto\Certificate;
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\Http\HttpRequest;
 
 /**
  * Where to start when trust is taken from the European list of trusted lists
@@ -70,6 +71,12 @@ final readonly class ListOfListsSource
             throw new TrustedListException(
                 TrustedListException::REASON_NO_PINS,
                 \sprintf('The list of trusted lists names no signing certificate for %s, so its list cannot be verified', $pointer->territory),
+            );
+        }
+        if (!HttpRequest::isHttpUrl($pointer->location)) {
+            throw new TrustedListException(
+                TrustedListException::REASON_NO_SUCH_LIST,
+                \sprintf('The list of trusted lists places the list for %s at "%s", which is not an http(s) URL, so it cannot be fetched', $pointer->territory, HttpRequest::withoutIdentities($pointer->location)),
             );
         }
 

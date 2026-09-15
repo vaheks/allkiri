@@ -129,12 +129,23 @@ final readonly class HttpRequest
     }
 
     /**
+     * Whether the URL is http:// or https://, the only schemes the HTTP clients
+     * speak. For a URL that comes from data, such as a certificate or a trusted
+     * list, which the caller should skip or report rather than send.
+     */
+    public static function isHttpUrl(string $url): bool
+    {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+
+        return \is_string($scheme) && \in_array(strtolower($scheme), ['http', 'https'], true);
+    }
+
+    /**
      * @return non-empty-string
      */
     private static function requireHttpUrl(string $url): string
     {
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        if ($url === '' || !\is_string($scheme) || !\in_array(strtolower($scheme), ['http', 'https'], true)) {
+        if ($url === '' || !self::isHttpUrl($url)) {
             throw new InvalidArgumentException(\sprintf('Expected an http(s) URL, got "%s"', $url));
         }
 
