@@ -12,16 +12,19 @@ new Allkiri(
     $policy,    // ValidationPolicy
     $nonces,    // NonceGenerator
     $logger,    // PSR-3
+    $reader,    // AsicReader, when its limits on containers need changing
+    600,        // seconds a prepared signature may wait for its value
 );
 ```
 
 Everything else hangs off it. Nothing is static, nothing is global, and nothing
 touches a session, a file or a database on its own.
 
-The three eID means each take their own configuration object, passed per call
-rather than held: `$allkiri->mobileIdSigner($configuration)`. Register those
-configurations as services too, because they carry your relying-party
-credentials.
+Mobile-ID and Smart-ID each take their own configuration object, and so does
+Web eID sign-in, passed per call rather than held:
+`$allkiri->mobileIdSigner($configuration)`. Web eID signing needs none. Register
+those configurations as services too, because the Mobile-ID and Smart-ID ones
+carry your relying-party credentials.
 
 ## Laravel
 
