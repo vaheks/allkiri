@@ -214,6 +214,12 @@ What to show a person is your decision, and it should not be the message: these
 are for your logs. `docs/mobile-id.md` and `docs/smart-id.md` list the outcomes
 worth distinguishing.
 
+For the ID card, `allkiri.describeWebEidError(error)` does that part. Given the
+error `cardLogin()` or `cardSign()` rejected with, it returns `{code, who, text}`:
+`who` is `person`, `operator` or `developer`, and `text` is a sentence in English
+for them. Anything that is not a known web-eid.js error gives `null`. The codes
+and what they mean are in [web-eid.md](web-eid.md#when-the-card-fails).
+
 ## Browser support
 
 ES5 syntax, `fetch` and `Promise`. That is every browser the Web eID extension

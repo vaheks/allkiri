@@ -73,7 +73,8 @@
         "test:js": [
             "node tests/js/qr-golden.mjs",
             "node tests/js/http-contract.mjs",
-            "node tests/js/device-link-qr.mjs"
+            "node tests/js/device-link-qr.mjs",
+            "node tests/js/web-eid-errors.mjs"
         ],
         "phpstan": "phpstan analyse --memory-limit=1G",
         "cs:check": "php-cs-fixer fix --dry-run --diff",

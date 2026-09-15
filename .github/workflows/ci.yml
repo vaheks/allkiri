@@ -68,6 +68,10 @@ jobs:
       - name: Device-link QR loop
         run: node tests/js/device-link-qr.mjs
 
+      # Every web-eid.js 2.x error code gets someone who can act on it.
+      - name: Web eID errors
+        run: node tests/js/web-eid-errors.mjs
+
       # The one that matters: everything this encoder makes is read back by a
       # decoder that had no hand in making it. A reversed generator polynomial
       # passes every structural check and scans as nothing.
