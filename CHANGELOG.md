@@ -307,6 +307,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The demo application kept the same session id after someone signed in, gave
+  its session cookie no `HttpOnly`, `SameSite` or `Secure` flag, and accepted an
+  id it had never issued. The id now changes at sign-in. The cookie is `HttpOnly`
+  and `SameSite=Lax`, and `Secure` over HTTPS and always in live mode. PHP
+  refuses ids it did not make. Scripts are served before the session starts, so
+  they no longer wait behind a poll or set a cookie.
 - The demo application kept uploads in a folder in the system's temporary
   directory, used that folder without checking who had created it, and named
   each file after the session id, which is a credential. Another account on a

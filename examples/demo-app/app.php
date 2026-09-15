@@ -504,6 +504,10 @@ final class App
      */
     private function signedIn(\Allkiri\Auth\AuthenticatedIdentity $identity): array
     {
+        // A new session id for a signed-in session, so an id someone planted or
+        // saw before sign-in is worth nothing after it. The page's token and the
+        // container's name live in the session, so both carry over.
+        session_regenerate_id(true);
         $_SESSION['user'] = $identity->semanticsIdentifier();
         $this->audit('signed in', [
             'identity' => $identity->semanticsIdentifier(),

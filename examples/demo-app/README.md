@@ -71,6 +71,10 @@ demo mode refuses your real ones, because the failure worth preventing is a
 signature made against the wrong services that looks exactly like one made
 against the right ones.
 
+Live mode marks the session cookie `Secure`, so serve it over HTTPS. Over plain
+HTTP the browser never sends that cookie back, and every call after the page is
+refused.
+
 Nothing else changes. The timestamp service, the revocation responders and the
 trust anchors all come from `Environment::production()`, which needs no
 configuration.

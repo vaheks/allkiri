@@ -12,11 +12,15 @@ use PHPUnit\Framework\TestCase;
  * The demo application, run the way its README runs it and asked over HTTP.
  *
  * It is the code people copy, so what it refuses is tested like the library.
- * Everything here stays on 127.0.0.1 in demo mode, and no call reaches SK.
+ * Everything here stays on 127.0.0.1, and no call reaches SK.
  */
 #[CoversNothing]
 final class DemoAppTest extends TestCase
 {
+    private const DOCUMENT_ROOT = __DIR__ . '/../../../examples/demo-app/public';
+
+    private const STORAGE = __DIR__ . '/../../../examples/demo-app/var';
+
     private static ?LocalHttpServer $server = null;
 
     private static string $log = '';
@@ -24,14 +28,7 @@ final class DemoAppTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$log = sys_get_temp_dir() . '/allkiri-demo-test-' . bin2hex(random_bytes(4)) . '.log';
-        // Pinned rather than inherited, so a local .env can neither put the demo
-        // in live mode nor send its log to a file someone reads.
-        self::$server = LocalHttpServer::start(\dirname(__DIR__, 3) . '/examples/demo-app/public', [
-            'ALLKIRI_MODE' => 'demo',
-            'ALLKIRI_LOG' => self::$log,
-            'ALLKIRI_LOG_HTTP' => '0',
-            'ALLKIRI_LOG_PERSONAL_DATA' => '0',
-        ]);
+        self::$server = LocalHttpServer::start(self::DOCUMENT_ROOT, ['ALLKIRI_MODE' => 'demo'] + self::quietLog());
     }
 
     public static function tearDownAfterClass(): void
@@ -104,8 +101,7 @@ final class DemoAppTest extends TestCase
     {
         $page = self::openPage();
         $sessionId = substr($page['cookie'], \strlen('PHPSESSID='));
-        $storage = \dirname(__DIR__, 3) . '/examples/demo-app/var';
-        $before = self::containersIn($storage);
+        $before = self::containersIn(self::STORAGE);
         $boundary = 'allkiri-' . bin2hex(random_bytes(8));
         $body = '--' . $boundary . "\r\n"
             . "Content-Disposition: form-data; name=\"file\"; filename=\"leping.txt\"\r\n"
@@ -120,7 +116,7 @@ final class DemoAppTest extends TestCase
         ], $body);
 
         self::assertSame(200, $upload['status'], $upload['body']);
-        $created = array_values(array_diff(self::containersIn($storage), $before));
+        $created = array_values(array_diff(self::containersIn(self::STORAGE), $before));
         self::assertCount(1, $created, 'the container is kept in the demo\'s own folder');
         try {
             self::assertMatchesRegularExpression('/^[0-9a-f]{32}\.asice$/', basename($created[0]));
@@ -132,6 +128,67 @@ final class DemoAppTest extends TestCase
         } finally {
             unlink($created[0]);
         }
+    }
+
+    public function testTheSessionCookieIsHiddenFromScriptsAndOtherSites(): void
+    {
+        $cookie = self::sessionCookieOf(self::request('GET', '/'));
+
+        self::assertStringContainsStringIgnoringCase('; HttpOnly', $cookie);
+        self::assertStringContainsStringIgnoringCase('; SameSite=Lax', $cookie);
+        self::assertStringNotContainsStringIgnoringCase('; Secure', $cookie, 'over plain HTTP a Secure cookie would never come back');
+    }
+
+    public function testASessionIdTheServerDidNotIssueIsReplaced(): void
+    {
+        // Fresh each run: a fixed id, once accepted by a server without strict
+        // mode, would exist in the session store and rightly be kept.
+        $planted = bin2hex(random_bytes(16));
+
+        $cookie = self::sessionCookieOf(self::request('GET', '/', ['Cookie' => 'PHPSESSID=' . $planted]));
+
+        self::assertStringNotContainsString($planted, $cookie);
+    }
+
+    public function testScriptsAreServedWithoutASession(): void
+    {
+        $script = self::request('GET', '/allkiri.js');
+
+        self::assertSame(200, $script['status']);
+        self::assertSame([], $script['headers']['set-cookie'] ?? []);
+    }
+
+    public function testLiveModeMarksTheCookieSecure(): void
+    {
+        // Made-up credentials in the shape live mode demands. Rendering the page
+        // calls no service.
+        $live = LocalHttpServer::start(self::DOCUMENT_ROOT, [
+            'ALLKIRI_MODE' => 'live',
+            'ALLKIRI_MID_RP_UUID' => '5e0b2a3c-7d41-4f6a-9c2e-1b8d4f7a3e65',
+            'ALLKIRI_MID_RP_NAME' => 'allkiri test',
+            'ALLKIRI_SMARTID_RP_UUID' => '9a4c6e1f-2b3d-4e5f-8a7b-6c5d4e3f2a1b',
+            'ALLKIRI_SMARTID_RP_NAME' => 'allkiri test',
+            'ALLKIRI_ORIGIN' => 'https://allkiri.test',
+        ] + self::quietLog());
+        try {
+            $page = self::request('GET', '/', [], null, $live);
+        } finally {
+            $live->stop();
+        }
+
+        self::assertSame(200, $page['status'], $page['body']);
+        self::assertStringContainsStringIgnoringCase('; Secure', self::sessionCookieOf($page));
+    }
+
+    /**
+     * Pinned rather than inherited, so a local .env can neither send the demo's
+     * log to a file someone reads nor fill it with HTTP transcripts.
+     *
+     * @return array<string, string>
+     */
+    private static function quietLog(): array
+    {
+        return ['ALLKIRI_LOG' => self::$log, 'ALLKIRI_LOG_HTTP' => '0', 'ALLKIRI_LOG_PERSONAL_DATA' => '0'];
     }
 
     /**
@@ -154,17 +211,25 @@ final class DemoAppTest extends TestCase
     {
         $page = self::request('GET', '/');
         self::assertSame(200, $page['status'], $page['body']);
-
-        $cookie = '';
-        foreach ($page['headers']['set-cookie'] ?? [] as $header) {
-            if (preg_match('/^(PHPSESSID=[^;]+)/', $header, $match) === 1) {
-                $cookie = $match[1];
-            }
-        }
-        self::assertNotSame('', $cookie, 'the page starts a session');
         self::assertSame(1, preg_match('/<meta name="csrf-token" content="([0-9a-f]{64})">/', $page['body'], $token), 'the page carries a token');
 
-        return ['cookie' => $cookie, 'token' => $token[1]];
+        return ['cookie' => explode(';', self::sessionCookieOf($page), 2)[0], 'token' => $token[1]];
+    }
+
+    /**
+     * @param array{status: int, headers: array<string, list<string>>, body: string} $response
+     *
+     * @return string the whole Set-Cookie value of the session cookie
+     */
+    private static function sessionCookieOf(array $response): string
+    {
+        foreach ($response['headers']['set-cookie'] ?? [] as $header) {
+            if (str_starts_with($header, 'PHPSESSID=')) {
+                return $header;
+            }
+        }
+
+        self::fail('The response set no session cookie');
     }
 
     /**
@@ -173,9 +238,9 @@ final class DemoAppTest extends TestCase
      *
      * @return array{status: int, headers: array<string, list<string>>, body: string}
      */
-    private static function request(string $method, string $path, array $headers = [], ?string $body = null): array
+    private static function request(string $method, string $path, array $headers = [], ?string $body = null, ?LocalHttpServer $server = null): array
     {
-        $server = self::$server ?? throw new \LogicException('The demo is not running');
+        $server ??= self::$server ?? throw new \LogicException('The demo is not running');
         $lines = [];
         foreach ($headers as $name => $value) {
             // curl drops a header given as "Name:", and sends one given as "Name;" empty.
