@@ -32,12 +32,6 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(ArrayCache::class)]
 final class AllkiriTest extends TestCase
 {
-    public function testVersionAndUserAgent(): void
-    {
-        self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/', Allkiri::VERSION);
-        self::assertStringStartsWith('allkiri/' . Allkiri::VERSION, Allkiri::USER_AGENT);
-    }
-
     public function testTheDemoEnvironmentPointsAtTheFreeTestServices(): void
     {
         $environment = Environment::demo();

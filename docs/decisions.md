@@ -851,3 +851,19 @@ escaped as `InvalidArgumentException`, from code that promised `OcspException` o
 `TrustedListException`. The OCSP client now skips an address that is not http(s)
 and falls back to the default responder, and a list-of-lists pointer to such a
 location is refused with `TrustedListException`.
+
+## 2026-09-15 — the version, the namespace graph and the public API
+
+### The version comes from Composer
+
+`Allkiri::VERSION` said `0.1.0-dev` from the first commit through five alpha
+tags, and it went to SK, RIA and Zetes in the User-Agent of every request.
+Nothing in the release steps bumped it, and the test that looked at it only
+checked that it had the shape of a version.
+
+The User-Agent now takes the version from Composer's record of what was
+installed: a release's tag, or for a branch install the branch and the first
+seven characters of the commit, so an operator can tell which code sent a
+request. Without that record it says `unknown`. `Http\UserAgent` builds the
+value, which also means the HTTP client no longer reaches up to the `Allkiri`
+facade for it.

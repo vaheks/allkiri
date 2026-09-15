@@ -264,8 +264,17 @@ signatures with a local key, and the API the eID means will plug into.
   `CertificateNotForSigningException`, and a prepared signature whose XML cannot
   be read is refused in `finalize()` with `SessionMismatchException`.
   `LtExtender` gains `requireTrustedSigner()`.
+- `Allkiri::VERSION` and `Allkiri::USER_AGENT` are removed. The new
+  `Http\UserAgent` builds the User-Agent, and its `version()` reads the installed
+  version from Composer. `CurlHttpClient`'s `$userAgent` defaults to `null`,
+  meaning `UserAgent::default()`. allkiri now requires `composer-runtime-api`
+  ^2.0.
 
 ### Fixed
+
+- The User-Agent sent to SK, RIA and Zetes said `allkiri/0.1.0-dev` whatever was
+  installed. It now names the installed release, or the branch and commit of a
+  branch install.
 
 - Text that is not UTF-8 is refused where it enters, instead of escaping later
   as PHP's `\JsonException` when a request is encoded. Smart-ID interaction text,
