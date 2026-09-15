@@ -49,7 +49,7 @@ final class SmartIdSessionStatusParser
         if ($endResult !== SmartIdEndResult::Ok) {
             return new SmartIdSessionStatus(
                 SmartIdSessionStatus::STATE_COMPLETE,
-                $endResult,
+                result: $endResult,
                 refusedInteraction: self::refusedInteraction($result),
             );
         }
@@ -62,20 +62,19 @@ final class SmartIdSessionStatusParser
 
         return new SmartIdSessionStatus(
             SmartIdSessionStatus::STATE_COMPLETE,
-            $endResult,
-            self::documentNumber($result),
-            $signature === null ? null : self::signatureValue($signature),
-            $signature === null ? null : self::requiredString($signature, 'signature.signatureAlgorithm'),
-            $signature === null ? null : self::pssParameters($signature),
-            $certificate === null ? null : self::certificate($certificate),
-            $certificate === null ? null : self::certificateLevel($certificate),
-            $signature === null ? null : self::optionalString($signature, 'serverRandom'),
-            $signature === null ? null : self::optionalString($signature, 'userChallenge'),
-            $signature === null ? null : self::flowType($signature),
-            self::interactionTypeUsed($body),
-            null,
-            self::optionalString($body, 'deviceIpAddress'),
-            self::optionalString($body, 'signatureProtocol'),
+            result: $endResult,
+            documentNumber: self::documentNumber($result),
+            signatureValue: $signature === null ? null : self::signatureValue($signature),
+            signatureAlgorithmName: $signature === null ? null : self::requiredString($signature, 'signature.signatureAlgorithm'),
+            pssParameters: $signature === null ? null : self::pssParameters($signature),
+            certificate: $certificate === null ? null : self::certificate($certificate),
+            certificateLevel: $certificate === null ? null : self::certificateLevel($certificate),
+            serverRandom: $signature === null ? null : self::optionalString($signature, 'serverRandom'),
+            userChallenge: $signature === null ? null : self::optionalString($signature, 'userChallenge'),
+            flowType: $signature === null ? null : self::flowType($signature),
+            interactionTypeUsed: self::interactionTypeUsed($body),
+            deviceIpAddress: self::optionalString($body, 'deviceIpAddress'),
+            signatureProtocol: self::optionalString($body, 'signatureProtocol'),
         );
     }
 

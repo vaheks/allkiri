@@ -247,7 +247,10 @@ $result = $signer->sign($container, $signing);
 ```
 
 Both use `SmartIdPoller`, which long-polls within the session budget. Do not use
-them in a web request.
+them in a web request. `SmartIdPoller::wait()` returns the final status whatever
+it says: a refusal as the service reported it, and a `TIMEOUT` status when
+`sessionTimeoutSeconds` passes first. `waitForSuccess()` throws
+`SmartIdSessionException` for both.
 
 ## Errors
 

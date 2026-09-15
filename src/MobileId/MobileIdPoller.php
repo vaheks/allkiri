@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\MobileId;
 
+use Allkiri\Clock\PollingLoop;
 use Allkiri\Clock\Sleeper;
 use Allkiri\Clock\SystemSleeper;
 
@@ -24,48 +25,27 @@ final class MobileIdPoller
     /**
      * Poll until the session finishes or the configured session timeout passes.
      *
-     * The service holds each request open for the poll timeout, so this is not
-     * a busy loop. The short sleep only guards against a service that answers
-     * immediately, which would otherwise turn this into one.
-     *
-     * @throws MobileIdSessionException when the person did not complete the session
+     * @throws MobileIdSessionException when the person did not complete the session, or the timeout passed first
      * @throws MobileIdApiException
      */
     public function wait(MobileIdSession $session): MobileIdSessionStatus
     {
         $configuration = $this->client->configuration();
-        $budgetMs = $configuration->sessionTimeoutSeconds * 1000;
-        $spentMs = 0;
+        $status = PollingLoop::until(
+            $this->sleeper,
+            $configuration->sessionTimeoutSeconds,
+            $configuration->pollTimeoutMs,
+            function (int $timeoutMs) use ($session): ?MobileIdSessionStatus {
+                $status = $this->client->status($session->type, $session->sessionId, $timeoutMs);
 
-        while (true) {
-            $remainingMs = $budgetMs - $spentMs;
-            if ($remainingMs <= 0) {
-                throw new MobileIdSessionException(MobileIdResult::Timeout);
-            }
-            // Never ask for longer than the service accepts, nor longer than
-            // the caller's own budget: the last poll must not overrun it.
-            $timeoutMs = max(1_000, min($configuration->pollTimeoutMs, $remainingMs));
+                return $status->isComplete() ? $status : null;
+            },
+        ) ?? throw new MobileIdSessionException(MobileIdResult::Timeout);
 
-            $startedAt = microtime(true);
-            $status = $this->client->status($session->type, $session->sessionId, $timeoutMs);
-            $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
-
-            if ($status->isComplete()) {
-                if (!$status->isOk()) {
-                    throw new MobileIdSessionException($status->result ?? MobileIdResult::Timeout);
-                }
-
-                return $status;
-            }
-
-            // Charge the budget at least the timeout we asked for, so a mocked
-            // or instantaneous service still terminates in a bounded number of
-            // rounds instead of spinning.
-            $spentMs += max($timeoutMs, $elapsedMs);
-
-            if ($elapsedMs < 1_000) {
-                $this->sleeper->sleep(1.0);
-            }
+        if (!$status->isOk()) {
+            throw new MobileIdSessionException($status->result ?? MobileIdResult::Timeout);
         }
+
+        return $status;
     }
 }
