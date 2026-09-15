@@ -14,6 +14,10 @@
 *.ors binary
 *.png binary
 
+# A third-party file the demo pins by its hash: stored and checked out byte for
+# byte, whatever the line-ending rules above become.
+/examples/demo-app/public/vendor/web-eid.js -text
+
 # Kept out of the Packagist archive: the test suite carries megabytes of
 # containers and PKI fixtures that no consumer needs. assets/, docs/, examples/
 # and resources/ stay, because the documentation tells people to serve

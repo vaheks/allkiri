@@ -130,6 +130,22 @@ final class DemoAppTest extends TestCase
         }
     }
 
+    public function testThePageLoadsAPinnedCopyOfWebEidJs(): void
+    {
+        $page = self::request('GET', '/');
+
+        self::assertStringNotContainsString('cdn.jsdelivr.net', $page['body'], 'no CDN serves web-eid.js');
+        self::assertSame(1, preg_match('#<script src="/vendor/web-eid\.js" integrity="(sha384-[A-Za-z0-9+/=]+)"></script>#', $page['body'], $tag), 'the page loads its own copy, with a hash');
+
+        $file = (string) file_get_contents(self::DOCUMENT_ROOT . '/vendor/web-eid.js');
+        self::assertSame('sha384-' . base64_encode(hash('sha384', $file, true)), $tag[1], 'the hash is the committed file\'s');
+        self::assertStringStartsWith("/**\n * MIT License", $file, 'the licence travels with the copy');
+
+        $served = self::request('GET', '/vendor/web-eid.js');
+        self::assertSame(200, $served['status']);
+        self::assertSame($file, $served['body']);
+    }
+
     public function testTheSessionCookieIsHiddenFromScriptsAndOtherSites(): void
     {
         $cookie = self::sessionCookieOf(self::request('GET', '/'));
