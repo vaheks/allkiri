@@ -288,6 +288,32 @@ signature down with it. Only when no answer falls inside the window is the
 newest overall used. How DSS and digidoc4j choose between answers was not
 checked.
 
+### A claimed signing time proves nothing, so revocation is held to it
+
+A signature timestamp is what proves when a signature existed. Without one, the
+only time available is the one the signer wrote into the signed properties, and
+that can be written to suit a stale revocation answer. allkiri compared an
+embedded OCSP response only with itself. A signature whose timestamp had been
+deleted validated TOTAL-PASSED as XAdES_BASELINE_B, with an answer from years
+before or after, and one whose timestamp failed was indeterminate with nothing
+about its revocation answer.
+
+A signature without a timestamp is now INDETERMINATE with `TIMESTAMP_MISSING`
+unless the policy's `requireSignatureTimestamp` is switched off. SiVa does not
+accept B-level ASiC-E signatures either. When no timestamp verifies, whether
+absent or broken, the chosen revocation answer must have been produced after the
+claimed signing time, within the policy's OCSP window of it, and not after the
+validation time. Otherwise `REVOCATION_NOT_BOUND_TO_SIGNING_TIME` names the
+bound that failed. It carries NO_POE rather than TRY_LATER, because a fresher
+answer fetched later cannot say anything about the claimed moment; only proof of
+when the signature existed could.
+
+The bound against the validation time applies only on this path. Holding a
+timestamped signature to the validation time is part of making `validationTime`
+drive validation at all, which is not done yet. A signature with neither a
+timestamp nor a signing time used to skip its chain check without a word; it now
+carries the same finding.
+
 ### The new certificate profile reversed the common name
 
 Certificates issued under `TEST of ESTEID-SK 2015` carry

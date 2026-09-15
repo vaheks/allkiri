@@ -86,12 +86,16 @@ final class SignatureValidator
         $bestSignatureTime = $timestamp?->genTime();
         if ($bestSignatureTime === null && $signature->signingTime !== null) {
             $bestSignatureTime = $signature->signingTime;
-            if ($level !== null && $level !== SignatureLevel::B) {
+            // A signature with no timestamp at all has been told so already, when the policy requires one.
+            if ($level !== null && ($level !== SignatureLevel::B || !$this->policy->requireSignatureTimestamp)) {
                 $findings[] = Finding::warning(FindingCodes::NO_POE_CLAIMED_TIME_USED, 'No usable timestamp; the signer\'s claimed signing time is used instead');
             }
         }
 
         $ocsp = null;
+        if ($signer !== null && $bestSignatureTime === null) {
+            $findings[] = Finding::error(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, 'Neither a verified timestamp nor a signing time says when the signature was made, so its certificate chain and revocation status cannot be checked', Indication::Indeterminate, SubIndication::NoPoe);
+        }
         if ($signer !== null && $bestSignatureTime !== null) {
             $chain = $this->checkChain($signature, $signer, $bestSignatureTime, $store, $findings);
             if ($chain !== null) {
@@ -100,6 +104,8 @@ final class SignatureValidator
         }
         if ($ocsp !== null && $timestamp !== null) {
             $this->checkTimestampOcspOrder($timestamp, $ocsp, $findings);
+        } elseif ($ocsp !== null && $bestSignatureTime !== null) {
+            $this->checkRevocationAgainstClaimedTime($bestSignatureTime, $ocsp, $validationTime, $findings);
         }
 
         $archiveTime = $this->checkArchiveTimestamps($container, $element, $store, $timestamp, $findings);
@@ -356,6 +362,12 @@ final class SignatureValidator
     private function checkTimestamps(XadesSignature $signature, TrustStore $store, array &$findings): ?TimestampToken
     {
         if ($signature->signatureTimestamps === []) {
+            // Without one, only the signer's own claim says when the signature was
+            // made, and a claim can be written to suit a stale revocation answer.
+            if ($this->policy->requireSignatureTimestamp) {
+                $findings[] = Finding::error(FindingCodes::TIMESTAMP_MISSING, 'The signature carries no signature timestamp, so nothing proves when it was made, and the policy requires one', Indication::Indeterminate, SubIndication::NoPoe);
+            }
+
             return null;
         }
         $signatureValue = Xml::element(Xml::xpath($signature->element), 'ds:SignatureValue', $signature->element);
@@ -675,6 +687,44 @@ final class SignatureValidator
         return Finding::error(
             FindingCodes::ARCHIVE_TIMESTAMP_INVALID,
             \sprintf('Archive timestamp %d %s', $number, $problem),
+            Indication::Indeterminate,
+            SubIndication::NoPoe,
+        );
+    }
+
+    /**
+     * Without a verified timestamp, only the signer's own claim says when the
+     * signature was made, so the revocation answer is held to that claim: made
+     * after it, not long after it, and not after the moment of validation.
+     * Otherwise a stale answer and a suitably claimed time could be made to
+     * agree. It is INDETERMINATE with NO_POE because what would settle it is
+     * proof of when the signature existed, which a later answer cannot give.
+     *
+     * @param list<Finding> $findings
+     */
+    private function checkRevocationAgainstClaimedTime(\DateTimeImmutable $claimed, OcspVerificationResult $ocsp, \DateTimeImmutable $validationTime, array &$findings): void
+    {
+        $skew = $this->policy->clockSkewSeconds;
+        $produced = $ocsp->producedAt();
+        $delay = $produced->getTimestamp() - $claimed->getTimestamp();
+
+        $problems = [];
+        if ($delay < -$skew) {
+            $problems[] = \sprintf('was produced %d seconds before the claimed signing time', -$delay);
+        }
+        if ($delay > $this->policy->ocspDelayErrorSeconds) {
+            $problems[] = \sprintf('was produced %d seconds after the claimed signing time, beyond the %d the policy allows', $delay, $this->policy->ocspDelayErrorSeconds);
+        }
+        if ($produced->getTimestamp() > $validationTime->getTimestamp() + $skew) {
+            $problems[] = \sprintf('was produced at %s, after the validation time %s', $produced->format(DATE_ATOM), $validationTime->format(DATE_ATOM));
+        }
+        if ($problems === []) {
+            return;
+        }
+
+        $findings[] = Finding::error(
+            FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME,
+            'No timestamp proves when the signature was made, and the revocation answer ' . implode(', and ', $problems),
             Indication::Indeterminate,
             SubIndication::NoPoe,
         );

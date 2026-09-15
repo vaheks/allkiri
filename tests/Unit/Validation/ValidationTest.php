@@ -112,6 +112,18 @@ final class ValidationTest extends TestCase
     }
 
     /**
+     * The signature XML without its signature timestamp, which is an unsigned property.
+     */
+    private static function withoutSignatureTimestamp(string $xml): string
+    {
+        $without = preg_replace('#<xades:SignatureTimeStamp\b.*?</xades:SignatureTimeStamp>#s', '', $xml, 1, $count);
+        self::assertSame(1, $count);
+        self::assertIsString($without);
+
+        return $without;
+    }
+
+    /**
      * The signature XML with one more OCSP response among its revocation values,
      * before or after the one it has.
      */
@@ -599,6 +611,96 @@ final class ValidationTest extends TestCase
         self::assertTrue($signature->has(FindingCodes::TIMESTAMP_WEAK_ALGORITHM));
     }
 
+    /**
+     * #16: take the timestamp off a signature and only the signer's own claim
+     * says when it was made.
+     */
+    public function testASignatureWithoutATimestampIsIndeterminateByDefault(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+
+        $signature = self::validator($fixture)->validate(self::containerOfA(self::withoutSignatureTimestamp(self::signatureXml($result))))->signatures[0];
+
+        self::assertSame(SignatureLevel::B, $signature->format);
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::NoPoe, $signature->subIndication);
+        self::assertSame([FindingCodes::TIMESTAMP_MISSING], array_map(static fn($f): string => $f->code, $signature->errors()));
+        self::assertSame([], $signature->warnings());
+    }
+
+    /**
+     * @return iterable<string, array{string, string, ?string}>
+     */
+    public static function answersWithoutATimestamp(): iterable
+    {
+        // The claimed signing time is 2026-03-01T10:00:00Z.
+        yield 'ten minutes after the claimed time' => ['2026-03-01T10:10:00Z', '2026-03-05T00:00:00Z', null];
+        yield 'an hour before it' => ['2026-03-01T09:00:00Z', '2026-03-05T00:00:00Z', 'before the claimed signing time'];
+        yield 'two days after it' => ['2026-03-03T10:00:00Z', '2026-03-05T00:00:00Z', 'after the claimed signing time'];
+        yield 'after the validation time' => ['2026-03-01T10:30:00Z', '2026-03-01T10:10:00Z', 'after the validation time'];
+    }
+
+    /**
+     * #16: with a policy that accepts signatures without a timestamp, the
+     * revocation answer is held to the time the signer claims.
+     */
+    #[DataProvider('answersWithoutATimestamp')]
+    public function testWithoutATimestampTheRevocationAnswerIsHeldToTheClaimedTime(string $producedAt, string $validationTime, ?string $problem): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $answer = self::ocspAnswer(new SigningFixture(new FrozenClock($producedAt)), $keyPair->certificate);
+        $xml = self::swapEncapsulated(self::withoutSignatureTimestamp(self::signatureXml($result)), 'EncapsulatedOCSPValue', $answer);
+        $validator = self::validator($fixture, new ValidationPolicy(requireSignatureTimestamp: false));
+
+        $signature = $validator->validate(self::containerOfA($xml), 'a.asice', new ValidationOptions(validationTime: new \DateTimeImmutable($validationTime)))->signatures[0];
+
+        if ($problem === null) {
+            self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+            self::assertSame([FindingCodes::NO_POE_CLAIMED_TIME_USED], array_map(static fn($f): string => $f->code, $signature->warnings()));
+
+            return;
+        }
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::NoPoe, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME));
+        self::assertStringContainsString($problem, implode("\n", array_map(static fn($f): string => $f->message, $signature->errors())));
+    }
+
+    /**
+     * #16, as the issue puts it: an LT signature whose timestamp does not
+     * verify, carrying a revocation answer two days after the claimed signing
+     * time, is not passed, and the revocation finding says why.
+     */
+    public function testARevocationAnswerFarFromTheClaimedTimeIsNamedWhenTheTimestampFails(): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $xml = self::signatureXml($result);
+        self::assertSame(1, preg_match('#<xades:EncapsulatedTimeStamp[^>]*>([^<]+)#', $xml, $match));
+        $imprint = TimestampToken::fromDer((string) base64_decode($match[1], true))->tstInfo()->messageImprint;
+
+        $broken = new SigningFixture($fixture->clock);
+        $broken->tsa->wrongImprint = true;
+        $request = TimestampRequest::build(HashAlgorithm::SHA256, $imprint);
+        $token = TimestampResponse::fromDer($broken->tsa->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body)->token();
+        self::assertNotNull($token);
+        $xml = self::swapEncapsulated($xml, 'EncapsulatedTimeStamp', $token->der());
+        $xml = self::swapEncapsulated($xml, 'EncapsulatedOCSPValue', self::ocspAnswer(new SigningFixture(new FrozenClock('2026-03-03T10:00:00Z')), $keyPair->certificate));
+
+        $signature = self::validator($fixture)->validate(self::containerOfA($xml), 'a.asice', new ValidationOptions(validationTime: new \DateTimeImmutable('2026-03-05T00:00:00Z')))->signatures[0];
+
+        self::assertSame(SignatureLevel::LT, $signature->format);
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::NoPoe, $signature->subIndication);
+        self::assertContains(FindingCodes::TIMESTAMP_INVALID, $signature->codes());
+        self::assertContains(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, $signature->codes());
+        self::assertStringContainsString('after the claimed signing time', implode("\n", array_map(static fn($f): string => $f->message, $signature->errors())));
+    }
+
     public function testLevelsBAndTAreReportedAsWhatTheyAre(): void
     {
         $fixture = new SigningFixture();
@@ -610,7 +712,8 @@ final class ValidationTest extends TestCase
         $bReport = $validator->validate((new AsicWriter())->write($b->container))->signatures[0];
         self::assertSame(SignatureLevel::B, $bReport->format);
         self::assertSame(Indication::Indeterminate, $bReport->indication);
-        self::assertSame(SubIndication::TryLater, $bReport->subIndication);
+        self::assertSame(SubIndication::NoPoe, $bReport->subIndication, 'without a timestamp nothing proves when it was made');
+        self::assertTrue($bReport->has(FindingCodes::TIMESTAMP_MISSING));
         self::assertTrue($bReport->has(FindingCodes::REVOCATION_MISSING));
         self::assertSame('2026-03-01T10:00:00+00:00', $bReport->info->bestSignatureTime?->format(DATE_ATOM), 'the claimed time is used when there is no timestamp');
 
@@ -732,6 +835,9 @@ final class ValidationTest extends TestCase
         self::assertSame(Indication::TotalFailed, $signature->indication);
         self::assertContains(FindingCodes::DUPLICATE_ID, $signature->codes());
         self::assertNull($signature->info->claimedSigningTime);
+        // With no signing time and no timestamp that verifies, nothing says when
+        // it was made, and that is reported rather than the chain going unchecked.
+        self::assertContains(FindingCodes::REVOCATION_NOT_BOUND_TO_SIGNING_TIME, $signature->codes());
     }
 
     public function testAnArchiveThatReadersCouldReadDifferentlyIsNotAContainer(): void

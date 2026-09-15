@@ -62,6 +62,7 @@ final class FindingCodes
     public const SIGNING_CERTIFICATE_KEY_USAGE = 'SIGNING_CERTIFICATE_KEY_USAGE';
 
     // Timestamps
+    /** The signature has no signature timestamp, and the policy requires one. */
     public const TIMESTAMP_MISSING = 'TIMESTAMP_MISSING';
     public const TIMESTAMP_INVALID = 'TIMESTAMP_INVALID';
     public const TIMESTAMP_NOT_TRUSTED = 'TIMESTAMP_NOT_TRUSTED';
@@ -86,6 +87,9 @@ final class FindingCodes
 
     /** The only usable revocation answer, or its responder's certificate, is signed with SHA-1 or a key below the minimum. */
     public const REVOCATION_WEAK_ALGORITHM = 'REVOCATION_WEAK_ALGORITHM';
+
+    /** No timestamp verified, and the revocation answer is not tied to the claimed signing time, or there is none. */
+    public const REVOCATION_NOT_BOUND_TO_SIGNING_TIME = 'REVOCATION_NOT_BOUND_TO_SIGNING_TIME';
     public const CERTIFICATE_REVOKED = 'CERTIFICATE_REVOKED';
     public const CERTIFICATE_STATUS_UNKNOWN = 'CERTIFICATE_STATUS_UNKNOWN';
     public const OCSP_BEFORE_TIMESTAMP = 'OCSP_BEFORE_TIMESTAMP';
