@@ -21,6 +21,17 @@ libdigidocpp for building the signature container. SK's own Mobile-ID PHP
 client says it outright: signing is not supported because no such library
 exists for PHP. `allkiri` is that library.
 
+## Install
+
+```bash
+composer require vaheks/allkiri:^0.6@alpha
+```
+
+Until 1.0 every release is an alpha, and Composer installs one only when asked,
+which is what `@alpha` does. Expect the API to change between them, as the
+status note above says. The PHP version and extensions it needs are under
+[Requirements](#requirements).
+
 ## What works today
 
 ```php

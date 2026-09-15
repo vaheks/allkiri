@@ -49,7 +49,8 @@ $EDITOR docs/manual-testing.md
 #    link for the version.
 $EDITOR CHANGELOG.md
 
-# 3. The status paragraph loses the word alpha.
+# 3. The status paragraph loses the word alpha, and the install line its
+#    @alpha.
 $EDITOR README.md
 
 # 4. Everything is green.
@@ -64,9 +65,18 @@ git tag -a 1.0.0 -m "1.0.0" && git push origin 1.0.0
 Nothing in the code is bumped. The User-Agent sent to SK, RIA and Zetes reads
 the version from Composer, which takes it from the tag an application installs.
 
-Then submit `https://github.com/vaheks/allkiri` at
-<https://packagist.org/packages/submit> and enable the GitHub hook, so later
-tags publish themselves.
+Packagist publishes the tag through the GitHub hook, which has been in place
+since the repository went public.
+
+## Before 1.0
+
+Releases before 1.0 are alphas, tagged like `0.6.0-alpha.1`, and an application
+installs one with `composer require vaheks/allkiri:^0.6@alpha`, as the README
+says. The package goes on Packagist the day the repository becomes public:
+submit `https://github.com/vaheks/allkiri` at
+<https://packagist.org/packages/submit> and enable the GitHub hook, so every
+later tag, alpha or not, publishes itself. When an alpha moves past the range
+the README's install line names, the line moves with it.
 
 ## Versioning
 
