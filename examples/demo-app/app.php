@@ -15,8 +15,8 @@ declare(strict_types=1);
  *
  * Not for production. It refuses cross-site requests with a token of its own,
  * where a real application would use its framework's protection, and it has no
- * accounts, no authorisation and no rate limiting. It keeps uploaded files in a
- * temporary directory.
+ * accounts, no authorisation and no rate limiting. It keeps uploaded files in
+ * var/ beside this file and never deletes them.
  *
  * Which services it talks to, and whose credentials it uses, is decided in
  * config.php. That is the only file here that reads the environment.
@@ -535,14 +535,28 @@ final class App
         file_put_contents($this->containerPath(), $this->allkiri->writer()->write($container));
     }
 
+    /**
+     * Where this browser's container is kept.
+     *
+     * Not in the system's temporary directory, where another account on a shared
+     * machine could create the folder first and read or replace what goes into
+     * it. And not under the session id, which is a credential and changes at
+     * sign-in. The folder belongs to this checkout, and the name is random.
+     */
     private function containerPath(): string
     {
-        $directory = sys_get_temp_dir() . '/allkiri-demo';
-        if (!is_dir($directory)) {
-            mkdir($directory, 0o700, true);
+        $directory = __DIR__ . '/var';
+        if (!is_dir($directory) && !mkdir($directory, 0o700, true) && !is_dir($directory)) {
+            throw new \RuntimeException('Could not create ' . $directory);
         }
 
-        return $directory . '/' . session_id() . '.asice';
+        $name = $_SESSION['container'] ?? null;
+        if (!\is_string($name) || preg_match('/^[0-9a-f]{32}$/', $name) !== 1) {
+            $name = bin2hex(random_bytes(16));
+            $_SESSION['container'] = $name;
+        }
+
+        return $directory . '/' . $name . '.asice';
     }
 
     /**

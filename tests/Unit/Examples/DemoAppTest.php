@@ -100,6 +100,50 @@ final class DemoAppTest extends TestCase
         self::assertStringContainsString('Upload a file first', $download['body']);
     }
 
+    public function testAnUploadIsKeptUnderARandomNameNotTheSessionId(): void
+    {
+        $page = self::openPage();
+        $sessionId = substr($page['cookie'], \strlen('PHPSESSID='));
+        $storage = \dirname(__DIR__, 3) . '/examples/demo-app/var';
+        $before = self::containersIn($storage);
+        $boundary = 'allkiri-' . bin2hex(random_bytes(8));
+        $body = '--' . $boundary . "\r\n"
+            . "Content-Disposition: form-data; name=\"file\"; filename=\"leping.txt\"\r\n"
+            . "Content-Type: text/plain\r\n\r\n"
+            . "Tere, allkiri!\r\n"
+            . '--' . $boundary . "--\r\n";
+
+        $upload = self::request('POST', '/api/upload', [
+            'Cookie' => $page['cookie'],
+            'X-CSRF-Token' => $page['token'],
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+        ], $body);
+
+        self::assertSame(200, $upload['status'], $upload['body']);
+        $created = array_values(array_diff(self::containersIn($storage), $before));
+        self::assertCount(1, $created, 'the container is kept in the demo\'s own folder');
+        try {
+            self::assertMatchesRegularExpression('/^[0-9a-f]{32}\.asice$/', basename($created[0]));
+            self::assertStringNotContainsString($sessionId, $created[0]);
+
+            $download = self::request('GET', '/api/download', ['Cookie' => $page['cookie']]);
+            self::assertSame(200, $download['status']);
+            self::assertStringStartsWith("PK\x03\x04", $download['body']);
+        } finally {
+            unlink($created[0]);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function containersIn(string $directory): array
+    {
+        $found = glob($directory . '/*.asice');
+
+        return $found === false ? [] : $found;
+    }
+
     /**
      * The page as a browser first sees it: the session cookie it sets and the
      * token it carries.

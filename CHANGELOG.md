@@ -307,6 +307,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- The demo application kept uploads in a folder in the system's temporary
+  directory, used that folder without checking who had created it, and named
+  each file after the session id, which is a credential. Another account on a
+  shared machine could read or replace them. Containers now live in the
+  gitignored `examples/demo-app/var/`, created 0700, under a random name the
+  session remembers.
 - The demo application answered any request, by any method and from any site:
   a form elsewhere could start a Mobile-ID or Smart-ID request to a phone,
   replace the card challenge, consume a finished session, or buy a timestamp in
