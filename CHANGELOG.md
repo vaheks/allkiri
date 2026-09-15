@@ -314,6 +314,10 @@ signatures with a local key, and the API the eID means will plug into.
   the trusted-list parser and verifier, and the Smart-ID payload and status
   parser, together with the members of public classes that take or return them.
   `AsicContainer::$originalEntries` is private.
+- `composer.json` suggests `ext-intl`, which a Web eID site whose domain name
+  is not ASCII needs unless its origin is configured in Punycode, and a PSR-16
+  cache implementation, without which each `Allkiri` instance fetches the
+  trusted lists again.
 
 ### Fixed
 

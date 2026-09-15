@@ -55,6 +55,10 @@
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpunit/phpunit": "^11.5"
     },
+    "suggest": {
+        "ext-intl": "Needed for a Web eID site whose domain name is not ASCII, unless its origin is configured in Punycode",
+        "psr/simple-cache-implementation": "Keeps downloaded trusted lists between requests; without a PSR-16 cache each Allkiri instance fetches them again"
+    },
     "autoload": {
         "psr-4": {
             "Allkiri\\": "src/"
