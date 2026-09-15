@@ -105,6 +105,21 @@ Each signature is `INDETERMINATE` with `NO_CERTIFICATE_CHAIN_FOUND` and
 `TRUST_ANCHORS_UNAVAILABLE`, whose message gives the reason. What steps 1 to 6
 found still stands, so a tampered container is still `TOTAL-FAILED`.
 
+### Where the trust anchors come from
+
+With `Environment::production()`, the anchors come from the European list of
+trusted lists and the national lists it points to, verified as
+[trust.md](trust.md) describes. They are downloaded the first time a signature
+needs them, not when `Allkiri` is built, and kept for as long as that `Allkiri`
+object lives. So the first validation in a process is the slow one, and the one
+that reports `TRUST_ANCHORS_UNAVAILABLE` when the lists cannot be reached. A
+failed download is not remembered: the next validation tries again.
+
+Without a PSR-16 cache, each new `Allkiri` downloads them again, which under
+PHP-FPM usually means every request that validates. Give it a cache, as
+[trust.md](trust.md#caching) shows. `Environment::demo()` works the same way
+with RIA's test list.
+
 ## The policy
 
 ```php
@@ -140,6 +155,21 @@ $report = $allkiri->validator()->validate($bytes, 'leping.asice', new Validation
     validationTime: new DateTimeImmutable('2024-09-02T12:36:44Z'),
 ));
 ```
+
+That moment changes less than the name suggests.
+
+- **It changes** whether a trusted list counts as past its next update, and,
+  for a signature whose timestamp does not verify, the latest moment an OCSP
+  response may have been produced. The report records it as the validation
+  time.
+- **It does not change** how the signer's certificate, its chain and the
+  revocation answer are judged. Those are always judged at the moment the
+  signature is proven to have existed: its timestamp's time, or the signing
+  time it claims when no timestamp verifies. That is the same with or without a
+  validation time.
+- **The trust anchors are today's.** The trusted lists are the ones loaded now.
+  A service that has changed status since is judged by the status history the
+  list keeps, not by the list as it stood on that day.
 
 ## A second opinion from SiVa
 
