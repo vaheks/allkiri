@@ -237,6 +237,16 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- Stored sessions, prepared signatures and Web eID challenges are read back by
+  one reader, so they all refuse malformed data the same way. Before, a stored
+  Mobile-ID session whose challenge was not base64 was restored with an empty
+  challenge, an unknown algorithm or level in a stored `DataToBeSigned` threw
+  PHP's `ValueError`, and dates were parsed loosely, so "now" was accepted. Each
+  is now refused, with a message naming the field and never its value.
+- A stored Smart-ID session with a missing field no longer puts the whole stored
+  array, session secret included, into the exception's stack trace. Every
+  `fromArray()` and `fromJson()` now keeps its input out of stack traces.
+
 - Validation no longer throws when the trust anchors cannot be loaded. A
   trusted list that could not be fetched, verified or parsed escaped from
   `SignatureValidator` and `ContainerValidator` as a `TrustedListException`.

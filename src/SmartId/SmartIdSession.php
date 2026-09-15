@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\SmartId;
 
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\StoredData;
 
 /**
  * A Smart-ID operation waiting for the person to act.
@@ -186,69 +187,31 @@ final readonly class SmartIdSession implements \JsonSerializable
      */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        $version = $data['version'] ?? null;
-        if ($version !== self::VERSION && $version !== self::VERSION_1) {
-            throw new InvalidArgumentException('Unsupported Smart-ID session version');
-        }
-        $challenge = base64_decode(self::string($data, 'challenge'), true);
-        if ($challenge === false) {
-            throw new InvalidArgumentException('The stored Smart-ID challenge is not base64');
-        }
-        $startedAt = $data['startedAt'] ?? null;
-        // Only version 2 has anything to read in these.
-        $v2 = $version === self::VERSION;
-        $level = $v2 ? self::optional($data, 'certificateLevel') : null;
-        $semanticsIdentifier = $v2 ? self::optional($data, 'semanticsIdentifier') : null;
+        return StoredData::restore($data, 'Smart-ID session', [self::VERSION, self::VERSION_1], static function (#[\SensitiveParameter] StoredData $stored): self {
+            // Only version 2 has anything to read in these.
+            $v2 = $stored->version === self::VERSION;
+            $semanticsIdentifier = $v2 ? $stored->optionalString('semanticsIdentifier') : null;
 
-        return new self(
-            self::string($data, 'sessionId'),
-            self::string($data, 'type'),
-            $challenge,
-            Interactions::fromEncoded(self::string($data, 'interactions')),
-            self::optional($data, 'verificationCode'),
-            self::optional($data, 'documentNumber'),
-            self::optional($data, 'sessionToken'),
-            self::optional($data, 'sessionSecret'),
-            self::optional($data, 'deviceLinkBase'),
-            \is_string($startedAt) ? new \DateTimeImmutable($startedAt) : null,
-            $v2 ? self::optional($data, 'initialCallbackUrl') : null,
-            $level === null
-                ? null
-                : CertificateLevel::tryFrom($level) ?? throw new InvalidArgumentException(\sprintf('Unknown stored Smart-ID certificate level "%s"', $level)),
-            $semanticsIdentifier === null ? null : SemanticsIdentifier::parse($semanticsIdentifier),
-        );
+            return new self(
+                $stored->string('sessionId'),
+                $stored->string('type'),
+                $stored->base64('challenge'),
+                Interactions::fromEncoded($stored->string('interactions')),
+                $stored->optionalString('verificationCode'),
+                $stored->optionalString('documentNumber'),
+                $stored->optionalString('sessionToken'),
+                $stored->optionalString('sessionSecret'),
+                $stored->optionalString('deviceLinkBase'),
+                $stored->optionalDate('startedAt'),
+                $v2 ? $stored->optionalString('initialCallbackUrl') : null,
+                $v2 ? $stored->optionalEnum('certificateLevel', CertificateLevel::class) : null,
+                $semanticsIdentifier === null ? null : SemanticsIdentifier::parse($semanticsIdentifier),
+            );
+        });
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Smart-ID session JSON is not an object');
-        }
-
-        return self::fromArray($data);
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function string(array $data, string $key): string
-    {
-        $value = $data[$key] ?? null;
-        if (!\is_string($value) || $value === '') {
-            throw new InvalidArgumentException(\sprintf('Smart-ID session is missing "%s"', $key));
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function optional(array $data, string $key): ?string
-    {
-        $value = $data[$key] ?? null;
-
-        return \is_string($value) && $value !== '' ? $value : null;
+        return self::fromArray(StoredData::decode($json, 'Smart-ID session'));
     }
 }

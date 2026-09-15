@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\WebEid;
 
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\StoredData;
 
 /**
  * The challenge a website hands the card, and the deadline for answering it.
@@ -67,39 +68,17 @@ final readonly class WebEidChallenge implements \JsonSerializable
     /**
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (($data['version'] ?? null) !== self::VERSION) {
-            throw new InvalidArgumentException('Unsupported Web eID challenge version');
-        }
-
-        return new self(
-            self::string($data, 'nonce'),
-            new \DateTimeImmutable(self::string($data, 'issuedAt')),
-            new \DateTimeImmutable(self::string($data, 'expiresAt')),
-        );
+        return StoredData::restore($data, 'Web eID challenge', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            $stored->string('nonce'),
+            $stored->date('issuedAt'),
+            $stored->date('expiresAt'),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('Web eID challenge JSON is not an object');
-        }
-
-        return self::fromArray($data);
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function string(array $data, string $key): string
-    {
-        $value = $data[$key] ?? null;
-        if (!\is_string($value) || $value === '') {
-            throw new InvalidArgumentException(\sprintf('Web eID challenge is missing "%s"', $key));
-        }
-
-        return $value;
+        return self::fromArray(StoredData::decode($json, 'Web eID challenge'));
     }
 }

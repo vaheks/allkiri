@@ -7,7 +7,7 @@ namespace Allkiri\Signing;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\SignatureAlgorithm;
-use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\StoredData;
 
 /**
  * Everything a signing session needs to survive between two HTTP requests.
@@ -82,60 +82,24 @@ final readonly class DataToBeSigned implements \JsonSerializable
     /**
      * @param array<mixed> $data the output of {@see jsonSerialize()}
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        $version = $data['version'] ?? null;
-        if ($version !== self::VERSION) {
-            throw new InvalidArgumentException(\sprintf('Unsupported DataToBeSigned version %s', \is_scalar($version) ? (string) $version : 'none'));
-        }
-
-        return new self(
-            self::string($data, 'signatureId'),
-            self::string($data, 'signatureFileName'),
-            SignatureAlgorithm::from(self::string($data, 'algorithm')),
-            self::base64($data, 'digest'),
-            self::base64($data, 'signedInfoCanonical'),
-            self::base64($data, 'signatureXml'),
-            Certificate::fromBase64(self::string($data, 'signerCertificate')),
-            self::string($data, 'containerFingerprint'),
-            SignatureLevel::from(self::string($data, 'level')),
-            new \DateTimeImmutable(self::string($data, 'createdAt')),
-        );
+        return StoredData::restore($data, 'DataToBeSigned', [self::VERSION], static fn(#[\SensitiveParameter] StoredData $stored): self => new self(
+            $stored->string('signatureId'),
+            $stored->string('signatureFileName'),
+            $stored->enum('algorithm', SignatureAlgorithm::class),
+            $stored->base64('digest'),
+            $stored->base64('signedInfoCanonical'),
+            $stored->base64('signatureXml'),
+            $stored->certificate('signerCertificate'),
+            $stored->string('containerFingerprint'),
+            $stored->enum('level', SignatureLevel::class),
+            $stored->date('createdAt'),
+        ));
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(#[\SensitiveParameter] string $json): self
     {
-        $data = json_decode($json, true);
-        if (!\is_array($data)) {
-            throw new InvalidArgumentException('DataToBeSigned JSON is not an object');
-        }
-
-        return self::fromArray($data);
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function string(array $data, string $key): string
-    {
-        $value = $data[$key] ?? null;
-        if (!\is_string($value) || $value === '') {
-            throw new InvalidArgumentException(\sprintf('DataToBeSigned is missing "%s"', $key));
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param array<mixed> $data
-     */
-    private static function base64(array $data, string $key): string
-    {
-        $decoded = base64_decode(self::string($data, $key), true);
-        if ($decoded === false || $decoded === '') {
-            throw new InvalidArgumentException(\sprintf('DataToBeSigned field "%s" is not base64', $key));
-        }
-
-        return $decoded;
+        return self::fromArray(StoredData::decode($json, 'DataToBeSigned'));
     }
 }

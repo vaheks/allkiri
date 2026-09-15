@@ -7,11 +7,18 @@ namespace Allkiri\Tests\Unit;
 use Allkiri\Crypto\PrivateKey;
 use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\MobileId\MobileIdConfiguration;
+use Allkiri\MobileId\MobileIdSession;
+use Allkiri\MobileId\MobileIdSigningSession;
+use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\SmartId\DeviceLink;
 use Allkiri\SmartId\DeviceLinkSessionResponse;
 use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdSession;
+use Allkiri\SmartId\SmartIdSigningSession;
+use Allkiri\StoredData;
+use Allkiri\WebEid\WebEidChallenge;
+use Allkiri\WebEid\WebEidSigningSession;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -42,7 +49,6 @@ final class SensitiveParameterTest extends TestCase
         yield 'the session secret the service returns' => [DeviceLinkSessionResponse::class, '__construct', 'sessionSecret'];
         yield 'the answer carrying the session secret' => [DeviceLinkSessionResponse::class, 'fromArray', 'body'];
         yield 'the session secret a session keeps' => [SmartIdSession::class, '__construct', 'sessionSecret'];
-        yield 'a stored session carrying its secret' => [SmartIdSession::class, 'fromArray', 'data'];
         yield 'the Mobile-ID relying party identifier' => [MobileIdConfiguration::class, '__construct', 'relyingPartyUuid'];
         yield 'the Mobile-ID relying party identifier in production' => [MobileIdConfiguration::class, 'production', 'relyingPartyUuid'];
         yield 'the Smart-ID relying party identifier' => [SmartIdConfiguration::class, '__construct', 'relyingPartyUuid'];
@@ -50,9 +56,26 @@ final class SensitiveParameterTest extends TestCase
     }
 
     /**
+     * Every restore of stored data. The Smart-ID ones carry the session secret;
+     * the others carry phone numbers, identity codes and a signer's name.
+     *
+     * @return iterable<string, array{class-string, string, string}>
+     */
+    public static function restores(): iterable
+    {
+        foreach ([DataToBeSigned::class, MobileIdSession::class, MobileIdSigningSession::class, SmartIdSession::class, SmartIdSigningSession::class, WebEidChallenge::class, WebEidSigningSession::class] as $class) {
+            yield $class . '::fromArray()' => [$class, 'fromArray', 'data'];
+            yield $class . '::fromJson()' => [$class, 'fromJson', 'json'];
+        }
+        yield 'the shared reader given the stored array' => [StoredData::class, 'restore', 'data'];
+        yield 'the shared reader given the stored JSON' => [StoredData::class, 'decode', 'json'];
+    }
+
+    /**
      * @param class-string $class
      */
     #[DataProvider('secrets')]
+    #[DataProvider('restores')]
     public function testTheSecretIsMarkedSensitive(string $class, string $method, string $parameter): void
     {
         $found = null;
