@@ -131,6 +131,13 @@ signatures with a local key, and the API the eID means will plug into.
   32-bit and 16-bit fields, so previously they wrapped and produced a quietly
   corrupt archive. The reader already said so; now the writer does too.
 
+- **RSASSA-PSS beneath a signature.** Certificates, OCSP responses and
+  timestamps signed with RSASSA-PSS are verified, where they used to be refused
+  as an unsupported algorithm. The parameters are read from the algorithm
+  identifier (`PssParameters`, `SignatureAlgorithmIdentifier::$pss`) and
+  accepted in the one profile in use: SHA-256, SHA-384 or SHA-512, MGF1 with
+  the same hash, a salt as long as the digest.
+
 ### Changed
 
 - `MobileIdAuthenticator` and `SmartIdAuthenticator` require a `ChainBuilder` as

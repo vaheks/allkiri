@@ -11,6 +11,8 @@ use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\KeyType;
 use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Tests\Support\Pki\Asn1Encoders;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestCertificateSignature;
 use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
 use phpseclib3\File\ASN1 as PhpseclibAsn1;
@@ -102,6 +104,34 @@ final class CertificateTest extends TestCase
         self::assertSame($ca->subjectNameDer(), $ec->issuerNameDer());
         self::assertNotSame($ec->subjectNameDer(), $ec->issuerNameDer());
         self::assertSame('1.2.840.113549.1.1.11', $ec->signatureAlgorithmOid(), 'sha256WithRSAEncryption, signed by the RSA CA');
+    }
+
+    /**
+     * #27: a certificate authority that signs with RSASSA-PSS.
+     */
+    public function testACertificateIssuedWithRsassaPssVerifies(): void
+    {
+        $certificate = TestCertificates::issue(TestKey::ec(label: 'issued with PSS'), ['id-at-commonName' => 'allkiri Issued With PSS'], signature: TestCertificateSignature::Pss256)->certificate;
+
+        self::assertSame('1.2.840.113549.1.1.10', $certificate->signatureAlgorithmOid());
+        self::assertSame(32, $certificate->signatureAlgorithm()->pss?->saltLength);
+        self::assertTrue($certificate->isSignedBy(TestPki::ca()->certificate));
+        self::assertFalse($certificate->isSignedBy(TestPki::signerRsa()->certificate));
+    }
+
+    /**
+     * The same, from OpenSSL rather than phpseclib, so the parameters are read
+     * as another implementation writes them and not only as the test encoder
+     * does. The committed test CA issued it; its key was thrown away.
+     */
+    public function testAnOpenSslIssuedRsassaPssCertificateVerifies(): void
+    {
+        $certificate = Certificate::fromPem((string) file_get_contents(self::CERTS . 'openssl-pss-issued.pem'));
+
+        self::assertSame('1.2.840.113549.1.1.10', $certificate->signatureAlgorithmOid());
+        self::assertSame(HashAlgorithm::SHA256, $certificate->signatureAlgorithm()->hash());
+        self::assertSame(32, $certificate->signatureAlgorithm()->pss?->saltLength);
+        self::assertTrue($certificate->isSignedBy(TestPki::ca()->certificate));
     }
 
     public function testWhatACertificateMayBeUsedFor(): void

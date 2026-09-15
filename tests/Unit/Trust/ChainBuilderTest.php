@@ -146,6 +146,27 @@ final class ChainBuilderTest extends TestCase
         }
     }
 
+    /**
+     * #27: a CA that signs with RSASSA-PSS, in the profile allkiri accepts and
+     * with a salt it does not.
+     */
+    public function testACertificateIssuedWithRsassaPssChains(): void
+    {
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+        $at = new \DateTimeImmutable('2026-01-01T00:00:00Z');
+        $pss = TestCertificates::issue(TestKey::ec(label: 'chained with PSS'), ['id-at-commonName' => 'allkiri PSS leaf'], signature: TestCertificateSignature::Pss256)->certificate;
+        self::assertSame(2, (new ChainBuilder($store))->build($pss, [], $at, ServiceType::caTypes())->length());
+
+        $salt20 = TestCertificates::issue(TestKey::ec(label: 'chained with PSS'), ['id-at-commonName' => 'allkiri PSS leaf'], signature: TestCertificateSignature::Pss256Salt20)->certificate;
+        try {
+            (new ChainBuilder($store))->build($salt20, [], $at, ServiceType::caTypes());
+            self::fail('a 20-byte PSS salt was accepted');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
+            self::assertStringContainsString('20-byte salt', $e->getMessage());
+        }
+    }
+
     public function testTheRsaKeyFloorAppliesToTheIssuersKey(): void
     {
         $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);

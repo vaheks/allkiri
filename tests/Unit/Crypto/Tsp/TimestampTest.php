@@ -176,6 +176,19 @@ final class TimestampTest extends TestCase
         }
     }
 
+    /**
+     * #27: a timestamp authority that signs its tokens with RSASSA-PSS.
+     */
+    public function testATsaSigningWithRsassaPssIsAccepted(): void
+    {
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock(), self::rsaTsa(TestPki::signerRsa()))->sign = TestSignatures::pss(TestKey::fixture('signer-rsa'));
+
+        $result = (new TspClient($http, MockTsa::URL))->timestamp('x');
+
+        self::assertSame('1.2.840.113549.1.1.10', $result->token->signerInfo()->signatureAlgorithmOid());
+    }
+
     public function testTheCallerSetsTheKeySizeFloor(): void
     {
         $http = new MockHttpClient();

@@ -16,6 +16,9 @@ use Allkiri\Crypto\Asn1\Oids;
  * questions. SHA-1 can still be verified here, so that a signature made with it
  * is reported as weak rather than as forged; {@see AlgorithmConstraints} decides
  * whether a signature that verifies still counts.
+ *
+ * RSASSA-PSS is read with its parameters, which only {@see fromDer()} has, and
+ * only in the profile {@see PssParameters} accepts.
  */
 final readonly class SignatureAlgorithmIdentifier
 {
@@ -32,12 +35,14 @@ final readonly class SignatureAlgorithmIdentifier
     ];
 
     /**
-     * @param string $hashName the PHP hash name: sha1, sha256, sha384 or sha512
+     * @param string             $hashName the PHP hash name: sha1, sha256, sha384 or sha512
+     * @param PssParameters|null $pss      the RSASSA-PSS parameters, for that algorithm only
      */
     private function __construct(
         public string $oid,
         public KeyType $keyType,
         public string $hashName,
+        public ?PssParameters $pss = null,
     ) {}
 
     /**
@@ -66,8 +71,15 @@ final readonly class SignatureAlgorithmIdentifier
                 throw new Asn1Exception('not a SEQUENCE of an OID and optional parameters');
             }
             $oid = $node->child(0)->oid();
+            // RFC 4055 §3.1: the parameters must be present for a signature.
+            $parameters = $oid === Oids::RSASSA_PSS && $node->childCount() === 2 && $node->child(1)->isSequence() ? $node->child(1)->der() : null;
         } catch (Asn1Exception $e) {
             throw new UnsupportedAlgorithmException('Malformed signature AlgorithmIdentifier: ' . $e->getMessage(), 0, $e);
+        }
+        if ($parameters !== null) {
+            $pss = PssParameters::fromDer($parameters);
+
+            return new self($oid, KeyType::RSA, $pss->hash->value, $pss);
         }
 
         return self::fromOid($oid);

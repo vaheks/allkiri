@@ -97,11 +97,21 @@ final class TestCertificates
     private static function signingKey(TestKey $key, TestCertificateSignature $signature): PrivateKey
     {
         $raw = $key->raw;
+        $hash = $signature->hashName();
+        $saltLength = $signature->pssSaltLength();
         if ($raw instanceof RSA\PrivateKey) {
-            // phpseclib signs with RSASSA-PSS unless told otherwise.
-            return Phpseclib::rsaPrivate(Phpseclib::rsaPrivate($raw->withPadding(RSA::SIGNATURE_PKCS1))->withHash($signature->hashName()));
+            if ($saltLength === null) {
+                // phpseclib signs with RSASSA-PSS unless told otherwise.
+                return Phpseclib::rsaPrivate(Phpseclib::rsaPrivate($raw->withPadding(RSA::SIGNATURE_PKCS1))->withHash($hash));
+            }
+            $pss = Phpseclib::rsaPrivate(Phpseclib::rsaPrivate($raw->withPadding(RSA::SIGNATURE_PSS))->withHash($hash));
+
+            return Phpseclib::rsaPrivate(Phpseclib::rsaPrivate($pss->withMGFHash($hash))->withSaltLength($saltLength));
+        }
+        if ($saltLength !== null) {
+            throw new \LogicException('RSASSA-PSS needs an RSA issuer key');
         }
 
-        return Phpseclib::ecPrivate($raw->withHash($signature->hashName()));
+        return Phpseclib::ecPrivate($raw->withHash($hash));
     }
 }
