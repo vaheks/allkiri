@@ -74,6 +74,7 @@
         "test:unit": "phpunit --testsuite Unit",
         "test:integration": "phpunit --testsuite Integration",
         "test:live": "phpunit --testsuite LiveSmoke",
+        "test:coverage": "phpunit --testsuite Unit --coverage-clover coverage/clover.xml --coverage-html coverage/html --coverage-text=coverage/summary.txt --only-summary-for-coverage-text",
         "test:js": [
             "node tests/js/qr-golden.mjs",
             "node tests/js/http-contract.mjs",
@@ -91,7 +92,8 @@
     },
     "scripts-descriptions": {
         "check": "Run coding-standard check, static analysis and unit tests (what CI runs).",
-        "test:live": "The production smoke test: real signatures against the live services. Needs ALLKIRI_LIVE_SMOKE=1, ALLKIRI_MODE=live and a phone in your hand."
+        "test:live": "The production smoke test: real signatures against the live services. Needs ALLKIRI_LIVE_SMOKE=1, ALLKIRI_MODE=live and a phone in your hand.",
+        "test:coverage": "Unit tests with line coverage, written to coverage/. Needs pcov, or Xdebug with XDEBUG_MODE=coverage."
     },
     "config": {
         "sort-packages": true,
