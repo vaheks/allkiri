@@ -40,6 +40,8 @@ final class SignerInfo
 
     /**
      * @param array<mixed> $mapped
+     *
+     * @internal
      */
     public function __construct(array $mapped, Node $node)
     {
@@ -129,6 +131,8 @@ final class SignerInfo
 
     /**
      * The first value of a signed attribute as a raw DER node.
+     *
+     * @internal
      */
     public function signedAttribute(string $oid): ?Node
     {

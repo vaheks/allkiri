@@ -9,6 +9,8 @@ use Allkiri\Crypto\HashAlgorithm;
 /**
  * A XAdES-BES signature with everything but the SignatureValue: the document,
  * and the exact bytes the signer has to sign.
+ *
+ * @internal
  */
 final readonly class BuiltSignature
 {

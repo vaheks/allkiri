@@ -34,12 +34,12 @@ final class OcspClient
     public function __construct(
         private readonly HttpClient $http,
         private readonly ClockInterface $clock,
-        private readonly OcspResponseVerifier $verifier = new OcspResponseVerifier(),
         private readonly NonceGenerator $nonces = new RandomNonceGenerator(),
         private readonly OcspVerificationOptions $options = new OcspVerificationOptions(),
         private readonly array $urlOverrides = [],
         private readonly ?string $defaultUrl = null,
         private readonly string $certIdHashOid = Oids::SHA1,
+        private readonly OcspResponseVerifier $verifier = new OcspResponseVerifier(),
     ) {}
 
     /**

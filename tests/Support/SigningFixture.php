@@ -95,7 +95,7 @@ final class SigningFixture
             $this->clock,
             new LtExtender($this->tspClient, $this->ocspClient, new ChainBuilder($store), $store),
             new LtaExtender($this->tspClient),
-            new SignatureBuilder($this->clock),
+            builder: new SignatureBuilder($this->clock),
         );
     }
 
@@ -104,6 +104,6 @@ final class SigningFixture
      */
     public function besOnlyService(): SigningService
     {
-        return new SigningService($this->clock, null, null, new SignatureBuilder($this->clock));
+        return new SigningService($this->clock, builder: new SignatureBuilder($this->clock));
     }
 }

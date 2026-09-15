@@ -8,6 +8,8 @@ use Allkiri\Xml\Xml;
 
 /**
  * Puts the signature value into a built signature.
+ *
+ * @internal
  */
 final class SignatureCompleter
 {

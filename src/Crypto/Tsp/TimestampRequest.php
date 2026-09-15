@@ -13,6 +13,8 @@ use phpseclib3\Math\BigInteger;
 
 /**
  * An RFC 3161 TimeStampReq.
+ *
+ * @internal
  */
 final readonly class TimestampRequest
 {

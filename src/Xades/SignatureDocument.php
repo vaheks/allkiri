@@ -11,6 +11,8 @@ use Allkiri\Xml\Xml;
 /**
  * A signatures*.xml document (or any XML carrying ds:Signature elements),
  * loaded by the hardened loader and searched with the XAdES prefixes.
+ *
+ * @internal
  */
 final class SignatureDocument
 {

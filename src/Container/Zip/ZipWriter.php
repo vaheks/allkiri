@@ -14,6 +14,8 @@ use Allkiri\Exception\InvalidArgumentException;
  *
  * Existing entries are re-emitted from their compressed bytes, so appending a
  * signature to a container never disturbs what was signed.
+ *
+ * @internal
  */
 final class ZipWriter
 {

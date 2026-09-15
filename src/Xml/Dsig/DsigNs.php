@@ -7,6 +7,8 @@ namespace Allkiri\Xml\Dsig;
 /**
  * The XML-DSig namespace and the canonicalisation and transform algorithms,
  * which XAdES signatures and trusted lists share.
+ *
+ * @internal
  */
 final class DsigNs
 {

@@ -9,6 +9,8 @@ use Allkiri\Xml\Dsig\ReferenceResolver;
 
 /**
  * Resolves a signature's external references to the container's data files.
+ *
+ * @internal
  */
 final class ContainerReferenceResolver implements ReferenceResolver
 {

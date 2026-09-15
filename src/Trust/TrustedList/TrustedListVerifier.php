@@ -18,6 +18,8 @@ use Allkiri\Xml\Xml;
  * Which certificates those are is the caller's decision: for the Estonian
  * test list they are pinned in configuration; in production they come from
  * the pointer in the EU list of trusted lists.
+ *
+ * @internal
  */
 final class TrustedListVerifier
 {

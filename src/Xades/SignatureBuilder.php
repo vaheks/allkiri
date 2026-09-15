@@ -21,6 +21,8 @@ use Psr\Clock\ClockInterface;
  *
  * The element order and naming follow what digidoc4j produces, because that
  * is what DigiDoc4 and SiVa are known to accept.
+ *
+ * @internal
  */
 final class SignatureBuilder
 {

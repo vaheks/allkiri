@@ -13,6 +13,8 @@ use Allkiri\Crypto\UnsupportedAlgorithmException;
 /**
  * RFC 6960 response acceptance, without deciding trust in the CA itself
  * (that is the Trust layer's job before this is called).
+ *
+ * @internal
  */
 final class OcspResponseVerifier
 {

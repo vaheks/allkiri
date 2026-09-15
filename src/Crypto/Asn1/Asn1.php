@@ -11,6 +11,8 @@ use phpseclib3\Math\BigInteger;
 /**
  * DER in, typed structures out — and back. Thin facade over phpseclib's
  * ASN.1 engine that always keeps the raw tree next to the mapped value.
+ *
+ * @internal
  */
 final class Asn1
 {

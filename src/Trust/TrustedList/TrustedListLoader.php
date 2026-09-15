@@ -24,10 +24,10 @@ final class TrustedListLoader
     public function __construct(
         private readonly HttpClient $http,
         private readonly ?CacheInterface $cache = null,
-        private readonly TrustedListParser $parser = new TrustedListParser(),
-        private readonly TrustedListVerifier $verifier = new TrustedListVerifier(),
         private readonly ?ClockInterface $clock = null,
         private readonly ?LoggerInterface $logger = null,
+        private readonly TrustedListParser $parser = new TrustedListParser(),
+        private readonly TrustedListVerifier $verifier = new TrustedListVerifier(),
     ) {}
 
     /**

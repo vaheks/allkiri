@@ -14,6 +14,8 @@ use Allkiri\Xml\Xml;
  *
  * Tolerant by design: anything missing or malformed becomes a null, an empty
  * list or a warning, so the validator can report rather than crash.
+ *
+ * @internal
  */
 final class XadesSignatureParser
 {

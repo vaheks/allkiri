@@ -8,6 +8,8 @@ use Allkiri\Xml\Dsig\DsigNs;
 
 /**
  * XAdES namespaces and reference types. XML-DSig's own are in DsigNs.
+ *
+ * @internal
  */
 final class Ns
 {

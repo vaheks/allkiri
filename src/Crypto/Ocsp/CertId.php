@@ -40,6 +40,8 @@ final readonly class CertId
 
     /**
      * @param array<mixed> $mapped the asn1map output of a CertID
+     *
+     * @internal
      */
     public static function fromMapped(array $mapped): self
     {
@@ -57,6 +59,8 @@ final readonly class CertId
 
     /**
      * @return array<string, mixed> value for the CERT_ID map
+     *
+     * @internal
      */
     public function toMapped(): array
     {

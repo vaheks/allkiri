@@ -17,6 +17,8 @@ use Allkiri\Xml\Xml;
  * through a resolver) and the signature over the canonicalised SignedInfo.
  *
  * Reports rather than throws: a bad signature is data, not an error.
+ *
+ * @internal
  */
 final class XmlDsigVerifier
 {

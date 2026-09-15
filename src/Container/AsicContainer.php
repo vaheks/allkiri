@@ -29,7 +29,7 @@ final readonly class AsicContainer
         public array $dataFiles,
         public array $signatureFiles,
         public Manifest $manifest,
-        public array $originalEntries = [],
+        private array $originalEntries = [],
         public array $structuralFindings = [],
     ) {}
 
@@ -64,6 +64,18 @@ final readonly class AsicContainer
     public static function fromParts(array $dataFiles, array $signatureFiles, Manifest $manifest, array $originalEntries, array $findings): self
     {
         return new self($dataFiles, $signatureFiles, $manifest, $originalEntries, $findings);
+    }
+
+    /**
+     * The entries exactly as they were read, or none for a new container.
+     *
+     * @internal used by AsicWriter, to copy them byte for byte
+     *
+     * @return list<ZipEntry>
+     */
+    public function originalEntries(): array
+    {
+        return $this->originalEntries;
     }
 
     public function withSignatureFile(SignatureFile $file): self

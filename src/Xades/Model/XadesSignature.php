@@ -11,6 +11,8 @@ use Allkiri\Xades\Ns;
  * Read model of one XAdES signature as found in a container: everything the
  * validator needs, parsed tolerantly (missing parts are null or empty, and
  * oddities land in `warnings`).
+ *
+ * @internal
  */
 final readonly class XadesSignature
 {

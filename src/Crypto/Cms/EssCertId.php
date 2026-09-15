@@ -23,6 +23,8 @@ final readonly class EssCertId
 
     /**
      * @param array<mixed> $mapped one element of SigningCertificate(V2).certs
+     *
+     * @internal
      */
     public static function fromMapped(array $mapped, bool $v2): self
     {

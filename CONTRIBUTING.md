@@ -34,6 +34,12 @@ level max, and the Unit test suite. Fix style with `composer cs:fix`.
   uses which, and fails on any reference outside it, an Allkiri class named in
   a comment included. A new dependency goes into that table first, where a
   cycle shows at once.
+- A class a caller has no reason to touch is marked `@internal`, and so is a
+  public member that takes or returns one. `tests/Unit/PublicApiTest.php` lists
+  those classes, and fails when the marks and the list disagree, when a
+  supported member exposes an internal type, or when `examples/` uses one. An
+  optional constructor parameter may take an internal collaborator, after every
+  supported parameter.
 - Every exception implements `Allkiri\Exception\AllkiriException`. A programmer
   or configuration error throws `Allkiri\Exception\InvalidArgumentException`;
   everything else extends `\RuntimeException` through its module's base class.

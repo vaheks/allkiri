@@ -34,8 +34,8 @@ final class LtaExtender
 {
     public function __construct(
         private readonly TspClient $tspClient,
-        private readonly ArchiveTimestampData $data = new ArchiveTimestampData(),
         private readonly ?LoggerInterface $logger = null,
+        private readonly ArchiveTimestampData $data = new ArchiveTimestampData(),
     ) {}
 
     /**
@@ -47,6 +47,8 @@ final class LtaExtender
      * @throws XadesException                           when the signature is not at LT, or what is stamped
      *                                                  cannot be reconstructed
      * @throws \Allkiri\Crypto\Tsp\TimestampException when the archive timestamp cannot be had or trusted
+     *
+     * @internal
      */
     public function extend(SignatureDocument $document, \DOMElement $signature, ReferenceResolver $resolver): LtaExtensionResult
     {

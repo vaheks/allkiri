@@ -26,6 +26,8 @@ use Allkiri\Exception\InvalidArgumentException;
  * The budget is shared across the entries of one container and counted per
  * entry name, so reading the same entry twice costs what it cost the first time
  * rather than twice as much.
+ *
+ * @internal
  */
 final class InflationLimit
 {

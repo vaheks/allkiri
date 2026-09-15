@@ -292,6 +292,18 @@ signatures with a local key, and the API the eID means will plug into.
   `Allkiri\Container\Zip` to `Allkiri\Container`, beside the
   `InvalidContainerException` they extend, and `AsicReader` and `AsicWriter`
   declare the ones they throw.
+- Constructors take their internal collaborators last, after everything a
+  caller configures. `SigningService` takes `logger` and
+  `preparedSignatureTtlSeconds` before `builder`, `completer` and
+  `dsigVerifier`; `TrustedListLoader` takes `clock` and `logger` before `parser`
+  and `verifier`; `LtaExtender` takes `logger` before `data`; `OcspClient` and
+  `TspClient` take `verifier` last.
+- The library's machinery is marked `@internal` and can change in any release:
+  the ASN.1, ZIP and XML readers and writers, XML-DSig verification, the XAdES
+  build and parse classes, building and verifying OCSP and timestamp requests,
+  the trusted-list parser and verifier, and the Smart-ID payload and status
+  parser, together with the members of public classes that take or return them.
+  `AsicContainer::$originalEntries` is private.
 
 ### Fixed
 

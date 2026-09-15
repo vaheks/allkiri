@@ -19,6 +19,8 @@ namespace Allkiri\SmartId;
  * The order of the eleven parts is fixed by the protocol. The tenth is the
  * callback URL of a Web2App or App2App flow, and empty for a QR code or a
  * notification.
+ *
+ * @internal
  */
 final readonly class AcspV2Payload
 {

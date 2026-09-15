@@ -42,6 +42,9 @@ final class LtExtender
         private readonly Canonicalizer $canonicalizer = new Canonicalizer(),
     ) {}
 
+    /**
+     * @internal
+     */
     public function extend(SignatureDocument $document, \DOMElement $signature, Certificate $signer, SignatureLevel $level): LtExtensionResult
     {
         if ($level === SignatureLevel::B) {

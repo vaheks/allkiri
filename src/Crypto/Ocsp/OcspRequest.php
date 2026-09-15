@@ -13,6 +13,8 @@ use phpseclib3\File\ASN1 as PhpseclibAsn1;
 /**
  * An unsigned OCSPRequest for one certificate, optionally with a nonce
  * (RFC 8954: the extension value is an OCTET STRING wrapping the nonce bytes).
+ *
+ * @internal
  */
 final readonly class OcspRequest
 {

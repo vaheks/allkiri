@@ -6,6 +6,8 @@ namespace Allkiri\Crypto\Tsp;
 
 /**
  * PKIStatus of a TimeStampResp (RFC 3161 §2.4.2).
+ *
+ * @internal
  */
 enum PkiStatus: int
 {

@@ -8,6 +8,8 @@ namespace Allkiri\Xml\Dsig;
  * XML canonicalisation on ext-dom. Exclusive C14N 1.0 is what allkiri emits
  * and what DSS, digidoc4j and libdigidocpp produce for ASiC-E; inclusive
  * C14N 1.0 appears in older signatures and in trusted lists.
+ *
+ * @internal
  */
 final class Canonicalizer
 {

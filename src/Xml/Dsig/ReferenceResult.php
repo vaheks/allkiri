@@ -6,6 +6,8 @@ namespace Allkiri\Xml\Dsig;
 
 /**
  * The outcome for one ds:Reference.
+ *
+ * @internal
  */
 final readonly class ReferenceResult
 {

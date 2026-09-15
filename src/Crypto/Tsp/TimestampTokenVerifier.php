@@ -15,6 +15,8 @@ use phpseclib3\Math\BigInteger;
 
 /**
  * RFC 3161 §2.4.2 / RFC 5652 §5.6 token verification.
+ *
+ * @internal
  */
 final class TimestampTokenVerifier
 {

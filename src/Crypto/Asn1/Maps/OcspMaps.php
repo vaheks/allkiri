@@ -12,6 +12,8 @@ use phpseclib3\File\ASN1\Maps;
  * web-eid/web-eid-authtoken-validation-php (MIT, Estonian Information System
  * Authority) with the responder certificates kept as ANY so their DER can be
  * sliced instead of re-encoded.
+ *
+ * @internal
  */
 final class OcspMaps
 {

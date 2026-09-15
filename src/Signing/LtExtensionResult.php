@@ -6,6 +6,8 @@ namespace Allkiri\Signing;
 
 /**
  * What extending a signature to T or LT produced.
+ *
+ * @internal
  */
 final readonly class LtExtensionResult
 {

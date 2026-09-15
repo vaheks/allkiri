@@ -18,6 +18,8 @@ use Allkiri\Xml\Xml;
  * Only the service types allkiri can use become anchors (CA, OCSP and TSA);
  * each one carries the status history from the list, so a signature made
  * while a service was granted stays valid after the status changes.
+ *
+ * @internal
  */
 final class TrustedListParser
 {

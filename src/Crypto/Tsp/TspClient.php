@@ -25,11 +25,11 @@ final class TspClient
     public function __construct(
         private readonly HttpClient $http,
         private readonly string $url,
-        private readonly TimestampTokenVerifier $verifier = new TimestampTokenVerifier(),
         private readonly NonceGenerator $nonces = new RandomNonceGenerator(),
         private readonly HashAlgorithm $hashAlgorithm = HashAlgorithm::SHA256,
         private readonly ?string $policyOid = null,
         private readonly AlgorithmConstraints $algorithmConstraints = new AlgorithmConstraints(),
+        private readonly TimestampTokenVerifier $verifier = new TimestampTokenVerifier(),
     ) {}
 
     public function url(): string

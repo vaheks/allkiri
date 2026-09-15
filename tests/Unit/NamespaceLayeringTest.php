@@ -137,7 +137,7 @@ final class NamespaceLayeringTest extends TestCase
             'Allkiri\Signing\SigningService',
             'Allkiri\Container\AsicReader',
             'Allkiri\Http\Local\Thing',
-        ], array_column(self::namesIn($source, ['StoredData']), 0));
+        ], array_column(SourceTree::referencesIn($source, ['StoredData']), 0));
 
         $root = <<<'PHP'
             <?php
@@ -153,7 +153,7 @@ final class NamespaceLayeringTest extends TestCase
             }
             PHP;
 
-        self::assertSame(['Allkiri\StoredData'], array_column(self::namesIn($root, ['StoredData']), 0));
+        self::assertSame(['Allkiri\StoredData'], array_column(SourceTree::referencesIn($root, ['StoredData']), 0));
     }
 
     /**
@@ -193,7 +193,7 @@ final class NamespaceLayeringTest extends TestCase
         foreach ($classes as $path => $class) {
             $from = self::partOf($class);
             $file = str_replace('\\', '/', substr($path, \strlen($root) + 1));
-            foreach (self::namesIn((string) file_get_contents($path), $rootClasses) as [$name, $line]) {
+            foreach (SourceTree::referencesIn((string) file_get_contents($path), $rootClasses) as [$name, $line]) {
                 if (!str_starts_with($name, 'Allkiri\\')) {
                     continue;
                 }
@@ -205,79 +205,5 @@ final class NamespaceLayeringTest extends TestCase
         }
 
         return $references;
-    }
-
-    /**
-     * Every class name a file refers to, resolved against its namespace and
-     * imports.
-     *
-     * @param list<string> $rootClasses the classes directly in src, which a file in the Allkiri namespace names unqualified
-     *
-     * @return list<array{string, int}> each name, without a leading backslash, and its line
-     */
-    private static function namesIn(string $source, array $rootClasses): array
-    {
-        $tokens = [];
-        foreach (\PhpToken::tokenize($source) as $token) {
-            if (!$token->is(T_WHITESPACE)) {
-                $tokens[] = $token;
-            }
-        }
-
-        $namespace = '';
-        $imports = [];
-        $names = [];
-        $count = \count($tokens);
-        for ($i = 0; $i < $count; ++$i) {
-            $token = $tokens[$i];
-
-            if ($token->is(T_NAMESPACE)) {
-                for (++$i; $i < $count && $tokens[$i]->text !== ';' && $tokens[$i]->text !== '{'; ++$i) {
-                    if ($tokens[$i]->is([T_STRING, T_NAME_QUALIFIED])) {
-                        $namespace = $tokens[$i]->text;
-                    }
-                }
-
-                continue;
-            }
-
-            if ($token->is(T_USE) && ($i === 0 || !$tokens[$i - 1]->is(T_STRING) && $tokens[$i - 1]->text !== ')')) {
-                $name = '';
-                $alias = '';
-                for (++$i; $i < $count && $tokens[$i]->text !== ';' && $tokens[$i]->text !== '(' && $tokens[$i]->text !== '{'; ++$i) {
-                    if ($tokens[$i]->is(T_AS) && $i + 1 < $count) {
-                        $alias = $tokens[++$i]->text;
-                    } elseif ($name === '' && $tokens[$i]->is([T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_STRING])) {
-                        $name = ltrim($tokens[$i]->text, '\\');
-                    }
-                }
-                if ($name !== '') {
-                    $segments = explode('\\', $name);
-                    $imports[$alias !== '' ? $alias : $segments[\count($segments) - 1]] = $name;
-                    $names[] = [$name, $token->line];
-                }
-
-                continue;
-            }
-
-            if ($token->is(T_NAME_FULLY_QUALIFIED)) {
-                $names[] = [ltrim($token->text, '\\'), $token->line];
-            } elseif ($token->is(T_NAME_QUALIFIED)) {
-                $first = explode('\\', $token->text)[0];
-                $names[] = [isset($imports[$first]) ? $imports[$first] . substr($token->text, \strlen($first)) : $namespace . '\\' . $token->text, $token->line];
-            } elseif ($token->is([T_DOC_COMMENT, T_COMMENT])) {
-                preg_match_all('/(?<![A-Za-z0-9_])Allkiri(?:\\\\[A-Za-z_][A-Za-z0-9_]*)+/', $token->text, $matches, PREG_OFFSET_CAPTURE);
-                foreach ($matches[0] as [$name, $offset]) {
-                    $names[] = [$name, $token->line + substr_count(substr($token->text, 0, $offset), "\n")];
-                }
-            } elseif ($namespace === 'Allkiri' && $token->is(T_STRING) && \in_array($token->text, $rootClasses, true)) {
-                $previous = $i > 0 ? $tokens[$i - 1] : null;
-                if ($previous === null || !$previous->is([T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_CONST, T_CLASS, T_ENUM, T_INTERFACE, T_TRAIT])) {
-                    $names[] = ['Allkiri\\' . $token->text, $token->line];
-                }
-            }
-        }
-
-        return $names;
     }
 }
