@@ -269,6 +269,12 @@ signatures with a local key, and the API the eID means will plug into.
   version from Composer. `CurlHttpClient`'s `$userAgent` defaults to `null`,
   meaning `UserAgent::default()`. allkiri now requires `composer-runtime-api`
   ^2.0.
+- `LtExtender`, `LtaExtender` and their result classes moved from
+  `Allkiri\Xades` to `Allkiri\Signing`.
+- The ASiC-E media type and the ASiC and manifest namespaces moved out of
+  `Xades\Ns` into the classes they describe: `AsicContainer::MIME_TYPE`,
+  `SignatureFile::NS_ASIC` and `Manifest::NS_MANIFEST`. `Xml::xpath()` no longer
+  registers the `asic` prefix, which no query used.
 
 ### Fixed
 

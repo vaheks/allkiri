@@ -18,7 +18,6 @@ use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
 use Allkiri\Exception\InvalidArgumentException;
-use Allkiri\Xades\Ns;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
@@ -43,9 +42,9 @@ final class AsicContainerTest extends TestCase
         self::assertSame('', $entries[0]->localExtra, 'mimetype must carry no extra field');
         self::assertSame('', $entries[0]->centralExtra);
         self::assertFalse($entries[0]->hasDataDescriptor());
-        self::assertSame(Ns::MIME_ASICE, $entries[0]->content());
+        self::assertSame(AsicContainer::MIME_TYPE, $entries[0]->content());
         // The mimetype content must sit at a fixed offset so a reader can find it without parsing.
-        self::assertSame(Ns::MIME_ASICE, substr($bytes, 38, \strlen(Ns::MIME_ASICE)));
+        self::assertSame(AsicContainer::MIME_TYPE, substr($bytes, 38, \strlen(AsicContainer::MIME_TYPE)));
 
         self::assertSame(ZipEntry::METHOD_DEFLATE, $entries[2]->method, 'repetitive data compresses');
         self::assertSame("Tere, allkiri!\n", $entries[1]->content());
@@ -57,7 +56,7 @@ final class AsicContainerTest extends TestCase
         self::assertTrue($zip->open($path) === true);
         self::assertSame(4, $zip->numFiles);
         self::assertSame("Tere, allkiri!\n", $zip->getFromName('hello.txt'));
-        self::assertSame(Ns::MIME_ASICE, $zip->getFromName('mimetype'));
+        self::assertSame(AsicContainer::MIME_TYPE, $zip->getFromName('mimetype'));
         $zip->close();
         unlink($path);
     }
@@ -127,10 +126,10 @@ final class AsicContainerTest extends TestCase
     public function testStructuralProblemsAreReportedNotThrown(): void
     {
         // mimetype second and compressed, and a data file the manifest does not mention.
-        $deflated = (string) gzdeflate(Ns::MIME_ASICE, 9);
+        $deflated = (string) gzdeflate(AsicContainer::MIME_TYPE, 9);
         $zip = (new ZipWriter())
             ->addDeflated('data.txt', 'x')
-            ->addEntry(new ZipEntry('mimetype', ZipEntry::METHOD_DEFLATE, 0, crc32(Ns::MIME_ASICE), \strlen($deflated), \strlen(Ns::MIME_ASICE), 0, 0x21, $deflated))
+            ->addEntry(new ZipEntry('mimetype', ZipEntry::METHOD_DEFLATE, 0, crc32(AsicContainer::MIME_TYPE), \strlen($deflated), \strlen(AsicContainer::MIME_TYPE), 0, 0x21, $deflated))
             ->addDeflated('META-INF/manifest.xml', (new Manifest([['fullPath' => 'ghost.txt', 'mediaType' => 'text/plain']]))->toXml())
             ->addDeflated('META-INF/rubbish.txt', 'stray');
         $container = (new AsicReader())->read($zip->build());
@@ -144,7 +143,7 @@ final class AsicContainerTest extends TestCase
         self::assertContains(StructuralFinding::NO_SIGNATURE_FILES, $codes);
         self::assertNotContains(StructuralFinding::UNEXPECTED_META_INF_ENTRY, array_map(static fn(StructuralFinding $f): string => $f->code, $container->fatalFindings()));
 
-        $empty = (new AsicReader())->read((new ZipWriter())->addStored('mimetype', Ns::MIME_ASICE)->build());
+        $empty = (new AsicReader())->read((new ZipWriter())->addStored('mimetype', AsicContainer::MIME_TYPE)->build());
         $emptyCodes = array_map(static fn(StructuralFinding $f): string => $f->code, $empty->structuralFindings);
         self::assertContains(StructuralFinding::MANIFEST_MISSING, $emptyCodes);
         self::assertContains(StructuralFinding::NO_DATA_FILES, $emptyCodes);
@@ -158,7 +157,7 @@ final class AsicContainerTest extends TestCase
             ['fullPath' => 'a.txt', 'mediaType' => 'text/html'],
         ]);
         $bytes = (new ZipWriter())
-            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addStored('mimetype', AsicContainer::MIME_TYPE)
             ->addDeflated('a.txt', 'x')
             ->addDeflated('META-INF/manifest.xml', $manifest->toXml())
             ->build();

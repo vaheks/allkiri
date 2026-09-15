@@ -16,6 +16,9 @@ use Allkiri\Exception\InvalidArgumentException;
  */
 final readonly class AsicContainer
 {
+    /** The media type of an ASiC-E container, which its mimetype entry holds. */
+    public const MIME_TYPE = 'application/vnd.etsi.asic-e+zip';
+
     /**
      * @param list<DataFile>           $dataFiles
      * @param list<SignatureFile>      $signatureFiles

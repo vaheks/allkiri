@@ -28,7 +28,6 @@ final class Xml
         $xpath->registerNamespace('ds', Ns::DS);
         $xpath->registerNamespace('xades', Ns::XADES);
         $xpath->registerNamespace('xadesv141', Ns::XADES141);
-        $xpath->registerNamespace('asic', Ns::ASIC);
         $xpath->registerNamespace('ec', Ns::C14N_EXC);
 
         return $xpath;
