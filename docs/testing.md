@@ -74,8 +74,8 @@ change.
 | `ALLKIRI_TEST_P12` | a PKCS#12 whose CA is in the Estonian test trusted list; turns the local-key SiVa gate into a full TOTAL-PASSED. Optional: the Mobile-ID demo test already reaches TOTAL-PASSED with a key the test trusted list covers |
 | `ALLKIRI_TEST_P12_PASSWORD` | its password |
 | `ALLKIRI_ARTEFACTS` | a directory to keep the containers the Mobile-ID demo test signs, for opening in DigiDoc4 |
-| `ALLKIRI_MID_URL`, `ALLKIRI_MID_UUID`, `ALLKIRI_MID_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
-| `ALLKIRI_SMARTID_URL`, `ALLKIRI_SMARTID_UUID`, `ALLKIRI_SMARTID_NAME` | the same for Smart-ID |
+| `ALLKIRI_MID_URL`, `ALLKIRI_MID_RP_UUID`, `ALLKIRI_MID_RP_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
+| `ALLKIRI_SMARTID_URL`, `ALLKIRI_SMARTID_RP_UUID`, `ALLKIRI_SMARTID_RP_NAME` | the same for Smart-ID |
 
 `ListOfListsLiveTest` needs no configuration and is the one that matters most
 nightly: it fails when the European list of trusted lists is signed by a
@@ -100,9 +100,9 @@ a URL that does not resolve, so the demo responder is configured for its issuer.
 The full SiVa gate needs `ALLKIRI_TEST_P12`: a key whose CA is in the Estonian
 test trusted list, which turns SiVa's verdict from "the format is fine but the
 CA is unknown" into a clean TOTAL-PASSED. SK issues test certificates free of
-charge; ask at <info@skidsolutions.eu>. Phase 2 provides the same evidence for
-nothing, because Mobile-ID's demo numbers sign with certificates from a CA the
-test trusted list already names.
+charge; ask at <info@skidsolutions.eu>. `MobileIdDemoTest` provides the same
+evidence for nothing, because Mobile-ID's demo numbers sign with certificates
+from a CA the test trusted list already names.
 
 ## The production smoke test
 
