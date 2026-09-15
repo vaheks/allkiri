@@ -20,6 +20,10 @@ level max, and the Unit test suite. Fix style with `composer cs:fix`.
   `Crypto` and `Trust` know nothing about containers; `Container` and `Xades`
   know nothing about Mobile-ID, Smart-ID or Web eID; the `Signing` and `Auth`
   layers tie them together.
+- Every exception implements `Allkiri\Exception\AllkiriException`. A programmer
+  or configuration error throws `Allkiri\Exception\InvalidArgumentException`;
+  everything else extends `\RuntimeException` through its module's base class.
+  Never throw an SPL exception or an anonymous exception class.
 - Never hardcode an OCSP responder. Take it from the certificate's AIA
   extension and allow an override map.
 - Everything a caller must persist between HTTP requests is a plain,

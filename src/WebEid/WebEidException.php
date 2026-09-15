@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Anything that went wrong with Web eID.
  */
-class WebEidException extends AllkiriException {}
+class WebEidException extends \RuntimeException implements AllkiriException {}

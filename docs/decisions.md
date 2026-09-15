@@ -762,3 +762,21 @@ past it for trust and revocation. The decision to replace it after 1.0 should be
 weighed again with that on the record, and any replacement must be measured
 against the Web eID project's own test vectors rather than against our reading of
 the specification.
+
+## 2026-09-15 — exceptions, stored sessions and the signing checks
+
+### An interface at the root
+
+`AllkiriException` was an abstract `RuntimeException`, and the library's
+`InvalidArgumentException` extended it. So `catch (\InvalidArgumentException)`,
+the usual way PHP code catches a wrong argument, missed it, and
+`catch (\RuntimeException)` caught programmer errors along with failures at run
+time. Two throws sat outside the family altogether: an anonymous exception class
+that could not be caught by name, and a `\LogicException`.
+
+`AllkiriException` is now an interface. Programmer and configuration errors throw
+`Allkiri\Exception\InvalidArgumentException`, which extends SPL's; every other
+exception extends `\RuntimeException` through its module's base class. Guzzle and
+Symfony are built the same way, and `catch (AllkiriException)` keeps working. A
+test walks `src` and fails on any exception outside the family, and on any SPL
+exception or anonymous exception class created there.

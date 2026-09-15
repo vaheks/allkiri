@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Allkiri\Exception;
 
 /**
- * Root of every exception thrown by allkiri.
+ * Every exception allkiri throws implements this.
  *
- * Catch this to handle any library failure; catch the per-module subclasses
- * (Http, Crypto, Trust, Container, Xades, Signing) for finer control.
+ * Catch it to handle any library failure, or catch a module's base class (Http,
+ * Crypto, Trust, Container, Xades, Signing, MobileId, SmartId, WebEid) for finer
+ * control. A programmer or configuration error is also SPL's
+ * `\InvalidArgumentException`; everything else is a `\RuntimeException`.
  */
-abstract class AllkiriException extends \RuntimeException {}
+interface AllkiriException extends \Throwable {}

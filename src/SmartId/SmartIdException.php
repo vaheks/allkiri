@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Anything that went wrong with Smart-ID.
  */
-class SmartIdException extends AllkiriException {}
+class SmartIdException extends \RuntimeException implements AllkiriException {}

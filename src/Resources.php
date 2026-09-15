@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri;
 
-use Allkiri\Exception\AllkiriException;
+use Allkiri\Exception\InvalidArgumentException;
 
 /**
  * Files shipped with the library: the trust anchors and trusted-list signer
@@ -24,7 +24,7 @@ final class Resources
         $path = self::path($relative);
         $content = @file_get_contents($path);
         if ($content === false) {
-            throw new class (\sprintf('Bundled resource "%s" is missing', $relative)) extends AllkiriException {};
+            throw new InvalidArgumentException(\sprintf('There is no bundled resource "%s"; the name is wrong or the package is incomplete', $relative));
         }
 
         return $content;

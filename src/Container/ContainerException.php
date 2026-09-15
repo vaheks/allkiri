@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * A container could not be read or written.
  */
-class ContainerException extends AllkiriException {}
+class ContainerException extends \RuntimeException implements AllkiriException {}

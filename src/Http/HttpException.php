@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Base of the HTTP layer's exceptions.
  */
-class HttpException extends AllkiriException {}
+class HttpException extends \RuntimeException implements AllkiriException {}

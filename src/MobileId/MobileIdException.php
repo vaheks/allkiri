@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Base of the Mobile-ID failures.
  */
-class MobileIdException extends AllkiriException {}
+class MobileIdException extends \RuntimeException implements AllkiriException {}

@@ -245,8 +245,19 @@ signatures with a local key, and the API the eID means will plug into.
   the same one after that; it built a new one on every call. Mobile-ID and
   Smart-ID still get a client of their own, with a timeout long enough for
   their long polls.
+- `AllkiriException` is an interface that every library exception implements,
+  so `catch (AllkiriException)` still catches everything. The library's
+  `InvalidArgumentException`, thrown for programmer and configuration errors,
+  now extends SPL's `\InvalidArgumentException`: `catch (\InvalidArgumentException)`
+  and `catch (\LogicException)` catch it, and `catch (\RuntimeException)` no
+  longer does. Every other library exception extends `\RuntimeException`.
 
 ### Fixed
+
+- A bundled resource that cannot be read throws `InvalidArgumentException`
+  instead of an anonymous exception class that could not be caught by name, and
+  a node outside any document handed to the signature parser throws it instead
+  of PHP's `\LogicException`.
 
 - Stored sessions, prepared signatures and Web eID challenges are read back by
   one reader, so they all refuse malformed data the same way. Before, a stored

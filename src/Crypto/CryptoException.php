@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Base of the cryptographic layer's exceptions (ASN.1, certificates, OCSP, timestamps).
  */
-class CryptoException extends AllkiriException {}
+class CryptoException extends \RuntimeException implements AllkiriException {}

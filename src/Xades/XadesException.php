@@ -9,4 +9,4 @@ use Allkiri\Exception\AllkiriException;
 /**
  * Base of the XML signature layer's failures.
  */
-class XadesException extends AllkiriException {}
+class XadesException extends \RuntimeException implements AllkiriException {}

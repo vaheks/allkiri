@@ -59,33 +59,27 @@ final class TrustedListExpiry
     }
 
     /**
-     * The anchor a check came up without because its list was refused: the one
-     * the check finds when run again against every anchor. Null when refusal is
-     * off, or when the check fails for some other reason.
-     *
-     * @param \Closure(TrustStore): ?TrustAnchor $check
-     */
-    public function refusedAnchor(\Closure $check): ?TrustAnchor
-    {
-        if ($this->graceSeconds === null) {
-            return null;
-        }
-        $anchor = $check($this->unfiltered);
-
-        return $anchor?->trustedList?->expiredAt($this->at, $this->graceSeconds) !== null ? $anchor : null;
-    }
-
-    /**
-     * The error for a part of the signature left without its anchor.
+     * The error for a part of the signature that came up without its anchor
+     * because the anchor's list was refused. The check is run again against
+     * every anchor, and the finding names the list of the anchor it finds.
+     * Null when refusal is off, or when the check fails for another reason.
      *
      * The sub-indication is the one the anchor's absence would give, so a
      * caller branching on it sees the same thing whether the anchor was never
      * configured or came from a list overdue for too long.
+     *
+     * @param \Closure(TrustStore): ?TrustAnchor $check
      */
-    public function refusal(TrustAnchor $anchor, string $role, SubIndication $subIndication): Finding
+    public function refusal(\Closure $check, string $role, SubIndication $subIndication): ?Finding
     {
-        $grace = $this->graceSeconds ?? 0;
-        $expired = $anchor->trustedList?->expiredAt($this->at, $grace) ?? throw new \LogicException('The anchor is not from a refused list');
+        if ($this->graceSeconds === null) {
+            return null;
+        }
+        $grace = $this->graceSeconds;
+        $expired = $check($this->unfiltered)?->trustedList?->expiredAt($this->at, $grace);
+        if ($expired === null) {
+            return null;
+        }
 
         return Finding::error(
             FindingCodes::TRUSTED_LIST_EXPIRED,
