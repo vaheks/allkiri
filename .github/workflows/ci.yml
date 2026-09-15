@@ -27,8 +27,10 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           # zip is for the test suite only; the library uses zlib, which is
-          # compiled in. See the Requirements section of the README.
-          extensions: curl, dom, mbstring, openssl, zip
+          # compiled in. intl is optional for the library, and loaded here so
+          # the tests of internationalised Web eID origins run rather than
+          # skip. See the Requirements section of the README.
+          extensions: curl, dom, intl, mbstring, openssl, zip
           coverage: none
           tools: composer:v2
 
