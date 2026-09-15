@@ -86,7 +86,7 @@ final class SmartIdSigner
     /**
      * Prepare the signature and push the request to the person's device.
      */
-    public function startNotification(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, ?SigningOptions $options = null, ?CertificateLevel $level = null): SmartIdSigningSession
+    public function startNotification(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, SigningOptions $options = new SigningOptions(), ?CertificateLevel $level = null): SmartIdSigningSession
     {
         $certificate = $this->certificate($documentNumber, $level);
         $dataToBeSigned = $this->signingService->prepare($container, $certificate->certificate, $this->options($options));
@@ -117,7 +117,7 @@ final class SmartIdSigner
      * Prepare the signature and return a session whose links send the person
      * into the app.
      */
-    public function startDeviceLink(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, ?SigningOptions $options = null, ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSigningSession
+    public function startDeviceLink(AsicContainer $container, DocumentNumber $documentNumber, Interactions $interactions, SigningOptions $options = new SigningOptions(), ?CertificateLevel $level = null, ?string $initialCallbackUrl = null): SmartIdSigningSession
     {
         SmartIdSession::requireUsableCallbackUrl($initialCallbackUrl);
         $interactions = $interactions->forDeviceLink();
@@ -243,9 +243,8 @@ final class SmartIdSigner
      * Smart-ID keys are RSA and SK deprecates PKCS#1 v1.5, so PSS is the
      * default here rather than whatever the key would otherwise suggest.
      */
-    private function options(?SigningOptions $options): SigningOptions
+    private function options(SigningOptions $options): SigningOptions
     {
-        $options ??= new SigningOptions();
         if ($options->signatureAlgorithm !== null) {
             return $options;
         }
