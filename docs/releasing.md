@@ -8,7 +8,7 @@ services. Four things remain, and none of them can be done by software alone.
 | # | Gate | What it needs |
 |---|---|---|
 | 1 | The ID card on real hardware | an IDEMIA test card, a Thales test card, a reader and a person. Items 12 to 15 of [manual-testing.md](manual-testing.md), through `examples/demo-app` over HTTPS, which [its README](../examples/demo-app/README.md#running-it) shows how to set up |
-| 2 | A Smart-ID device link scanned | a phone with the Smart-ID demo app, scanning a QR code the demo application draws |
+| 2 | A Smart-ID device link scanned | a phone with the Smart-ID demo app, scanning a device-link QR code. The demo application does not draw one yet: [#30](https://github.com/vaheks/allkiri/issues/30) adds a QR sign-in to it |
 | 3 | The DigiDoc4 checklist | DigiDoc4 beta, pointed at the test trusted list. All sixteen items of [manual-testing.md](manual-testing.md) |
 | 4 | A production smoke test | contracts with SK for Mobile-ID, Smart-ID, the timestamp service and OCSP, and a machine whose public address SK has registered. `composer test:live`, then open what it writes in DigiDoc4's default mode |
 
