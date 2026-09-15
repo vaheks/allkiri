@@ -459,6 +459,7 @@ final class SignatureValidator
         $trustedResponders = array_map(static fn($anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::ocspTypes()));
         $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints()))->withTrustedResponders(array_values($trustedResponders));
 
+        $verified = [];
         $lastProblem = null;
         $weakness = null;
         foreach ($signature->ocspValues as $der) {
@@ -471,40 +472,80 @@ final class SignatureValidator
             $producedAt = $response->basic()?->producedAt() ?? $at;
 
             try {
-                $verification = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
+                $verified[] = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
             } catch (OcspException $e) {
                 if ($e->reason === \Allkiri\Crypto\Ocsp\OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED) {
                     $weakness = $e->getMessage();
                 } else {
                     $lastProblem = $e->getMessage();
                 }
-                continue;
-            }
-
-            switch ($verification->status()) {
-                case CertStatus::Good:
-                    return $verification;
-                case CertStatus::Revoked:
-                    $findings[] = Finding::error(FindingCodes::CERTIFICATE_REVOKED, \sprintf('The signer\'s certificate was revoked%s', $verification->single->revokedAt === null ? '' : ' on ' . $verification->single->revokedAt->format(DATE_ATOM)), Indication::TotalFailed, SubIndication::Revoked);
-
-                    return $verification;
-                case CertStatus::Unknown:
-                    $findings[] = Finding::error(FindingCodes::CERTIFICATE_STATUS_UNKNOWN, 'The responder does not know the signer\'s certificate', Indication::Indeterminate, SubIndication::TryLater);
-
-                    return $verification;
             }
         }
 
-        // An answer that holds up in every other way but is signed with what no
-        // longer counts is the more telling problem to report.
-        if ($weakness !== null) {
-            $findings[] = Finding::error(FindingCodes::REVOCATION_WEAK_ALGORITHM, 'The revocation answer cannot be relied on: ' . $weakness, Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe);
+        if ($verified === []) {
+            // An answer that holds up in every other way but is signed with what no
+            // longer counts is the more telling problem to report.
+            if ($weakness !== null) {
+                $findings[] = Finding::error(FindingCodes::REVOCATION_WEAK_ALGORITHM, 'The revocation answer cannot be relied on: ' . $weakness, Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe);
+
+                return null;
+            }
+            $findings[] = Finding::error(FindingCodes::REVOCATION_INVALID, 'No usable OCSP response' . ($lastProblem === null ? '' : ': ' . $lastProblem), Indication::Indeterminate, SubIndication::TryLater);
 
             return null;
         }
-        $findings[] = Finding::error(FindingCodes::REVOCATION_INVALID, 'No usable OCSP response' . ($lastProblem === null ? '' : ': ' . $lastProblem), Indication::Indeterminate, SubIndication::TryLater);
 
-        return null;
+        $chosen = $this->preferredResponse($verified, $at);
+        if ($chosen->status() === CertStatus::Revoked) {
+            $findings[] = Finding::error(FindingCodes::CERTIFICATE_REVOKED, \sprintf('The signer\'s certificate was revoked%s', $chosen->single->revokedAt === null ? '' : ' on ' . $chosen->single->revokedAt->format(DATE_ATOM)), Indication::TotalFailed, SubIndication::Revoked);
+        } elseif ($chosen->status() === CertStatus::Unknown) {
+            $findings[] = Finding::error(FindingCodes::CERTIFICATE_STATUS_UNKNOWN, 'The responder does not know the signer\'s certificate', Indication::Indeterminate, SubIndication::TryLater);
+        }
+
+        return $chosen;
+    }
+
+    /**
+     * Which of several verified answers speaks for the certificate.
+     *
+     * A revoked answer outweighs any other, in whatever order they come: a good
+     * answer beside it says nothing about the revocation. Otherwise the newest
+     * answer produced within the policy's window after the signature time
+     * counts, so a later one that would fail the order check on its own
+     * lateness does not displace a sound one. Only when none falls inside the
+     * window does the newest overall count.
+     *
+     * @param non-empty-list<OcspVerificationResult> $verified
+     */
+    private function preferredResponse(array $verified, \DateTimeImmutable $signatureTime): OcspVerificationResult
+    {
+        $revoked = array_values(array_filter($verified, static fn(OcspVerificationResult $answer): bool => $answer->status() === CertStatus::Revoked));
+        if ($revoked !== []) {
+            return self::newest($revoked);
+        }
+
+        $from = $signatureTime->getTimestamp() - $this->policy->clockSkewSeconds;
+        $until = $signatureTime->getTimestamp() + $this->policy->ocspDelayErrorSeconds;
+        $inWindow = array_values(array_filter($verified, static fn(OcspVerificationResult $answer): bool => $answer->producedAt()->getTimestamp() >= $from && $answer->producedAt()->getTimestamp() <= $until));
+
+        return self::newest($inWindow !== [] ? $inWindow : $verified);
+    }
+
+    /**
+     * The answer produced last; the earliest in the document among equals.
+     *
+     * @param non-empty-list<OcspVerificationResult> $answers
+     */
+    private static function newest(array $answers): OcspVerificationResult
+    {
+        $newest = $answers[0];
+        foreach ($answers as $answer) {
+            if ($answer->producedAt() > $newest->producedAt()) {
+                $newest = $answer;
+            }
+        }
+
+        return $newest;
     }
 
     /**

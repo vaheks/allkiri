@@ -91,11 +91,42 @@ final class ValidationTest extends TestCase
      */
     private static function withEncapsulated(SigningResult $result, string $element, string $der): string
     {
-        $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
-        $swapped = preg_replace('#(<xades:' . $element . '[^>]*>)[^<]+#', '${1}' . base64_encode($der), $xml, 1);
+        return self::containerOfA(self::swapEncapsulated(self::signatureXml($result), $element, $der));
+    }
+
+    private static function signatureXml(SigningResult $result): string
+    {
+        return (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+    }
+
+    /**
+     * The signature XML with the content of the first such encapsulated value replaced.
+     */
+    private static function swapEncapsulated(string $xml, string $element, string $der): string
+    {
+        $swapped = preg_replace('#(<xades:' . $element . '[^>]*>)[^<]+#', '${1}' . base64_encode($der), $xml, 1, $count);
+        self::assertSame(1, $count);
         self::assertIsString($swapped);
 
-        return self::containerOfA($swapped);
+        return $swapped;
+    }
+
+    /**
+     * The signature XML with one more OCSP response among its revocation values,
+     * before or after the one it has.
+     */
+    private static function withExtraOcspValue(string $xml, string $der, bool $first): string
+    {
+        $value = '<xades:EncapsulatedOCSPValue>' . base64_encode($der) . '</xades:EncapsulatedOCSPValue>';
+        if ($first) {
+            $extended = preg_replace('#(<xades:OCSPValues>)#', '${1}' . $value, $xml, 1, $count);
+        } else {
+            $extended = preg_replace('#(</xades:OCSPValues>)#', $value . '${1}', $xml, 1, $count);
+        }
+        self::assertSame(1, $count);
+        self::assertIsString($extended);
+
+        return $extended;
     }
 
     /**
@@ -313,6 +344,84 @@ final class ValidationTest extends TestCase
             self::assertSame($subIndication, $signature->subIndication, $how);
             self::assertTrue($signature->has($code), $how);
         }
+    }
+
+    /**
+     * @return iterable<string, array{bool}>
+     */
+    public static function positions(): iterable
+    {
+        yield 'the extra answer first' => [true];
+        yield 'the extra answer last' => [false];
+    }
+
+    /**
+     * A good answer beside a revoked one says nothing about the revocation,
+     * whichever of the two comes first.
+     */
+    #[DataProvider('positions')]
+    public function testARevokedAnswerOutweighsAGoodOneBesideIt(bool $first): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $revoked = new SigningFixture($fixture->clock);
+        $revoked->ocsp->revoke($keyPair->certificate->serialNumber(), new \DateTimeImmutable('2026-02-01T00:00:00Z'));
+
+        $xml = self::withExtraOcspValue(self::signatureXml($result), self::ocspAnswer($revoked, $keyPair->certificate), $first);
+        $signature = self::validator($fixture)->validate(self::containerOfA($xml))->signatures[0];
+
+        self::assertSame(Indication::TotalFailed, $signature->indication);
+        self::assertSame(SubIndication::Revoked, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::CERTIFICATE_REVOKED));
+    }
+
+    #[DataProvider('positions')]
+    public function testTheNewestAnswerInsideTheWindowIsTheOneReported(bool $first): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $tenMinutesLater = new SigningFixture(new FrozenClock('2026-03-01T10:10:00Z'));
+
+        $xml = self::withExtraOcspValue(self::signatureXml($result), self::ocspAnswer($tenMinutesLater, $keyPair->certificate), $first);
+        $signature = self::validator($fixture)->validate(self::containerOfA($xml))->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        self::assertSame('2026-03-01T10:10:00+00:00', $signature->info->ocspResponseCreationTime?->format(DATE_ATOM));
+        self::assertSame([], $signature->warnings());
+    }
+
+    /**
+     * An answer two days after the timestamp would fail the order check on its
+     * own lateness, so it does not displace the answer made at signing.
+     */
+    #[DataProvider('positions')]
+    public function testAnAnswerBeyondTheWindowDoesNotDisplaceOneInsideIt(bool $first): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $twoDaysLater = new SigningFixture(new FrozenClock('2026-03-03T10:00:00Z'));
+
+        $xml = self::withExtraOcspValue(self::signatureXml($result), self::ocspAnswer($twoDaysLater, $keyPair->certificate), $first);
+        $signature = self::validator($fixture)->validate(self::containerOfA($xml))->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        self::assertSame('2026-03-01T10:00:00+00:00', $signature->info->ocspResponseCreationTime?->format(DATE_ATOM));
+    }
+
+    public function testAnAnswerAboutAnotherCertificateIsIgnored(): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $other = new SigningFixture($fixture->clock);
+        $other->ocsp->wrongCertId = true;
+
+        $xml = self::withExtraOcspValue(self::signatureXml($result), self::ocspAnswer($other, $keyPair->certificate), true);
+
+        self::assertSame(Indication::TotalPassed, self::validator($fixture)->validate(self::containerOfA($xml))->signatures[0]->indication);
     }
 
     /**

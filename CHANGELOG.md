@@ -220,6 +220,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A revoked OCSP response is no longer outweighed by a good one embedded before
+  it. When a signature carried several responses, the first that verified was
+  used, whatever it said. A revoked answer now decides. Otherwise the newest
+  answer produced within the policy's OCSP window after the signature time is
+  used, and the newest overall only when none falls inside the window.
+
 - Certificates and tokens that do not parse are reported rather than thrown.
   `SignatureValidator` promises never to throw on bad input, but three kinds of
   input escaped it as exceptions, and the OCSP and timestamp clients too:
