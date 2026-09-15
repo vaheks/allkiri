@@ -22,7 +22,6 @@ use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\Tsp\TimestampToken;
 use Allkiri\Crypto\Tsp\TimestampTokenVerifier;
-use Allkiri\Crypto\UnsupportedAlgorithmException;
 use Allkiri\Signing\ContainerReferenceResolver;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Trust\ChainBuilder;
@@ -198,7 +197,8 @@ final class SignatureValidator
                 if ($signer->keyType() === \Allkiri\Crypto\KeyType::RSA && $signer->keyBits() < $this->policy->minimumRsaKeyBits) {
                     $findings[] = Finding::error(FindingCodes::WEAK_KEY, \sprintf('The signer\'s RSA key is %d bits; the policy requires at least %d', $signer->keyBits(), $this->policy->minimumRsaKeyBits), Indication::TotalFailed, SubIndication::CryptoConstraintsFailure);
                 }
-            } catch (UnsupportedAlgorithmException $e) {
+            } catch (\Allkiri\Crypto\CryptoException $e) {
+                // A key type allkiri does not support, or a key it cannot read at all.
                 $findings[] = Finding::error(FindingCodes::WEAK_KEY, $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailure);
             }
         }

@@ -30,8 +30,9 @@ final class Asn1Encoders
      * @param bool                                            $includeCertificate whether to ship the signer certificate
      * @param bool                                            $corruptSignature   flip a bit in the signature (negative tests)
      * @param (\Closure(string): array{string, string})|null $sign               signs the attributes in place of the key's usual algorithm, returning the AlgorithmIdentifier DER and the signature
+     * @param int                                             $signerInfoCopies   how many times to put the SignerInfo in (negative tests)
      */
-    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false, ?\Closure $sign = null): string
+    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false, ?\Closure $sign = null, int $signerInfoCopies = 1): string
     {
         $cert = $signer->certificate;
         $essCertId = Asn1::encode(['certs' => [['certHash' => HashAlgorithm::SHA256->digest($cert->der())]]], CmsMaps::SIGNING_CERTIFICATE_V2);
@@ -77,7 +78,7 @@ final class Asn1Encoders
         if ($includeCertificate) {
             $parts[] = Asn1::implicit(0, Asn1::set([$cert->der()]));
         }
-        $parts[] = Asn1::set([$signerInfo]);
+        $parts[] = Asn1::set(array_values(array_fill(0, $signerInfoCopies, $signerInfo)));
 
         return Asn1::sequence([
             Asn1::primitive(PhpseclibAsn1::TYPE_OBJECT_IDENTIFIER, Oids::ID_SIGNED_DATA),

@@ -15,7 +15,9 @@ use Allkiri\Crypto\Tsp\TimestampResponse;
 use Allkiri\Crypto\Tsp\TimestampTokenVerifier;
 use Allkiri\Crypto\Tsp\TimestampVerificationException;
 use Allkiri\Crypto\Tsp\TspClient;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Tests\Support\Clock\FrozenClock;
+use Allkiri\Tests\Support\Crypto\DerPatch;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\Pki\MockTsa;
 use Allkiri\Tests\Support\Pki\TestCertificates;
@@ -199,6 +201,43 @@ final class TimestampTest extends TestCase
         $this->expectExceptionMessage('2048-bit');
 
         (new TspClient($http, MockTsa::URL, algorithmConstraints: new AlgorithmConstraints(4096)))->timestamp('x');
+    }
+
+    /**
+     * A key that cannot be read and a token that does not parse are a reason
+     * like any other, never an exception from somewhere underneath.
+     */
+    public function testWhatCannotBeReadIsAReasonNotAnException(): void
+    {
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock(), new KeyPair(TestPki::tsa()->privateKey, DerPatch::unreadableKey(TestPki::tsa()->certificate)));
+        try {
+            (new TspClient($http, MockTsa::URL))->timestamp('x');
+            self::fail('a TSA certificate whose key cannot be read was accepted');
+        } catch (TimestampVerificationException $e) {
+            self::assertSame(TimestampVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
+        }
+
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock())->signerInfoCopies = 2;
+        try {
+            (new TspClient($http, MockTsa::URL))->timestamp('x');
+            self::fail('a token with two signers was accepted');
+        } catch (TimestampException $e) {
+            self::assertSame('TIMESTAMP_MALFORMED_RESPONSE', $e->reason);
+            self::assertStringContainsString('exactly one signer', $e->getMessage());
+        }
+
+        $request = TimestampRequest::build(HashAlgorithm::SHA256, HashAlgorithm::SHA256->digest('x'));
+        $answer = (new MockTsa(new FrozenClock(), TestPki::tsa()))->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body;
+        $http = (new MockHttpClient())->respond('http://tsa.broken.test/', 200, 'application/timestamp-reply', DerPatch::withoutCertificate($answer, TestPki::tsa()->certificate));
+        try {
+            (new TspClient($http, 'http://tsa.broken.test/tsa'))->timestamp('x');
+            self::fail('a token shipping something that is not a certificate was accepted');
+        } catch (TimestampException $e) {
+            self::assertSame('TIMESTAMP_MALFORMED_RESPONSE', $e->reason);
+            self::assertStringContainsString('Embedded certificate is malformed', $e->getMessage());
+        }
     }
 
     public function testRequestBuilderValidatesImprintLength(): void

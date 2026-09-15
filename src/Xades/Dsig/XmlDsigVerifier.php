@@ -69,7 +69,11 @@ final class XmlDsigVerifier
             $problems[] = 'ds:SignatureValue missing or not base64';
         }
         if ($signedInfoCanonical !== '' && $algorithm !== null && $signatureValue !== null && $certificate !== null) {
-            $signatureValid = $this->verifier->verify($certificate->publicKey(), $algorithm, $signedInfoCanonical, $signatureValue);
+            try {
+                $signatureValid = $this->verifier->verify($certificate->publicKey(), $algorithm, $signedInfoCanonical, $signatureValue);
+            } catch (CertificateException $e) {
+                $problems[] = 'The signing certificate\'s public key cannot be read: ' . $e->getMessage();
+            }
         }
 
         return new DsigVerificationResult($references, $signatureValid, $signatureMethod, $c14nMethod, $certificate, $signedInfoCanonical, $problems);

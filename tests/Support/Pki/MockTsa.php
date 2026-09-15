@@ -38,6 +38,9 @@ final class MockTsa
      * @var (\Closure(string): array{string, string})|null
      */
     public ?\Closure $sign = null;
+
+    /** How many signers the token claims to have. */
+    public int $signerInfoCopies = 1;
     private int $serial = 1000;
 
     public function __construct(
@@ -77,7 +80,7 @@ final class MockTsa
             $tstParts[] = Asn1::integer($req->nonce);
         }
         $tstInfo = Asn1::sequence($tstParts);
-        $token = Asn1Encoders::signedData($this->tsa, Oids::ID_CT_TST_INFO, $tstInfo, $genTime, $this->includeCertificate, $this->corruptSignature, $this->sign);
+        $token = Asn1Encoders::signedData($this->tsa, Oids::ID_CT_TST_INFO, $tstInfo, $genTime, $this->includeCertificate, $this->corruptSignature, $this->sign, $this->signerInfoCopies);
         $response = Asn1::sequence([Asn1::sequence([Asn1::integer(0)]), $token]);
 
         return new HttpResponse(200, ['Content-Type' => 'application/timestamp-reply'], $response);

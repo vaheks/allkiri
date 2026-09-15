@@ -18,7 +18,9 @@ use Allkiri\Crypto\Ocsp\OcspResponseStatus;
 use Allkiri\Crypto\Ocsp\OcspResponseVerifier;
 use Allkiri\Crypto\Ocsp\OcspVerificationException;
 use Allkiri\Crypto\Ocsp\OcspVerificationOptions;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Tests\Support\Clock\FrozenClock;
+use Allkiri\Tests\Support\Crypto\DerPatch;
 use Allkiri\Tests\Support\Crypto\FixedNonceGenerator;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\Pki\Asn1Encoders;
@@ -224,6 +226,36 @@ final class OcspTest extends TestCase
 
         self::assertSame(CertStatus::Good, $result->verification->status());
         self::assertSame('1.2.840.113549.1.1.10', $result->verification->basic->signatureAlgorithmOid());
+    }
+
+    /**
+     * A key that cannot be read and a response that does not parse are a
+     * reason like any other, never an exception from somewhere underneath.
+     */
+    public function testWhatCannotBeReadIsAReasonNotAnException(): void
+    {
+        $clock = new FrozenClock('2026-03-01T10:00:00Z');
+        $responder = TestPki::ocspResponder();
+
+        $http = new MockHttpClient();
+        MockOcspResponder::register($http, $clock, new KeyPair($responder->privateKey, DerPatch::unreadableKey($responder->certificate)));
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('a responder certificate whose key cannot be read was accepted');
+        } catch (OcspVerificationException $e) {
+            self::assertSame(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->reason);
+        }
+
+        $request = OcspRequest::build(CertId::for(TestPki::signerEc256()->certificate, TestPki::ca()->certificate));
+        $answer = (new MockOcspResponder($clock, $responder))->handle(HttpRequest::post(MockOcspResponder::URL, 'application/ocsp-request', $request->der))->body;
+        $http = (new MockHttpClient())->respond(MockOcspResponder::URL, 200, 'application/ocsp-response', DerPatch::withoutCertificate($answer, $responder->certificate));
+        try {
+            (new OcspClient($http, $clock))->fetch(TestPki::signerEc256()->certificate, TestPki::ca()->certificate);
+            self::fail('a response shipping something that is not a certificate was accepted');
+        } catch (OcspException $e) {
+            self::assertSame('OCSP_MALFORMED_RESPONSE', $e->reason);
+            self::assertStringContainsString('Embedded certificate is malformed', $e->getMessage());
+        }
     }
 
     public function testMissingNonceIsToleratedWhenNotRequired(): void

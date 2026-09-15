@@ -9,6 +9,7 @@ use Allkiri\Crypto\Asn1\Asn1Exception;
 use Allkiri\Crypto\Asn1\Maps\CmsMaps;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CertificateException;
 
 /**
  * A CMS ContentInfo wrapping SignedData (RFC 5652), parsed with every
@@ -44,7 +45,12 @@ final class SignedData
         if ($certsNode !== null) {
             foreach ($certsNode->children() as $certNode) {
                 if ($certNode->isSequence()) {
-                    $certificates[] = Certificate::fromDer($certNode->der());
+                    // Reported like any other malformed part of the structure.
+                    try {
+                        $certificates[] = Certificate::fromDer($certNode->der());
+                    } catch (CertificateException $e) {
+                        throw new Asn1Exception('Embedded certificate is malformed: ' . $e->getMessage(), 0, $e);
+                    }
                 }
             }
         }

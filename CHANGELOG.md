@@ -220,6 +220,15 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- Certificates and tokens that do not parse are reported rather than thrown.
+  `SignatureValidator` promises never to throw on bad input, but three kinds of
+  input escaped it as exceptions, and the OCSP and timestamp clients too:
+  - a malformed certificate inside an OCSP response or a timestamp token;
+  - a timestamp token with more than one signer;
+  - a certificate whose public key cannot be loaded.
+
+  Each is now an ordinary finding, or a reason on the clients' own exceptions.
+
 - A certificate is now judged for the job it does. Three checks were missing.
   A certificate without nonRepudiation, such as an authentication certificate
   from a trusted CA, made signatures that validated as TOTAL-PASSED, and

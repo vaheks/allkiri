@@ -9,6 +9,7 @@ use Allkiri\Crypto\Asn1\Asn1Exception;
 use Allkiri\Crypto\Asn1\Maps\OcspMaps;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\SignatureAlgorithmIdentifier;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
@@ -76,7 +77,12 @@ final class BasicOcspResponse
         $certsNode = $root->tagged(0);
         if ($certsNode !== null) {
             foreach ($certsNode->child(0)->children() as $certNode) {
-                $certificates[] = Certificate::fromDer($certNode->der());
+                // Reported like any other malformed part of the response.
+                try {
+                    $certificates[] = Certificate::fromDer($certNode->der());
+                } catch (CertificateException $e) {
+                    throw new Asn1Exception('Embedded certificate is malformed: ' . $e->getMessage(), 0, $e);
+                }
             }
         }
         $this->certificates = $certificates;

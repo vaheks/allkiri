@@ -10,8 +10,10 @@ use Allkiri\Container\DataFile;
 use Allkiri\Container\Manifest;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
+use Allkiri\Crypto\Asn1\Asn1;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\Ocsp\CertId;
 use Allkiri\Crypto\Ocsp\OcspRequest;
 use Allkiri\Crypto\SignatureAlgorithm;
@@ -25,6 +27,7 @@ use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningOptions;
 use Allkiri\Signing\SigningResult;
 use Allkiri\Tests\Support\Clock\FrozenClock;
+use Allkiri\Tests\Support\Crypto\DerPatch;
 use Allkiri\Tests\Support\Pki\MockOcspResponder;
 use Allkiri\Tests\Support\Pki\MockTsa;
 use Allkiri\Tests\Support\Pki\TestCertificates;
@@ -635,6 +638,51 @@ final class ValidationTest extends TestCase
         self::assertFalse($report->isValid());
         self::assertSame(FindingCodes::NOT_A_CONTAINER, $report->containerFindings[0]->code);
         self::assertStringContainsString('more than one entry named "a.txt"', $report->containerFindings[0]->message);
+    }
+
+    /**
+     * A validator's input comes from strangers. Whatever in it cannot be read
+     * becomes a finding; nothing escapes as an exception.
+     */
+    public function testWhatCannotBeReadIsReportedNotThrown(): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        self::assertSame(1, preg_match('#<xades:EncapsulatedTimeStamp[^>]*>([^<]+)#', $xml, $match));
+        $imprint = TimestampToken::fromDer((string) base64_decode($match[1], true))->tstInfo()->messageImprint;
+        // The token a fixture's authority would give for the same imprint, taken
+        // from the response without parsing it, since some of these do not parse.
+        $tokenFrom = static function (SigningFixture $authority) use ($imprint): string {
+            $request = TimestampRequest::build(HashAlgorithm::SHA256, $imprint);
+
+            return Asn1::decodeRaw($authority->tsa->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body)->child(1)->der();
+        };
+        $twoSigners = new SigningFixture($fixture->clock);
+        $twoSigners->tsa->signerInfoCopies = 2;
+        $unreadableTsa = new SigningFixture($fixture->clock, tsa: new KeyPair(TestPki::tsa()->privateKey, DerPatch::unreadableKey(TestPki::tsa()->certificate)));
+        $unreadableResponder = new SigningFixture($fixture->clock, ocspResponder: new KeyPair(TestPki::ocspResponder()->privateKey, DerPatch::unreadableKey(TestPki::ocspResponder()->certificate)));
+        $plain = new SigningFixture($fixture->clock);
+
+        $cases = [
+            'a timestamp authority whose key cannot be read' => ['EncapsulatedTimeStamp', $tokenFrom($unreadableTsa), FindingCodes::TIMESTAMP_INVALID],
+            'a timestamp claiming two signers' => ['EncapsulatedTimeStamp', $tokenFrom($twoSigners), FindingCodes::TIMESTAMP_INVALID],
+            'a timestamp carrying something that is not a certificate' => ['EncapsulatedTimeStamp', DerPatch::withoutCertificate($tokenFrom($plain), TestPki::tsa()->certificate), FindingCodes::TIMESTAMP_INVALID],
+            'an OCSP responder whose key cannot be read' => ['EncapsulatedOCSPValue', self::ocspAnswer($unreadableResponder, $keyPair->certificate), FindingCodes::REVOCATION_INVALID],
+            'an OCSP response carrying something that is not a certificate' => ['EncapsulatedOCSPValue', DerPatch::withoutCertificate(self::ocspAnswer($plain, $keyPair->certificate), TestPki::ocspResponder()->certificate), FindingCodes::REVOCATION_INVALID],
+        ];
+        foreach ($cases as $case => [$element, $der, $code]) {
+            $signature = self::validator($fixture)->validate(self::withEncapsulated($result, $element, $der))->signatures[0];
+            self::assertContains($code, $signature->codes(), $case);
+        }
+
+        // A signing certificate whose key cannot be read.
+        $unreadableSigner = str_replace($keyPair->certificate->base64(), DerPatch::unreadableKey($keyPair->certificate)->base64(), $xml, $count);
+        self::assertSame(1, $count);
+        $signature = self::validator($fixture)->validate(self::containerOfA($unreadableSigner))->signatures[0];
+        self::assertContains(FindingCodes::WEAK_KEY, $signature->codes());
+        self::assertContains(FindingCodes::SIGNATURE_INVALID, $signature->codes());
     }
 
     public function testAnOcspResponseNestedTooDeeplyIsReportedRatherThanFatal(): void
