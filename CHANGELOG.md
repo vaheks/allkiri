@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+No release has a section of its own yet. The five alpha tags, [0.1.0-alpha.1]
+on 2026-09-11 and [0.2.0-alpha.1], [0.3.0-alpha.1], [0.4.0-alpha.1] and
+[0.5.0-alpha.1] on 2026-09-12, were cut while entries were still gathering
+here, so this section describes all of them together with everything since.
+The first release after them turns it into the first dated section.
+
 ### Added
 
 The signing core: everything needed to create and validate Estonian qualified
@@ -662,3 +668,10 @@ written but unperformed; a smoke test against the production services, which
 needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
+
+[Unreleased]: https://github.com/vaheks/allkiri/compare/0.5.0-alpha.1...HEAD
+[0.5.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.4.0-alpha.1...0.5.0-alpha.1
+[0.4.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.3.0-alpha.1...0.4.0-alpha.1
+[0.3.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.2.0-alpha.1...0.3.0-alpha.1
+[0.2.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.1.0-alpha.1...0.2.0-alpha.1
+[0.1.0-alpha.1]: https://github.com/vaheks/allkiri/commits/0.1.0-alpha.1

@@ -43,7 +43,10 @@ below 1.0.
 # 1. The checklist is filled in, with dates and results.
 $EDITOR docs/manual-testing.md
 
-# 2. Unreleased becomes the version, with today's date.
+# 2. Unreleased becomes the version, with today's date. The alpha tags never
+#    had sections of their own, so this is the first dated one: drop the note
+#    that says so, point the Unreleased link at the new tag, and add a compare
+#    link for the version.
 $EDITOR CHANGELOG.md
 
 # 3. The status paragraph loses the word alpha.
