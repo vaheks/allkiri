@@ -9,10 +9,10 @@ use Allkiri\Container\AsicReader;
 use Allkiri\Container\DataFile;
 use Allkiri\Container\Manifest;
 use Allkiri\Container\Zip\InflationLimit;
-use Allkiri\Container\Zip\ZipBombException;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
+use Allkiri\Container\ZipBombException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

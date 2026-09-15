@@ -13,7 +13,7 @@ use Allkiri\Container\Manifest;
 use Allkiri\Container\MimeTypes;
 use Allkiri\Container\SignatureFile;
 use Allkiri\Container\StructuralFinding;
-use Allkiri\Container\Zip\UnsupportedZipException;
+use Allkiri\Container\UnsupportedZipException;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;

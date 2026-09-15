@@ -15,6 +15,9 @@ use Allkiri\Container\Zip\ZipWriter;
  */
 final class AsicWriter
 {
+    /**
+     * @throws UnsupportedZipException when the container would need ZIP64, which allkiri does not write
+     */
     public function write(AsicContainer $container): string
     {
         $zip = new ZipWriter();
@@ -40,6 +43,10 @@ final class AsicWriter
         return $zip->build();
     }
 
+    /**
+     * @throws UnsupportedZipException when the container would need ZIP64, which allkiri does not write
+     * @throws ContainerException      when the file cannot be written
+     */
     public function writeFile(AsicContainer $container, string $path): void
     {
         if (@file_put_contents($path, $this->write($container)) === false) {

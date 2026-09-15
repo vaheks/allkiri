@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Container;
 
-use Allkiri\Container\Zip\UnsupportedZipException;
+use Allkiri\Container\UnsupportedZipException;
 use Allkiri\Container\Zip\ZipEntry;
 use Allkiri\Container\Zip\ZipWriter;
 use PHPUnit\Framework\Attributes\CoversClass;

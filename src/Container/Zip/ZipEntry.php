@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Container\Zip;
 
 use Allkiri\Container\InvalidContainerException;
+use Allkiri\Container\UnsupportedZipException;
 
 /**
  * One entry of a ZIP archive, with the bytes exactly as they appear in the

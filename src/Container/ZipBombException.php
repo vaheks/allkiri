@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Allkiri\Container\Zip;
-
-use Allkiri\Container\InvalidContainerException;
+namespace Allkiri\Container;
 
 /**
  * A container that would expand out of all proportion to its size.

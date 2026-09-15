@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Allkiri\Container\Zip;
 
 use Allkiri\Container\InvalidContainerException;
+use Allkiri\Container\UnsupportedZipException;
 
 /**
  * Reads a ZIP archive through its central directory, keeping the compressed
