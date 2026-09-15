@@ -9,6 +9,8 @@ use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspVerificationOptions;
 use Allkiri\Crypto\Tsp\TspClient;
+use Allkiri\Signing\LtaExtender;
+use Allkiri\Signing\LtExtender;
 use Allkiri\Signing\SigningService;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Crypto\FixedNonceGenerator;
@@ -21,8 +23,6 @@ use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustStore;
-use Allkiri\Xades\LtaExtender;
-use Allkiri\Xades\LtExtender;
 use Allkiri\Xades\SignatureBuilder;
 
 /**
