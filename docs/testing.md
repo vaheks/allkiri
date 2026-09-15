@@ -104,6 +104,21 @@ charge; ask at <info@skidsolutions.eu>. Phase 2 provides the same evidence for
 nothing, because Mobile-ID's demo numbers sign with certificates from a CA the
 test trusted list already names.
 
+## The production smoke test
+
+`composer test:live` is a release gate rather than a test anyone runs
+routinely, so [releasing.md](releasing.md) describes it. One thing about it
+belongs here: it reads its settings through `examples/demo-app/config.php`, the
+demo application's configuration, not through a reader of its own.
+
+That is deliberate. Live mode's rules are written in that file: the mode is one
+explicit word, and live mode refuses to start without every credential it
+needs. A second copy in the test suite could drift from the one a person
+actually runs, and the smoke test would then prove a rule the demo does not
+enforce. The price is a test that depends on an example: moving that file, or
+changing `Config::fromEnvironment()`, breaks the smoke test. PHPStan analyses
+both, so the next `composer check` reports it.
+
 ## Writing tests
 
 Unit tests must stay offline and deterministic. Use `FrozenClock` for time and
