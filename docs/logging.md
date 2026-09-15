@@ -177,7 +177,7 @@ it was given, and a successful authentication surfaces as a failed one.
 In the demo it is switched on by pointing `ALLKIRI_LOG` at a file:
 
 ```bash
-ALLKIRI_LOG=/tmp/allkiri.log ALLKIRI_LOG_HTTP=1 php -S localhost:8080 -t examples/demo-app/public
+ALLKIRI_LOG=/tmp/allkiri.log ALLKIRI_LOG_HTTP=1 php -S localhost:8080 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 `ALLKIRI_LOG_HTTP=1` adds the transcript and `ALLKIRI_LOG_PERSONAL_DATA=1` lets

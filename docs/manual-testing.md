@@ -116,7 +116,7 @@ The Web eID extension refuses to work on an insecure origin, so the demo needs
 HTTPS and an origin the server agrees with exactly:
 
 ```bash
-ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public
+ALLKIRI_ORIGIN=https://localhost:8443 php -S localhost:8443 -t examples/demo-app/public examples/demo-app/public/index.php
 ```
 
 with a TLS terminator in front. An origin mismatch is the failure to expect

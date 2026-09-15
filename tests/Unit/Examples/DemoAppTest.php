@@ -28,7 +28,7 @@ final class DemoAppTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$log = sys_get_temp_dir() . '/allkiri-demo-test-' . bin2hex(random_bytes(4)) . '.log';
-        self::$server = LocalHttpServer::start(self::DOCUMENT_ROOT, ['ALLKIRI_MODE' => 'demo'] + self::quietLog());
+        self::$server = self::startDemo(['ALLKIRI_MODE' => 'demo'] + self::quietLog());
     }
 
     public static function tearDownAfterClass(): void
@@ -178,7 +178,7 @@ final class DemoAppTest extends TestCase
     {
         // Made-up credentials in the shape live mode demands. Rendering the page
         // calls no service.
-        $live = LocalHttpServer::start(self::DOCUMENT_ROOT, [
+        $live = self::startDemo([
             'ALLKIRI_MODE' => 'live',
             'ALLKIRI_MID_RP_UUID' => '5e0b2a3c-7d41-4f6a-9c2e-1b8d4f7a3e65',
             'ALLKIRI_MID_RP_NAME' => 'allkiri test',
@@ -194,6 +194,17 @@ final class DemoAppTest extends TestCase
 
         self::assertSame(200, $page['status'], $page['body']);
         self::assertStringContainsStringIgnoringCase('; Secure', self::sessionCookieOf($page));
+    }
+
+    /**
+     * The demo as its README starts it: public/ as the document root and
+     * index.php as the router, which PHP before 8.4 needs to hand /allkiri.js on.
+     *
+     * @param array<string, string> $environment
+     */
+    private static function startDemo(array $environment): LocalHttpServer
+    {
+        return LocalHttpServer::start(self::DOCUMENT_ROOT, $environment, self::DOCUMENT_ROOT . '/index.php');
     }
 
     /**

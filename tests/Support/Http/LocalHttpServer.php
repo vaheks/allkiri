@@ -37,14 +37,18 @@ final class LocalHttpServer
     }
 
     /**
-     * @param string|null           $documentRoot a directory to serve as `php -S -t` does, its index.php answering
-     *                                            every path that is not a file; the test router when null
+     * @param string|null           $documentRoot a directory to serve, as `php -S -t` does; the test router's answers
+     *                                            when null
      * @param array<string, string> $environment  variables for the server, on top of this process's own. A value
      *                                            must not be empty: on Windows the server would see it as unset
+     * @param string|null           $router       with a document root, a script that sees every request, as the last
+     *                                            argument of `php -S` is
      */
-    public static function start(?string $documentRoot = null, array $environment = []): self
+    public static function start(?string $documentRoot = null, array $environment = [], ?string $router = null): self
     {
-        $serve = $documentRoot === null ? [\dirname(__DIR__, 2) . '/fixtures/http/router.php'] : ['-t', $documentRoot];
+        $serve = $documentRoot === null
+            ? [\dirname(__DIR__, 2) . '/fixtures/http/router.php']
+            : ['-t', $documentRoot, ...($router === null ? [] : [$router])];
         $nowhere = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $failure = 'it was not tried';
         for ($attempt = 1; $attempt <= self::ATTEMPTS; ++$attempt) {
