@@ -45,6 +45,14 @@ use PHPUnit\Framework\TestCase;
  * document number, which identifies one device rather than a person, and asking
  * for it costs an authentication. That is the same shape a real application has,
  * so it is worth exercising.
+ *
+ * Its settings come through the demo application's `config.php`, not a reader of
+ * its own. Live mode's rules are written there: the mode is one explicit word,
+ * and live mode refuses to start without every credential it needs. A second
+ * copy here could drift from the one a person actually runs, and this test would
+ * then prove a rule the demo does not enforce. The price is a test that depends
+ * on an example: moving that file or changing `Config::fromEnvironment()` breaks
+ * this test, and PHPStan, which analyses both, reports it.
  */
 #[CoversNothing]
 final class LiveSmokeTest extends TestCase
