@@ -1,0 +1,64 @@
+name: Bug report
+description: allkiri does something other than what its documentation says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem goes through private vulnerability reporting instead, as [SECURITY.md](https://github.com/vaheks/allkiri/blob/main/SECURITY.md) describes.
+
+        **Test material only.** Never attach a container signed with a real person's certificate, a real identity code or phone number, a production relying-party identifier, or a private key that is not a throwaway.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did and what allkiri did. Include the exception's class and message, or the finding codes of the validation report.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce it
+      description: The smallest code, container or configuration that shows it.
+    validations:
+      required: true
+
+  - type: input
+    id: allkiri-version
+    attributes:
+      label: allkiri version
+      description: The tag, or the branch and commit. `composer show vaheks/allkiri` prints it.
+      placeholder: 0.5.0-alpha.1
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      placeholder: 8.3.12
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where it happened
+      multiple: true
+      options:
+        - Unit tests only
+        - Demo services (SK, RIA or Zetes test environments)
+        - Live services
+        - DigiDoc4
+        - SiVa
+    validations:
+      required: true
