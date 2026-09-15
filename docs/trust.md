@@ -1,7 +1,8 @@
 # Trust
 
 A signature is only as trustworthy as the list of certificate authorities you
-decide to believe. allkiri never decides that for you.
+decide to believe. allkiri's production default is the European list of trusted
+lists; this page says what that rests on and how to choose otherwise.
 
 ## Where anchors come from
 
@@ -17,10 +18,34 @@ A service that was `granted` when a signature was made stays trustworthy for
 that signature even after its status changes, which is why the status history
 is kept rather than just the current value.
 
-## The pin is the trust decision
+## What production trusts
 
-A trusted list is signed. allkiri accepts one only when it is signed by a
-certificate you named:
+`Environment::production()` takes its trust from the European list of trusted
+lists, which the European Commission publishes to point at every member state's
+list. allkiri accepts that list only when it is signed by one of the six
+certificates the Official Journal of the European Union publishes for it, and
+those six ship in `resources/trust/eu`. Each national list it points to,
+Estonia's by default, is accepted only when it is signed by a certificate the
+list of lists names for that country.
+
+Those six certificates are therefore the whole trust decision, so check them
+against the Journal rather than against this library.
+[resources/trust/eu/README.md](../resources/trust/eu/README.md) names the
+publication, gives the SHA-256 of each file, and shows the command that
+computes it.
+
+Other member states' lists are one argument away:
+
+```php
+$environment = Environment::production()->withListOfLists(
+    Environment::euListOfLists(['EE', 'LV', 'LT']),
+);
+```
+
+## Pinning a list yourself
+
+A trusted list is signed, and a list you configure directly is accepted only
+when it is signed by a certificate you named:
 
 ```php
 $source = new TrustedListSource(
@@ -30,23 +55,30 @@ $source = new TrustedListSource(
 $environment = Environment::production()->withTrustedListSources([$source]);
 ```
 
-Without that, anyone who can answer for the URL could hand you their own list
-of authorities. `Environment::production()` therefore ships with no sources at
-all and trusts nothing until you add them. That is deliberate: an empty trust
-store fails loudly, a wrong one fails silently.
+Without that pin, anyone who can answer for the URL could hand you their own
+list of authorities: the pin is the trust decision. A list pinned this way is
+trusted beside the list of lists. To trust only the lists you pin, drop the list
+of lists too:
+
+```php
+$environment = Environment::production()
+    ->withListOfLists(null)
+    ->withTrustedListSources([$source]);
+```
+
+An environment with neither has no anchors at all. That is the safer failure:
+an empty trust store fails loudly, a wrong one fails silently.
 
 `Environment::demo()` is ready to use because RIA publishes the test list's
 signing certificate, and allkiri bundles it.
 
-Where the production pin comes from: the EU list of trusted lists names the
-certificates permitted to sign each member state's list. Verifying that chain
-automatically is Phase 4 work; until then, take the certificate from the LOTL
-and pin it yourself.
-
 ## Caching
 
-The Estonian list is over a megabyte. Give allkiri a PSR-16 cache or it will
-fetch it on every request:
+The list of lists and every national list beneath it are downloaded the first
+time something needs trust, and kept for as long as that `Allkiri` object
+lives. Without a PSR-16 cache, the next `Allkiri` downloads them again, which
+under PHP-FPM usually means every request that signs, signs someone in or
+validates. Give it a cache:
 
 ```php
 $allkiri = new Allkiri($environment, cache: $psr16Cache);

@@ -181,8 +181,9 @@ $environment = Environment::production()->withOcspUrlOverrides([
 
 ## Before production
 
-`Environment::production()` deliberately trusts nothing until you pin the
-Estonian trusted list's signing certificates. That pin is the trust decision;
+`Environment::production()` trusts the European list of trusted lists, verified
+against the certificates the Official Journal publishes. Check those
+certificates before relying on them, and pin lists of your own if you need to;
 see [trust.md](trust.md).
 
 ## Keeping a signature verifiable: archive timestamps

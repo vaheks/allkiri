@@ -36,8 +36,9 @@ signatures with a local key, and the API the eID means will plug into.
   timestamps, all keeping the original DER so nothing is verified against a
   re-encoding of itself.
 - **Configuration.** `Environment::demo()` works out of the box against the
-  free Estonian test services; `Environment::production()` trusts nothing until
-  the trusted list's signing certificates are pinned.
+  free Estonian test services; `Environment::production()` trusts the European
+  list of trusted lists, verified against the certificates the Official Journal
+  publishes, and lists you pin can be trusted beside it or instead of it.
 - **Mobile-ID.** Authentication and signing through SK's REST service, in the
   same two halves, with the four-digit verification code, long polling, and a
   typed result for every outcome SK publishes. Authentication signs a random

@@ -77,8 +77,8 @@ final readonly class Environment
      *
      * Trust comes from the European list of trusted lists, verified against the
      * certificates the Official Journal publishes, which is the only trust
-     * material shipped. `withTrustedListSources()` replaces that with lists you
-     * pin yourself.
+     * material shipped. `withTrustedListSources()` adds lists you pin yourself
+     * beside it, and `withListOfLists(null)` removes it.
      */
     public static function production(): self
     {
