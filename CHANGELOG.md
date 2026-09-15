@@ -182,8 +182,39 @@ signatures with a local key, and the API the eID means will plug into.
   that is not HTTPS, except plain HTTP to `localhost`, `127.0.0.1` or `[::1]`.
   Timestamp and OCSP URLs are not checked, because those services are plain
   HTTP.
+- The signatures a signature rests on are held to algorithm constraints: on
+  its certificate chain, its OCSP response and its timestamps. SHA-1 is
+  refused, and so is an RSA key below 2048 bits, or below
+  `ValidationPolicy::$minimumRsaKeyBits` where the `Allkiri` facade builds the
+  clients. New: `AlgorithmConstraints`, `SignatureAlgorithmIdentifier`,
+  `ValidationPolicy::algorithmConstraints()`, and a trailing constraints
+  argument on `ChainBuilder`, `TspClient`, `TimestampTokenVerifier::verify()`
+  and `OcspVerificationOptions`.
+- New finding codes `CHAIN_WEAK_ALGORITHM`, `REVOCATION_WEAK_ALGORITHM`,
+  `TIMESTAMP_WEAK_ALGORITHM` and `ARCHIVE_TIMESTAMP_WEAK_ALGORITHM`, reported
+  as INDETERMINATE with the new sub-indication
+  `CRYPTO_CONSTRAINTS_FAILURE_NO_POE`. New reasons: `REASON_ALGORITHM_NOT_ACCEPTED`
+  on `ChainBuildingException`, `OcspVerificationException` and
+  `TimestampVerificationException`, and `REASON_UNSUPPORTED_ALGORITHM` on
+  `ChainBuildingException`.
+- A certificate signed with an algorithm allkiri cannot verify now leaves a
+  chain `CHAIN_NOT_FOUND` (INDETERMINATE) instead of `CHAIN_INVALID`
+  (TOTAL-FAILED). When no chain can be built, the reason given is the failure
+  that got furthest along a path rather than the last one tried.
 
 ### Fixed
+
+- SHA-1 and small RSA keys are no longer accepted beneath a signature. The
+  validation policy's algorithm floor reached only the XAdES signature method
+  and references. Certificates, OCSP responses and timestamps were verified
+  with SHA-1 allowed and no key-size floor, so a chain link, a revocation
+  answer or a timestamp signed with SHA-1 passed validation with no finding,
+  and signing and sign-in accepted them too. They are now refused wherever
+  allkiri signs or signs someone in. Validation reports them as INDETERMINATE:
+  the signature was not forged, but what it rests on can no longer be relied
+  on, and nothing shows it was made while SHA-1 still counted. A certificate
+  whose two signature algorithm fields differ, which RFC 5280 forbids, is no
+  longer treated as signed by anyone.
 
 - A server can no longer make the library hold an answer of any size. Both
   HTTP clients read the whole body into memory with no limit, from every

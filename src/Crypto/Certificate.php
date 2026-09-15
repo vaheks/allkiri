@@ -276,6 +276,17 @@ final class Certificate
     }
 
     /**
+     * The signature algorithm with its parameters, as the certificate names it
+     * outside the signed part.
+     *
+     * @throws UnsupportedAlgorithmException when it is not one allkiri verifies
+     */
+    public function signatureAlgorithm(): SignatureAlgorithmIdentifier
+    {
+        return SignatureAlgorithmIdentifier::fromDer($this->slice(self::children($this->root())[1]));
+    }
+
+    /**
      * The signature BIT STRING content without the unused-bits octet.
      */
     public function signatureValue(): string
@@ -410,15 +421,24 @@ final class Certificate
 
     /**
      * Cryptographic check only: the issuer's public key verifies this
-     * certificate's signature. Validity dates and trust are the caller's job.
+     * certificate's signature. Validity dates, trust, and whether the algorithm
+     * is still acceptable ({@see AlgorithmConstraints}) are the caller's job.
+     *
+     * A certificate names its signature algorithm twice, inside the signed part
+     * and outside it, and RFC 5280 §4.1.1.2 requires the two to be identical.
+     * One whose two differ is not signed by anyone.
      *
      * @throws UnsupportedAlgorithmException when the certificate's own signature algorithm is not implemented
      */
     public function isSignedBy(Certificate $issuer): bool
     {
-        return (new PublicKeyVerifier())->verifyWithOid(
+        if ($this->slice($this->tbsField(1)) !== $this->slice(self::children($this->root())[1])) {
+            return false;
+        }
+
+        return (new PublicKeyVerifier())->verifyWithAlgorithmIdentifier(
             $issuer->publicKey(),
-            $this->signatureAlgorithmOid(),
+            $this->signatureAlgorithm(),
             $this->tbsCertificateDer(),
             $this->signatureValue(),
         );

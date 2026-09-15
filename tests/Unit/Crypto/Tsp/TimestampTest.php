@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Crypto\Tsp;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\Tsp\PkiStatus;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\Tsp\TimestampRequest;
@@ -16,7 +18,10 @@ use Allkiri\Crypto\Tsp\TspClient;
 use Allkiri\Tests\Support\Clock\FrozenClock;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Tests\Support\Pki\MockTsa;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Pki\TestSignatures;
 use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -131,9 +136,58 @@ final class TimestampTest extends TestCase
         }
     }
 
+    public function testATokenSignedWithSha1IsNotAccepted(): void
+    {
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock())->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
+
+        try {
+            (new TspClient($http, MockTsa::URL))->timestamp('x');
+            self::fail('a token signed with SHA-1 was accepted');
+        } catch (TimestampVerificationException $e) {
+            self::assertSame(TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertSame('Token is signed with SHA-1, which is no longer accepted', $e->getMessage());
+        }
+    }
+
+    public function testATsaWithASmallRsaKeyIsNotAccepted(): void
+    {
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock(), self::rsaTsa(TestKey::rsa(1024)));
+
+        try {
+            (new TspClient($http, MockTsa::URL))->timestamp('x');
+            self::fail('a 1024-bit TSA was accepted');
+        } catch (TimestampVerificationException $e) {
+            self::assertSame(TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $e->reason);
+            self::assertStringContainsString('1024-bit', $e->getMessage());
+        }
+    }
+
+    public function testTheCallerSetsTheKeySizeFloor(): void
+    {
+        $http = new MockHttpClient();
+        MockTsa::register($http, new FrozenClock(), self::rsaTsa(TestPki::signerRsa()));
+        (new TspClient($http, MockTsa::URL))->timestamp('a 2048-bit TSA meets the default');
+
+        $this->expectException(TimestampVerificationException::class);
+        $this->expectExceptionMessage('2048-bit');
+
+        (new TspClient($http, MockTsa::URL, algorithmConstraints: new AlgorithmConstraints(4096)))->timestamp('x');
+    }
+
     public function testRequestBuilderValidatesImprintLength(): void
     {
         $this->expectException(\Allkiri\Crypto\Asn1\Asn1Exception::class);
         TimestampRequest::build(HashAlgorithm::SHA256, 'too short');
+    }
+
+    /**
+     * A timestamp authority certificate for an RSA key, with its purpose
+     * marked critical as RFC 3161 requires.
+     */
+    private static function rsaTsa(KeyPair|TestKey $key): KeyPair
+    {
+        return TestCertificates::issue($key, ['id-at-commonName' => 'allkiri RSA TSA'], ['id-ce-extKeyUsage' => [['id-kp-timeStamping'], true]]);
     }
 }

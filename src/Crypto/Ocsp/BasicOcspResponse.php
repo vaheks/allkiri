@@ -10,6 +10,8 @@ use Allkiri\Crypto\Asn1\Maps\OcspMaps;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Crypto\SignatureAlgorithmIdentifier;
+use Allkiri\Crypto\UnsupportedAlgorithmException;
 
 /**
  * A parsed BasicOCSPResponse that keeps the exact bytes the responder signed.
@@ -25,6 +27,8 @@ final class BasicOcspResponse
     private readonly string $tbsResponseDataDer;
 
     private readonly string $signatureAlgorithmOid;
+
+    private readonly string $signatureAlgorithmDer;
 
     private readonly string $signature;
 
@@ -43,6 +47,7 @@ final class BasicOcspResponse
         $tbsNode = $root->child(0);
         $this->tbsResponseDataDer = $tbsNode->der();
         $this->signatureAlgorithmOid = Oids::dotted($decoded->string('signatureAlgorithm', 'algorithm'));
+        $this->signatureAlgorithmDer = $root->child(1)->der();
         $this->signature = $root->child(2)->bitStringBytes();
 
         $responderId = $decoded->array('tbsResponseData', 'responderID');
@@ -98,6 +103,16 @@ final class BasicOcspResponse
     public function signatureAlgorithmOid(): string
     {
         return $this->signatureAlgorithmOid;
+    }
+
+    /**
+     * The signature algorithm with its parameters.
+     *
+     * @throws UnsupportedAlgorithmException when it is not one allkiri verifies
+     */
+    public function signatureAlgorithm(): SignatureAlgorithmIdentifier
+    {
+        return SignatureAlgorithmIdentifier::fromDer($this->signatureAlgorithmDer);
     }
 
     public function signature(): string

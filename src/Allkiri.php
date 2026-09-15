@@ -129,12 +129,12 @@ final class Allkiri
 
     public function chainBuilder(): ChainBuilder
     {
-        return new ChainBuilder($this->trustStore());
+        return new ChainBuilder($this->trustStore(), $this->policy->algorithmConstraints());
     }
 
     public function tspClient(): TspClient
     {
-        return new TspClient($this->httpClient(), $this->environment->tsaUrl, nonces: $this->nonces, hashAlgorithm: $this->environment->timestampDigestAlgorithm);
+        return new TspClient($this->httpClient(), $this->environment->tsaUrl, nonces: $this->nonces, hashAlgorithm: $this->environment->timestampDigestAlgorithm, algorithmConstraints: $this->policy->algorithmConstraints());
     }
 
     public function ocspClient(): OcspClient
@@ -143,7 +143,7 @@ final class Allkiri
             $this->httpClient(),
             $this->clock,
             nonces: $this->nonces,
-            options: new OcspVerificationOptions($this->environment->ocspNonceMode, [], 300, 600),
+            options: new OcspVerificationOptions($this->environment->ocspNonceMode, [], 300, 600, $this->policy->algorithmConstraints()),
             urlOverrides: $this->environment->ocspUrlOverrides,
             defaultUrl: $this->environment->ocspDefaultUrl,
             certIdHashOid: $this->environment->certIdHashOid(),

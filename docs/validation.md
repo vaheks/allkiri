@@ -45,7 +45,8 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    to and from nowhere else, so an untouched copy placed beside the signature
    cannot be digested while altered properties are reported.
 3. **Algorithms.** Digest and signature algorithms the policy allows, and a
-   key large enough.
+   key large enough. The signatures this signature rests on meet a floor too:
+   see steps 7 to 9.
 4. **The signing certificate.** The certificate in the signature is the one
    the signer committed to in the signed properties.
 5. **References.** Every same-document reference names an `Id` that exactly
@@ -60,6 +61,15 @@ failed, and findings with stable codes. Branch on the codes, show the messages.
    whose service was in a trustworthy status then.
 9. **Revocation.** The embedded OCSP response answers about this certificate,
    was signed by an authorised responder, and says `good`.
+
+In steps 7 to 9, every signature involved must be made with an acceptable
+algorithm: the timestamp token, each certificate in a chain, the OCSP response
+and a delegated responder's certificate. SHA-1 is refused whatever the policy
+allows for references, and so is an RSA key below `minimumRsaKeyBits`. Either
+finding is `INDETERMINATE` with `CRYPTO_CONSTRAINTS_FAILURE_NO_POE`, not
+`TOTAL-FAILED`: nothing was forged, but nothing shows the signature was made
+while its algorithm still counted. A certificate whose two signature algorithm
+fields differ, which RFC 5280 forbids, is not treated as signed at all.
 10. **Order.** The revocation answer must not predate the timestamp; a gap
     beyond fifteen minutes warns and beyond a day fails.
 
@@ -77,6 +87,12 @@ $allkiri = new Allkiri(Environment::demo(), policy: $policy);
 The defaults follow Estonian practice for BDOC 2.1.2: SHA-256 and above,
 RSA-2048 and above, `DataObjectFormat` mandatory, the fifteen-minute and
 one-day OCSP thresholds digidoc4j uses.
+
+`minimumRsaKeyBits` also sets the floor for the keys that sign the
+certificates, OCSP responses and timestamps a signature rests on. A policy
+given to `Allkiri` applies that floor when signing and signing people in, too.
+`allowedDigestAlgorithms` governs only the signature's own references: SHA-1 is
+refused beneath a signature whatever it says.
 
 ## Validating at a past moment
 
@@ -112,6 +128,7 @@ accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 | BDOC-TM (time-mark) | `INDETERMINATE`, unsupported | validated |
 | DDOC, PDF | not read | validated |
 | CRL revocation data | reported, not checked | checked |
+| SHA-1 in a chain, an OCSP response or a timestamp | `INDETERMINATE` | a warning, for BDOC |
 
 Where both validate the same signature, they should agree. The integration
 suite compares them on every run.

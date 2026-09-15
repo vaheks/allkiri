@@ -18,7 +18,11 @@ use Allkiri\Signing\SessionMismatchException;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningException;
 use Allkiri\Signing\SigningOptions;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestCertificateSignature;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Xades\Dsig\ArrayReferenceResolver;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
@@ -341,6 +345,46 @@ final class SigningServiceTest extends TestCase
         } catch (SigningException $e) {
             self::assertStringContainsString('before the timestamp', $e->getMessage());
         }
+    }
+
+    /**
+     * #14: what a signature rests on is held to the same algorithms when it is
+     * made as when it is validated, so none of these is completed.
+     */
+    public function testATimestampSignedWithSha1IsRefused(): void
+    {
+        $fixture = new SigningFixture();
+        $fixture->tsa->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
+
+        $this->expectExceptionMessageMatches('/Token is signed with SHA-1/');
+
+        $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+    }
+
+    public function testAnOcspResponseSignedWithSha1IsRefused(): void
+    {
+        $fixture = new SigningFixture();
+        $fixture->ocsp->sign = TestSignatures::sha1(TestKey::fixture('ocsp'));
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessageMatches('/OCSP response is signed with SHA-1/');
+
+        $fixture->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+    }
+
+    public function testASignerCertificateIssuedWithSha1IsRefused(): void
+    {
+        $signer = TestCertificates::issue(
+            TestKey::ec(label: 'sha1-issued-signer'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            signature: TestCertificateSignature::Sha1,
+        );
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessageMatches('/does not chain to a trusted CA: .* is signed with SHA-1/');
+
+        (new SigningFixture())->signingService->signWith(self::container(), LocalKeySigner::fromKeyPair($signer));
     }
 
     public function testALateOcspResponseIsAWarningNotAFailure(): void

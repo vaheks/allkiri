@@ -8,11 +8,21 @@ use Allkiri\Container\AsicContainer;
 use Allkiri\Container\AsicReader;
 use Allkiri\Container\AsicWriter;
 use Allkiri\Container\DataFile;
+use Allkiri\Container\Manifest;
+use Allkiri\Container\Zip\ZipWriter;
+use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Crypto\Tsp\TimestampRequest;
+use Allkiri\Crypto\Tsp\TimestampResponse;
+use Allkiri\Crypto\Tsp\TimestampToken;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningException;
 use Allkiri\Signing\SigningOptions;
+use Allkiri\Tests\Support\Pki\MockTsa;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Validation\ContainerValidator;
 use Allkiri\Validation\FindingCodes;
@@ -21,6 +31,7 @@ use Allkiri\Validation\Report\SignatureReport;
 use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationPolicy;
 use Allkiri\Xades\Dsig\Xml;
+use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -269,6 +280,39 @@ final class ArchiveTimestampTest extends TestCase
 
         $codes = array_map(static fn($f): string => $f->code, $report->signatures[0]->errors());
         self::assertContains(FindingCodes::ARCHIVE_TIMESTAMP_NOT_TRUSTED, $codes);
+    }
+
+    /**
+     * #14: an archive timestamp signed with SHA-1 protects nothing for
+     * tomorrow, and says so under its own code.
+     */
+    public function testAnArchiveTimestampSignedWithSha1IsReported(): void
+    {
+        $archived = $this->fixture->signingService->archive($this->signLt()->container);
+        $xml = (string) $archived->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        self::assertSame(2, preg_match_all('#<xades:EncapsulatedTimeStamp[^>]*>([^<]+)<#', $xml, $matches, PREG_OFFSET_CAPTURE), 'the signature timestamp and the archive timestamp');
+        [$archiveToken, $offset] = $matches[1][1];
+
+        // The same imprint, timestamped again by an authority that signs with SHA-1.
+        $sha1 = new SigningFixture($this->fixture->clock);
+        $sha1->tsa->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
+        $imprint = TimestampToken::fromDer((string) base64_decode($archiveToken, true))->tstInfo()->messageImprint;
+        $request = TimestampRequest::build(HashAlgorithm::SHA256, $imprint);
+        $token = TimestampResponse::fromDer($sha1->tsa->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body)->token();
+        self::assertNotNull($token);
+
+        $bytes = (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('leping.txt', "Tere, allkiri!\n")
+            ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('leping.txt', "Tere, allkiri!\n")])->toXml())
+            ->addDeflated('META-INF/signatures0.xml', substr_replace($xml, base64_encode($token->der()), $offset, \strlen($archiveToken)))
+            ->build();
+        $policy = new ValidationPolicy();
+        $validator = new ContainerValidator(new SignatureValidator($this->fixture->trustStore, $policy), $this->fixture->clock, $policy);
+
+        $codes = array_map(static fn($f): string => $f->code, $validator->validate($bytes, 'leping.asice')->signatures[0]->errors());
+        self::assertContains(FindingCodes::ARCHIVE_TIMESTAMP_WEAK_ALGORITHM, $codes);
+        self::assertNotContains(FindingCodes::ARCHIVE_TIMESTAMP_INVALID, $codes);
     }
 
     // --- what other implementations make ------------------------------------

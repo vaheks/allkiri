@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Crypto\Tsp;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Asn1\Asn1Exception;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\NonceGenerator;
@@ -28,6 +29,7 @@ final class TspClient
         private readonly NonceGenerator $nonces = new RandomNonceGenerator(),
         private readonly HashAlgorithm $hashAlgorithm = HashAlgorithm::SHA256,
         private readonly ?string $policyOid = null,
+        private readonly AlgorithmConstraints $algorithmConstraints = new AlgorithmConstraints(),
     ) {}
 
     public function url(): string
@@ -77,6 +79,6 @@ final class TspClient
         }
         $token = $response->token() ?? throw new TimestampException('TIMESTAMP_MALFORMED_RESPONSE', \sprintf('TSA %s granted the request but sent no token', $shown));
 
-        return $this->verifier->verify($token, $this->hashAlgorithm, $digest, $nonce);
+        return $this->verifier->verify($token, $this->hashAlgorithm, $digest, $nonce, [], $this->algorithmConstraints);
     }
 }

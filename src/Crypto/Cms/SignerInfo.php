@@ -9,6 +9,8 @@ use Allkiri\Crypto\Asn1\Maps\CmsMaps;
 use Allkiri\Crypto\Asn1\Node;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\SignatureAlgorithmIdentifier;
+use Allkiri\Crypto\UnsupportedAlgorithmException;
 use phpseclib3\File\ASN1 as PhpseclibAsn1;
 use phpseclib3\Math\BigInteger;
 
@@ -20,6 +22,8 @@ final class SignerInfo
     private readonly string $digestAlgorithmOid;
 
     private readonly string $signatureAlgorithmOid;
+
+    private readonly string $signatureAlgorithmDer;
 
     private readonly string $signature;
 
@@ -81,6 +85,8 @@ final class SignerInfo
             $this->signedAttrsDer = null;
         }
         $this->signedAttributes = $attributes;
+        // signatureAlgorithm comes right after signedAttrs, or after digestAlgorithm when there are none.
+        $this->signatureAlgorithmDer = $node->child($attrsNode !== null ? 4 : 3)->der();
     }
 
     public function digestAlgorithmOid(): string
@@ -91,6 +97,16 @@ final class SignerInfo
     public function signatureAlgorithmOid(): string
     {
         return $this->signatureAlgorithmOid;
+    }
+
+    /**
+     * The signature algorithm with its parameters.
+     *
+     * @throws UnsupportedAlgorithmException when it is not one allkiri verifies
+     */
+    public function signatureAlgorithm(): SignatureAlgorithmIdentifier
+    {
+        return SignatureAlgorithmIdentifier::fromDer($this->signatureAlgorithmDer);
     }
 
     public function signature(): string

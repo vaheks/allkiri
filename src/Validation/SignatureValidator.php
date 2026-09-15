@@ -344,6 +344,7 @@ final class SignatureValidator
         if ($signatureValue === null) {
             return null;
         }
+        $constraints = $this->policy->algorithmConstraints();
 
         foreach ($signature->signatureTimestamps as $entry) {
             try {
@@ -368,16 +369,20 @@ final class SignatureValidator
             $tsaCandidates = array_map(static fn($anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::tsaTypes()));
 
             try {
-                $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($canonical), null, array_values($tsaCandidates));
+                $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($canonical), null, array_values($tsaCandidates), $constraints);
             } catch (TimestampException $e) {
-                $findings[] = Finding::error(FindingCodes::TIMESTAMP_INVALID, 'The signature timestamp does not verify: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
+                $findings[] = $e->reason === \Allkiri\Crypto\Tsp\TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED
+                    ? Finding::error(FindingCodes::TIMESTAMP_WEAK_ALGORITHM, 'The signature timestamp cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe)
+                    : Finding::error(FindingCodes::TIMESTAMP_INVALID, 'The signature timestamp does not verify: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
             }
 
             try {
-                (new ChainBuilder($store))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+                (new ChainBuilder($store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
-                $findings[] = Finding::error(FindingCodes::TIMESTAMP_NOT_TRUSTED, 'The timestamp authority is not trusted: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
+                $findings[] = $e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED
+                    ? Finding::error(FindingCodes::TIMESTAMP_WEAK_ALGORITHM, 'The timestamp authority\'s certificate cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe)
+                    : Finding::error(FindingCodes::TIMESTAMP_NOT_TRUSTED, 'The timestamp authority is not trusted: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
             }
 
@@ -395,11 +400,14 @@ final class SignatureValidator
     private function checkChain(XadesSignature $signature, Certificate $signer, \DateTimeImmutable $at, TrustStore $store, array &$findings): ?\Allkiri\Trust\CertificateChain
     {
         try {
-            return (new ChainBuilder($store))->build($signer, $signature->certificateValues, $at, ServiceType::caTypes());
+            return (new ChainBuilder($store, $this->policy->algorithmConstraints()))->build($signer, $signature->certificateValues, $at, ServiceType::caTypes());
         } catch (ChainBuildingException $e) {
             $findings[] = match ($e->reason) {
                 ChainBuildingException::REASON_NOT_VALID_AT_TIME => $this->validityFinding($signer, $at, $e),
                 ChainBuildingException::REASON_SIGNATURE => Finding::error(FindingCodes::CHAIN_INVALID, $e->getMessage(), Indication::TotalFailed, SubIndication::CertificateChainGeneralFailure),
+                // Genuine, but made with what no longer counts: nothing here is
+                // forged, and nothing proves it was made while it still counted.
+                ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED => Finding::error(FindingCodes::CHAIN_WEAK_ALGORITHM, 'The signer\'s certificate chain cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe),
                 default => Finding::error(FindingCodes::CHAIN_NOT_FOUND, 'The signer\'s certificate does not chain to a trusted CA: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoCertificateChainFound),
             };
 
@@ -429,9 +437,10 @@ final class SignatureValidator
 
         $issuer = $chain->issuerOfLeaf();
         $trustedResponders = array_map(static fn($anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::ocspTypes()));
-        $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null))->withTrustedResponders(array_values($trustedResponders));
+        $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints()))->withTrustedResponders(array_values($trustedResponders));
 
         $lastProblem = null;
+        $weakness = null;
         foreach ($signature->ocspValues as $der) {
             try {
                 $response = OcspResponse::fromDer($der);
@@ -444,7 +453,11 @@ final class SignatureValidator
             try {
                 $verification = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
             } catch (OcspException $e) {
-                $lastProblem = $e->getMessage();
+                if ($e->reason === \Allkiri\Crypto\Ocsp\OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED) {
+                    $weakness = $e->getMessage();
+                } else {
+                    $lastProblem = $e->getMessage();
+                }
                 continue;
             }
 
@@ -462,6 +475,13 @@ final class SignatureValidator
             }
         }
 
+        // An answer that holds up in every other way but is signed with what no
+        // longer counts is the more telling problem to report.
+        if ($weakness !== null) {
+            $findings[] = Finding::error(FindingCodes::REVOCATION_WEAK_ALGORITHM, 'The revocation answer cannot be relied on: ' . $weakness, Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe);
+
+            return null;
+        }
         $findings[] = Finding::error(FindingCodes::REVOCATION_INVALID, 'No usable OCSP response' . ($lastProblem === null ? '' : ': ' . $lastProblem), Indication::Indeterminate, SubIndication::TryLater);
 
         return null;
@@ -499,6 +519,7 @@ final class SignatureValidator
         ));
         $latest = null;
         $previous = $signatureTimestamp?->genTime();
+        $constraints = $this->policy->algorithmConstraints();
 
         foreach ($archives as $index => $archive) {
             $number = $index + 1;
@@ -535,15 +556,21 @@ final class SignatureValidator
             }
 
             try {
-                $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($covered), null, $tsaCandidates);
+                $verification = $this->timestampVerifier->verify($token, $imprintAlgorithm, $imprintAlgorithm->digest($covered), null, $tsaCandidates, $constraints);
             } catch (TimestampException $e) {
-                $findings[] = $this->archiveFinding($number, 'does not verify: ' . $e->getMessage());
+                $findings[] = $e->reason === \Allkiri\Crypto\Tsp\TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED
+                    ? $this->archiveWeakFinding($number, $e->getMessage())
+                    : $this->archiveFinding($number, 'does not verify: ' . $e->getMessage());
                 continue;
             }
 
             try {
-                (new ChainBuilder($store))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+                (new ChainBuilder($store, $constraints))->build($verification->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
             } catch (ChainBuildingException $e) {
+                if ($e->reason === ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED) {
+                    $findings[] = $this->archiveWeakFinding($number, $e->getMessage());
+                    continue;
+                }
                 $findings[] = Finding::error(
                     FindingCodes::ARCHIVE_TIMESTAMP_NOT_TRUSTED,
                     \sprintf('The authority behind archive timestamp %d is not trusted: %s', $number, $e->getMessage()),
@@ -570,6 +597,16 @@ final class SignatureValidator
         }
 
         return $latest;
+    }
+
+    private function archiveWeakFinding(int $number, string $problem): Finding
+    {
+        return Finding::error(
+            FindingCodes::ARCHIVE_TIMESTAMP_WEAK_ALGORITHM,
+            \sprintf('Archive timestamp %d cannot be relied on: %s', $number, $problem),
+            Indication::Indeterminate,
+            SubIndication::CryptoConstraintsFailureNoPoe,
+        );
     }
 
     private function archiveFinding(int $number, string $problem): Finding

@@ -18,6 +18,12 @@ final class ChainBuildingException extends TrustException
     public const REASON_ANCHOR_TYPE = 'TRUST_ANCHOR_SERVICE_TYPE_MISMATCH';
     public const REASON_DEPTH = 'CHAIN_TOO_LONG';
 
+    /** A certificate is signed with an algorithm allkiri cannot verify. */
+    public const REASON_UNSUPPORTED_ALGORITHM = 'CERTIFICATE_SIGNATURE_ALGORITHM_UNSUPPORTED';
+
+    /** A certificate's signature verifies, but with SHA-1 or a key below the minimum. */
+    public const REASON_ALGORITHM_NOT_ACCEPTED = 'CERTIFICATE_SIGNATURE_ALGORITHM_NOT_ACCEPTED';
+
     public function __construct(
         public readonly string $reason,
         string $message,

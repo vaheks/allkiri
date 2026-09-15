@@ -31,6 +31,13 @@ final class MockTsa
     public bool $reject = false;
     public int $genTimeOffsetSeconds = 0;
     public int $requests = 0;
+
+    /**
+     * Signs in place of the TSA key's usual algorithm, as {@see TestSignatures} does.
+     *
+     * @var (\Closure(string): array{string, string})|null
+     */
+    public ?\Closure $sign = null;
     private int $serial = 1000;
 
     public function __construct(
@@ -70,7 +77,7 @@ final class MockTsa
             $tstParts[] = Asn1::integer($req->nonce);
         }
         $tstInfo = Asn1::sequence($tstParts);
-        $token = Asn1Encoders::signedData($this->tsa, Oids::ID_CT_TST_INFO, $tstInfo, $genTime, $this->includeCertificate, $this->corruptSignature);
+        $token = Asn1Encoders::signedData($this->tsa, Oids::ID_CT_TST_INFO, $tstInfo, $genTime, $this->includeCertificate, $this->corruptSignature, $this->sign);
         $response = Asn1::sequence([Asn1::sequence([Asn1::integer(0)]), $token]);
 
         return new HttpResponse(200, ['Content-Type' => 'application/timestamp-reply'], $response);

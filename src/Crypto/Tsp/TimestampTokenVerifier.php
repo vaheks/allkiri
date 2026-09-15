@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Crypto\Tsp;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\HashAlgorithm;
@@ -19,12 +20,13 @@ final class TimestampTokenVerifier
     public function __construct(private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier()) {}
 
     /**
-     * @param string            $expectedImprint the digest the token must cover
-     * @param list<Certificate> $tsaCandidates   certificates to identify the TSU with when the token carries none
+     * @param string               $expectedImprint the digest the token must cover
+     * @param list<Certificate>    $tsaCandidates   certificates to identify the TSU with when the token carries none
+     * @param AlgorithmConstraints $constraints     what the token's signature must meet
      *
      * @throws TimestampVerificationException
      */
-    public function verify(TimestampToken $token, HashAlgorithm $imprintAlgorithm, string $expectedImprint, ?BigInteger $expectedNonce = null, array $tsaCandidates = []): TimestampVerificationResult
+    public function verify(TimestampToken $token, HashAlgorithm $imprintAlgorithm, string $expectedImprint, ?BigInteger $expectedNonce = null, array $tsaCandidates = [], AlgorithmConstraints $constraints = new AlgorithmConstraints()): TimestampVerificationResult
     {
         $signedData = $token->signedData();
         $signerInfo = $token->signerInfo();
@@ -48,13 +50,17 @@ final class TimestampTokenVerifier
             ?? throw new TimestampVerificationException(TimestampVerificationException::REASON_SIGNER_NOT_FOUND, 'TSA certificate not found in the token');
 
         try {
-            $ok = $this->verifier->verifyWithOid($tsa->publicKey(), $signerInfo->signatureAlgorithmOid(), $signedAttrs, $signerInfo->signature());
+            $algorithm = $signerInfo->signatureAlgorithm();
+            $ok = $this->verifier->verifyWithAlgorithmIdentifier($tsa->publicKey(), $algorithm, $signedAttrs, $signerInfo->signature());
         } catch (UnsupportedAlgorithmException $e) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage(), $e);
         }
         if (!$ok) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_BAD_SIGNATURE, 'Token signature does not verify');
         }
+        // Reported only once everything else holds, so a weak algorithm names a
+        // token that is otherwise sound.
+        $weakness = $constraints->violation($algorithm, $tsa->publicKey());
 
         $references = $signerInfo->signingCertificateReferences();
         if ($references === []) {
@@ -80,6 +86,9 @@ final class TimestampTokenVerifier
         }
         if ($expectedNonce !== null && ($tstInfo->nonce === null || !$tstInfo->nonce->equals($expectedNonce))) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_NONCE, 'Token nonce does not match the request');
+        }
+        if ($weakness !== null) {
+            throw new TimestampVerificationException(TimestampVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, 'Token is ' . $weakness);
         }
 
         return new TimestampVerificationResult($token, $tsa);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Support;
 
+use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspVerificationOptions;
 use Allkiri\Crypto\Tsp\TspClient;
@@ -44,14 +45,19 @@ final class SigningFixture
 
     public readonly SigningService $signingService;
 
-    public function __construct(public readonly FrozenClock $clock = new FrozenClock('2026-03-01T10:00:00Z'))
-    {
+    /**
+     * @param list<Certificate> $extraCas trusted as qualified CAs beside the test CA, for signing with certificates issued in a test
+     */
+    public function __construct(
+        public readonly FrozenClock $clock = new FrozenClock('2026-03-01T10:00:00Z'),
+        array $extraCas = [],
+    ) {
         $this->http = new MockHttpClient();
         $this->tsa = MockTsa::register($this->http, $this->clock);
         $this->ocsp = MockOcspResponder::register($this->http, $this->clock);
 
         $this->trustStore = new CompositeTrustStore(
-            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc, 'test PKI'),
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate, ...$extraCas], ServiceType::CaQc, 'test PKI'),
             InMemoryTrustStore::fromCertificates([TestPki::tsa()->certificate], ServiceType::TsaQtst, 'test PKI'),
             InMemoryTrustStore::fromCertificates([TestPki::ocspResponder()->certificate], ServiceType::OcspQc, 'test PKI'),
         );

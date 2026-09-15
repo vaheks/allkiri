@@ -40,6 +40,13 @@ final class MockOcspResponder
     public ?int $nextUpdateInSeconds = null;
     public int $requests = 0;
 
+    /**
+     * Signs in place of the responder key's usual algorithm, as {@see TestSignatures} does.
+     *
+     * @var (\Closure(string): array{string, string})|null
+     */
+    public ?\Closure $sign = null;
+
     public function __construct(
         private readonly ClockInterface $clock,
         private readonly KeyPair $responder,
@@ -102,17 +109,22 @@ final class MockOcspResponder
         }
         $tbs = Asn1::sequence($tbsParts);
 
-        $algorithm = $this->responder->privateKey->keyType() === KeyType::EC ? SignatureAlgorithm::ES256 : SignatureAlgorithm::RS256;
-        $signature = $this->responder->privateKey->sign($algorithm, $tbs);
-        if ($algorithm->keyType() === KeyType::EC) {
-            $signature = EcdsaSignature::rawToDer($signature);
+        if ($this->sign !== null) {
+            [$algorithmIdentifier, $signature] = ($this->sign)($tbs);
+        } else {
+            $algorithm = $this->responder->privateKey->keyType() === KeyType::EC ? SignatureAlgorithm::ES256 : SignatureAlgorithm::RS256;
+            $signature = $this->responder->privateKey->sign($algorithm, $tbs);
+            if ($algorithm->keyType() === KeyType::EC) {
+                $signature = EcdsaSignature::rawToDer($signature);
+            }
+            $algorithmIdentifier = Asn1Encoders::algorithmIdentifier($algorithm->oid() ?? '', $algorithm->keyType() === KeyType::RSA);
         }
         if ($this->corruptSignature) {
             $signature[5] = \chr(\ord($signature[5]) ^ 0x01);
         }
         $basicParts = [
             $tbs,
-            Asn1Encoders::algorithmIdentifier($algorithm->oid() ?? '', $algorithm->keyType() === KeyType::RSA),
+            $algorithmIdentifier,
             Asn1::primitive(PhpseclibAsn1::TYPE_BIT_STRING, "\x00" . $signature),
         ];
         if ($this->includeCertificate) {

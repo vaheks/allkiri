@@ -45,13 +45,18 @@ final class OcspResponseVerifier
             ?? throw new OcspVerificationException(OcspVerificationException::REASON_RESPONDER_NOT_FOUND, 'OCSP responder certificate not found');
 
         try {
-            $signatureOk = $this->verifier->verifyWithOid($responder->publicKey(), $basic->signatureAlgorithmOid(), $basic->tbsResponseDataDer(), $basic->signature());
+            $algorithm = $basic->signatureAlgorithm();
+            $signatureOk = $this->verifier->verifyWithAlgorithmIdentifier($responder->publicKey(), $algorithm, $basic->tbsResponseDataDer(), $basic->signature());
         } catch (UnsupportedAlgorithmException $e) {
             throw new OcspVerificationException(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage(), $e);
         }
         if (!$signatureOk) {
             throw new OcspVerificationException(OcspVerificationException::REASON_BAD_SIGNATURE, 'OCSP response signature does not verify');
         }
+        // A weak algorithm is reported last, so that it names an answer that is
+        // otherwise sound rather than hiding a more basic problem.
+        $weakness = $options->algorithmConstraints->violation($algorithm, $responder->publicKey());
+        $weakness = $weakness === null ? null : 'OCSP response is ' . $weakness;
 
         $responderIsIssuer = $responder->equals($issuer);
         $fromTrustList = false;
@@ -64,8 +69,18 @@ final class OcspResponseVerifier
             if (!$responder->hasExtendedKeyUsage(Oids::ID_KP_OCSP_SIGNING)) {
                 throw new OcspVerificationException(OcspVerificationException::REASON_RESPONDER_NOT_AUTHORISED, 'OCSP responder certificate lacks the OCSPSigning extended key usage');
             }
-            if (!$responder->isSignedBy($issuer)) {
+
+            try {
+                $issued = $responder->isSignedBy($issuer);
+                $responderWeakness = $issued ? $options->algorithmConstraints->violation($responder->signatureAlgorithm(), $issuer->publicKey()) : null;
+            } catch (UnsupportedAlgorithmException $e) {
+                throw new OcspVerificationException(OcspVerificationException::REASON_UNSUPPORTED_ALGORITHM, 'OCSP responder certificate: ' . $e->getMessage(), $e);
+            }
+            if (!$issued) {
                 throw new OcspVerificationException(OcspVerificationException::REASON_RESPONDER_NOT_AUTHORISED, 'OCSP responder certificate is not issued by the certificate\'s CA');
+            }
+            if ($weakness === null && $responderWeakness !== null) {
+                $weakness = 'OCSP responder certificate is ' . $responderWeakness;
             }
         }
         if (!$responder->isValidAt($basic->producedAt())) {
@@ -74,6 +89,9 @@ final class OcspResponseVerifier
 
         $this->checkNonce($basic, $expectedNonce, $options->nonceMode);
         $this->checkTimes($basic, $single, $validationTime, $options, $warnings);
+        if ($weakness !== null) {
+            throw new OcspVerificationException(OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED, $weakness);
+        }
 
         return new OcspVerificationResult($response, $basic, $single, $responder, $responderIsIssuer, $fromTrustList, $warnings);
     }

@@ -10,11 +10,27 @@ use Allkiri\Container\DataFile;
 use Allkiri\Container\Manifest;
 use Allkiri\Container\Zip\ZipReader;
 use Allkiri\Container\Zip\ZipWriter;
+use Allkiri\Crypto\Certificate;
+use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Crypto\Ocsp\CertId;
+use Allkiri\Crypto\Ocsp\OcspRequest;
+use Allkiri\Crypto\Tsp\TimestampRequest;
+use Allkiri\Crypto\Tsp\TimestampResponse;
+use Allkiri\Crypto\Tsp\TimestampToken;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningOptions;
+use Allkiri\Signing\SigningResult;
 use Allkiri\Tests\Support\Clock\FrozenClock;
+use Allkiri\Tests\Support\Pki\MockOcspResponder;
+use Allkiri\Tests\Support\Pki\MockTsa;
+use Allkiri\Tests\Support\Pki\TestCertificates;
+use Allkiri\Tests\Support\Pki\TestCertificateSignature;
+use Allkiri\Tests\Support\Pki\TestIssuer;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Tests\Support\Xades\SignatureWrapping;
 use Allkiri\Trust\InMemoryTrustStore;
@@ -45,6 +61,39 @@ final class ValidationTest extends TestCase
             $fixture->clock,
             $policy,
         );
+    }
+
+    /**
+     * An OCSP answer for the certificate, as the fixture's responder would give it now.
+     */
+    private static function ocspAnswer(SigningFixture $fixture, Certificate $certificate): string
+    {
+        return $fixture->ocsp->handle(HttpRequest::post(
+            MockOcspResponder::URL,
+            'application/ocsp-request',
+            OcspRequest::build(CertId::for($certificate, TestPki::ca()->certificate))->der,
+        ))->body;
+    }
+
+    /**
+     * The signed container of a.txt again, with one encapsulated value in its
+     * signature replaced. Unsigned properties are not covered by the signature,
+     * which is what makes the swap possible.
+     *
+     * @param string $element the xades element, such as EncapsulatedOCSPValue
+     */
+    private static function withEncapsulated(SigningResult $result, string $element, string $der): string
+    {
+        $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        $swapped = preg_replace('#(<xades:' . $element . '[^>]*>)[^<]+#', '${1}' . base64_encode($der), $xml, 1);
+        self::assertIsString($swapped);
+
+        return (new ZipWriter())
+            ->addStored('mimetype', Ns::MIME_ASICE)
+            ->addDeflated('a.txt', 'x')
+            ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'x')])->toXml())
+            ->addDeflated('META-INF/signatures0.xml', $swapped)
+            ->build();
     }
 
     /**
@@ -241,21 +290,7 @@ final class ValidationTest extends TestCase
             } else {
                 $after->ocsp->unknown($keyPair->certificate->serialNumber());
             }
-            $replacement = $after->ocsp->handle(\Allkiri\Http\HttpRequest::post(
-                \Allkiri\Tests\Support\Pki\MockOcspResponder::URL,
-                'application/ocsp-request',
-                \Allkiri\Crypto\Ocsp\OcspRequest::build(\Allkiri\Crypto\Ocsp\CertId::for($keyPair->certificate, TestPki::ca()->certificate))->der,
-            ))->body;
-
-            $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
-            $swapped = preg_replace('#(<xades:EncapsulatedOCSPValue[^>]*>)[^<]+#', '$1' . base64_encode($replacement), $xml, 1);
-            self::assertIsString($swapped);
-            $bytes = (new ZipWriter())
-                ->addStored('mimetype', Ns::MIME_ASICE)
-                ->addDeflated('a.txt', 'x')
-                ->addDeflated('META-INF/manifest.xml', Manifest::forDataFiles([DataFile::fromString('a.txt', 'x')])->toXml())
-                ->addDeflated('META-INF/signatures0.xml', $swapped)
-                ->build();
+            $bytes = self::withEncapsulated($result, 'EncapsulatedOCSPValue', self::ocspAnswer($after, $keyPair->certificate));
 
             $report = self::validator($fixture)->validate($bytes);
             $signature = $report->signatures[0];
@@ -263,6 +298,83 @@ final class ValidationTest extends TestCase
             self::assertSame($subIndication, $signature->subIndication, $how);
             self::assertTrue($signature->has($code), $how);
         }
+    }
+
+    /**
+     * #14: a genuine revocation answer signed with SHA-1 no longer proves
+     * anything, and nothing shows it was made while SHA-1 still counted.
+     */
+    public function testARevocationAnswerSignedWithSha1IsIndeterminate(): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+
+        $after = new SigningFixture($fixture->clock);
+        $after->ocsp->sign = TestSignatures::sha1(TestKey::fixture('ocsp'));
+        $bytes = self::withEncapsulated($result, 'EncapsulatedOCSPValue', self::ocspAnswer($after, $keyPair->certificate));
+
+        $signature = self::validator($fixture)->validate($bytes)->signatures[0];
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::CryptoConstraintsFailureNoPoe, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::REVOCATION_WEAK_ALGORITHM));
+        self::assertFalse($signature->has(FindingCodes::REVOCATION_INVALID));
+    }
+
+    /**
+     * #14: an intermediate CA certificate signed with SHA-1, beneath a signer
+     * whose own certificate and signature are sound.
+     */
+    public function testACertificateChainSignedWithSha1IsIndeterminate(): void
+    {
+        $intermediateKey = TestKey::ec(label: 'sha1-intermediate');
+        $intermediate = TestCertificates::issue($intermediateKey, ['id-at-commonName' => 'allkiri Test SHA-1 Intermediate'], [
+            'id-ce-basicConstraints' => [['cA' => true], true],
+            'id-ce-keyUsage' => [['keyCertSign', 'cRLSign'], true],
+            'id-pe-authorityInfoAccess' => null,
+        ], signature: TestCertificateSignature::Sha1);
+        $signer = TestCertificates::issue(
+            TestKey::ec(label: 'sha1-intermediate-signer'),
+            ['id-at-commonName' => 'ALLKIRI,TESTER,38001085718'],
+            ['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]],
+            TestIssuer::of($intermediate, $intermediateKey),
+        );
+
+        // Signing trusts the intermediate itself, so the SHA-1 link is never
+        // walked there; it only puts the intermediate into the signature.
+        $fixture = new SigningFixture(extraCas: [$intermediate->certificate]);
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($signer));
+        $bytes = (new AsicWriter())->write($result->container);
+
+        // Validation trusts only the root, so the chain has to go through it.
+        $rootOnly = (new SigningFixture($fixture->clock))->trustStore;
+        $signature = self::validator($fixture)->validate($bytes, 'a.asice', new ValidationOptions(trustStore: $rootOnly))->signatures[0];
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::CryptoConstraintsFailureNoPoe, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::CHAIN_WEAK_ALGORITHM));
+        self::assertFalse($signature->has(FindingCodes::CHAIN_INVALID));
+    }
+
+    public function testATimestampSignedWithSha1IsIndeterminate(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $xml = (string) $result->container->signatureFile('META-INF/signatures0.xml')?->xml;
+        self::assertSame(1, preg_match('#<xades:EncapsulatedTimeStamp[^>]*>([^<]+)#', $xml, $match));
+        $original = TimestampToken::fromDer((string) base64_decode($match[1], true));
+
+        // The same imprint, timestamped again by an authority that signs with SHA-1.
+        $after = new SigningFixture($fixture->clock);
+        $after->tsa->sign = TestSignatures::sha1(TestKey::fixture('tsa'));
+        $request = TimestampRequest::build(HashAlgorithm::SHA256, $original->tstInfo()->messageImprint);
+        $token = TimestampResponse::fromDer($after->tsa->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body)->token();
+        self::assertNotNull($token);
+        $bytes = self::withEncapsulated($result, 'EncapsulatedTimeStamp', $token->der());
+
+        $signature = self::validator($fixture)->validate($bytes)->signatures[0];
+        self::assertSame(Indication::Indeterminate, $signature->indication);
+        self::assertSame(SubIndication::CryptoConstraintsFailureNoPoe, $signature->subIndication);
+        self::assertTrue($signature->has(FindingCodes::TIMESTAMP_WEAK_ALGORITHM));
     }
 
     public function testLevelsBAndTAreReportedAsWhatTheyAre(): void
@@ -305,6 +417,8 @@ final class ValidationTest extends TestCase
         self::assertSame(Indication::TotalFailed, $report->signatures[0]->indication);
         self::assertSame(SubIndication::CryptoConstraintsFailure, $report->signatures[0]->subIndication);
         self::assertTrue($report->signatures[0]->has(FindingCodes::WEAK_KEY));
+        // The same floor applies beneath the signature: the test CA's key is 3072 bits.
+        self::assertTrue($report->signatures[0]->has(FindingCodes::CHAIN_WEAK_ALGORITHM));
 
         // A policy that only accepts SHA-512 digests.
         $sha512Only = new ValidationPolicy(allowedDigestAlgorithms: [\Allkiri\Crypto\HashAlgorithm::SHA512]);

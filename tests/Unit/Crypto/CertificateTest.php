@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Crypto;
 
+use Allkiri\Crypto\Asn1\Asn1;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\KeyType;
+use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Tests\Support\Pki\Asn1Encoders;
+use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
+use phpseclib3\File\ASN1 as PhpseclibAsn1;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
@@ -97,6 +102,29 @@ final class CertificateTest extends TestCase
         self::assertSame($ca->subjectNameDer(), $ec->issuerNameDer());
         self::assertNotSame($ec->subjectNameDer(), $ec->issuerNameDer());
         self::assertSame('1.2.840.113549.1.1.11', $ec->signatureAlgorithmOid(), 'sha256WithRSAEncryption, signed by the RSA CA');
+    }
+
+    /**
+     * RFC 5280 §4.1.1.2: the algorithm named inside the signed part and the one
+     * outside it must be the same. Here the CA genuinely signed, with SHA-256, a
+     * tbsCertificate that claims SHA-384, so only the comparison refuses it.
+     */
+    public function testACertificateWhoseTwoAlgorithmFieldsDifferIsSignedByNobody(): void
+    {
+        $sha256WithRsa = Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.11', true);
+        $tbs = Asn1::decodeRaw(TestPki::signerEc256()->certificate->der())->child(0)->der();
+        $position = strpos($tbs, $sha256WithRsa);
+        self::assertIsInt($position);
+        $claimingSha384 = substr_replace($tbs, Asn1Encoders::algorithmIdentifier('1.2.840.113549.1.1.12', true), $position, \strlen($sha256WithRsa));
+        $signature = TestKey::fixture('ca')->privateKey->sign(SignatureAlgorithm::RS256, $claimingSha384);
+
+        $forged = Certificate::fromDer(Asn1::sequence([
+            $claimingSha384,
+            $sha256WithRsa,
+            Asn1::primitive(PhpseclibAsn1::TYPE_BIT_STRING, "\x00" . $signature),
+        ]));
+
+        self::assertFalse($forged->isSignedBy(TestPki::ca()->certificate));
     }
 
     public function testRealTestCaCertificatesFromSkAndZetes(): void

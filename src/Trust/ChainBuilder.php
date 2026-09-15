@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Allkiri\Trust;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
 
 /**
  * Finds a path from a certificate to a trust anchor that is valid at a given
  * moment: every certificate within its validity period, every signature
- * verified, the anchor's service in a trustworthy status at that moment.
+ * verified and made with an acceptable algorithm and key, the anchor's service
+ * in a trustworthy status at that moment.
  *
  * Intermediates come from the caller (a signature's KeyInfo and
  * CertificateValues, an OCSP response's certs, a timestamp token's
@@ -20,13 +22,32 @@ final class ChainBuilder
 {
     private const MAX_DEPTH = 8;
 
-    public function __construct(private readonly TrustStore $store) {}
+    /**
+     * How far along a path each failure got. When no path works, the failure
+     * reported is the one that got furthest: a path that reached an anchor over
+     * genuine signatures says more than a candidate that never signed the
+     * certificate at all. Reasons not listed rank highest.
+     */
+    private const FAILURE_RANKS = [
+        ChainBuildingException::REASON_NO_ISSUER => 0,
+        ChainBuildingException::REASON_DEPTH => 1,
+        ChainBuildingException::REASON_SIGNATURE => 2,
+        ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM => 3,
+    ];
+
+    /** Failures reached over a genuine signature: validity, the anchor, algorithm constraints. */
+    private const RANK_PAST_A_SIGNATURE = 4;
+
+    public function __construct(
+        private readonly TrustStore $store,
+        private readonly AlgorithmConstraints $constraints = new AlgorithmConstraints(),
+    ) {}
 
     /**
      * @param list<Certificate>      $intermediates candidate issuer certificates that are not anchors
      * @param list<ServiceType>|null $acceptedAnchorTypes which service types may terminate the chain; null for any
      *
-     * @throws ChainBuildingException when no acceptable chain exists (reason tells which condition failed closest to the leaf)
+     * @throws ChainBuildingException when no acceptable chain exists; the reason is the failure that got furthest along a path
      */
     public function build(Certificate $leaf, array $intermediates, \DateTimeInterface $validationTime, ?array $acceptedAnchorTypes = null): CertificateChain
     {
@@ -47,12 +68,12 @@ final class ChainBuilder
     private function search(Certificate $current, array $intermediates, \DateTimeInterface $time, ?array $acceptedAnchorTypes, array $path, ?ChainBuildingException &$failure): ?CertificateChain
     {
         if (\count($path) >= self::MAX_DEPTH) {
-            $failure ??= new ChainBuildingException(ChainBuildingException::REASON_DEPTH, 'Certificate chain exceeds the maximum depth');
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_DEPTH, 'Certificate chain exceeds the maximum depth'));
 
             return null;
         }
         if (!$current->isValidAt($time)) {
-            $failure = new ChainBuildingException(ChainBuildingException::REASON_NOT_VALID_AT_TIME, \sprintf('%s is not valid at %s', $current->subjectDn(), $time->format(DATE_ATOM)));
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_NOT_VALID_AT_TIME, \sprintf('%s is not valid at %s', $current->subjectDn(), $time->format(DATE_ATOM))));
 
             return null;
         }
@@ -97,7 +118,7 @@ final class ChainBuilder
             }
         }
 
-        $failure ??= new ChainBuildingException(ChainBuildingException::REASON_NO_ISSUER, \sprintf('No issuer found for %s', $current->subjectDn()));
+        self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_NO_ISSUER, \sprintf('No issuer found for %s', $current->subjectDn())));
 
         return null;
     }
@@ -109,18 +130,18 @@ final class ChainBuilder
     private function acceptAnchor(TrustAnchor $anchor, array $path, \DateTimeInterface $time, ?array $acceptedAnchorTypes, ?ChainBuildingException &$failure): ?CertificateChain
     {
         if ($acceptedAnchorTypes !== null && !\in_array($anchor->serviceType, $acceptedAnchorTypes, true)) {
-            $failure = new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_TYPE, \sprintf('Trust anchor "%s" is a %s service, not one of the accepted types', $anchor->serviceName, $anchor->serviceType->name));
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_TYPE, \sprintf('Trust anchor "%s" is a %s service, not one of the accepted types', $anchor->serviceName, $anchor->serviceType->name)));
 
             return null;
         }
         if (!$anchor->certificate->isValidAt($time)) {
-            $failure = new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_NOT_VALID_AT_TIME, \sprintf('Trust anchor "%s" is not valid at %s', $anchor->serviceName, $time->format(DATE_ATOM)));
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_NOT_VALID_AT_TIME, \sprintf('Trust anchor "%s" is not valid at %s', $anchor->serviceName, $time->format(DATE_ATOM))));
 
             return null;
         }
         if (!$anchor->isTrustworthyAt($time)) {
             $status = $anchor->statusAt($time);
-            $failure = new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_STATUS, \sprintf('Trust anchor "%s" has status %s at %s', $anchor->serviceName, $status === null ? 'none' : $status->name, $time->format(DATE_ATOM)));
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ANCHOR_STATUS, \sprintf('Trust anchor "%s" has status %s at %s', $anchor->serviceName, $status === null ? 'none' : $status->name, $time->format(DATE_ATOM))));
 
             return null;
         }
@@ -128,19 +149,50 @@ final class ChainBuilder
         return new CertificateChain($path, $anchor);
     }
 
+    /**
+     * Whether the issuer signed the subject with an algorithm and key that are
+     * still acceptable.
+     */
     private function signedBy(Certificate $subject, Certificate $issuer, ?ChainBuildingException &$failure): bool
     {
         try {
-            if ($subject->isSignedBy($issuer)) {
-                return true;
+            if (!$subject->isSignedBy($issuer)) {
+                self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_SIGNATURE, \sprintf('%s is not signed by %s', $subject->subjectDn(), $issuer->subjectDn())));
+
+                return false;
             }
+            $violation = $this->constraints->violation($subject->signatureAlgorithm(), $issuer->publicKey());
         } catch (UnsupportedAlgorithmException $e) {
-            $failure = new ChainBuildingException(ChainBuildingException::REASON_SIGNATURE, $e->getMessage());
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage()));
 
             return false;
         }
-        $failure = new ChainBuildingException(ChainBuildingException::REASON_SIGNATURE, \sprintf('%s is not signed by %s', $subject->subjectDn(), $issuer->subjectDn()));
+        if ($violation !== null) {
+            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, \sprintf('%s is %s', $subject->subjectDn(), $violation)));
 
-        return false;
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Keep the failure that got furthest. Among equals, a missing issuer or an
+     * overlong chain keeps the first one found, and anything else the latest.
+     *
+     * @param-out ChainBuildingException $failure
+     */
+    private static function record(?ChainBuildingException &$failure, ChainBuildingException $new): void
+    {
+        if ($failure === null) {
+            $failure = $new;
+
+            return;
+        }
+        $current = self::FAILURE_RANKS[$failure->reason] ?? self::RANK_PAST_A_SIGNATURE;
+        $rank = self::FAILURE_RANKS[$new->reason] ?? self::RANK_PAST_A_SIGNATURE;
+        if ($rank > $current || ($rank === $current && $rank >= self::FAILURE_RANKS[ChainBuildingException::REASON_SIGNATURE])) {
+            $failure = $new;
+        }
     }
 }

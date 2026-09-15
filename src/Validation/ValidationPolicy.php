@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Validation;
 
+use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\SignatureAlgorithm;
 
@@ -40,6 +41,17 @@ final readonly class ValidationPolicy
     public function allowsDigest(HashAlgorithm $algorithm): bool
     {
         return \in_array($algorithm, $this->allowedDigestAlgorithms, true);
+    }
+
+    /**
+     * What the signatures a signature rests on must meet: those on its
+     * certificates, its revocation answer and its timestamps. SHA-1 is refused
+     * there whatever the policy allows for references, and the RSA key floor is
+     * this policy's.
+     */
+    public function algorithmConstraints(): AlgorithmConstraints
+    {
+        return new AlgorithmConstraints($this->minimumRsaKeyBits);
     }
 
     public function allowsSignature(SignatureAlgorithm $algorithm): bool
