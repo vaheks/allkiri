@@ -55,11 +55,27 @@ What `finalize()` does before spending anything:
 3. Verifies the completed signature against the container. This proves in one
    step that the prepared document was not altered, that it still covers
    exactly these files, and that the value really is a signature over it.
-4. At level T and above, checks again that the signer's certificate chains to
+4. Checks that the signature was prepared no more than ten minutes ago, by the
+   signing time it carries.
+5. At level T and above, checks again that the signer's certificate chains to
    a trusted CA.
 
 Only then does it buy a timestamp and ask for a revocation answer. A wrong
 signature value costs nothing.
+
+### How long a prepared signature lasts
+
+`finalize()` refuses a signature prepared more than ten minutes earlier with
+`PreparedSignatureExpiredException`. The age is taken from the signing time
+inside the signature, which the signature value covers, rather than from
+`createdAt`, which is only stored beside it. A signing time more than five
+minutes ahead of the server's clock is refused as well, so a clock set forward
+cannot stretch the limit; servers whose clocks differ by more than that will
+see it too.
+
+```php
+$allkiri = new Allkiri(Environment::production(), preparedSignatureTtlSeconds: 1800);
+```
 
 ### Signature values
 

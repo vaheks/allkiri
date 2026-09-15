@@ -14,10 +14,12 @@ use Allkiri\Crypto\KeyType;
 use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
+use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\LtaExtender;
 use Allkiri\Xades\LtaExtensionResult;
 use Allkiri\Xades\LtExtender;
+use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureCompleter;
 use Allkiri\Xades\SignatureDocument;
@@ -36,6 +38,15 @@ use Psr\Log\LoggerInterface;
  */
 final class SigningService
 {
+    /** Ten minutes: SK's sessions end after two, and the Web eID challenge after five. */
+    public const DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS = 600;
+
+    /** How far a signing time may be ahead of this server's clock, as OCSP and validation allow. */
+    private const CLOCK_SKEW_SECONDS = 300;
+
+    /**
+     * @param int $preparedSignatureTtlSeconds how long after `prepare()` a signature can still be finalized
+     */
     public function __construct(
         private readonly ClockInterface $clock,
         private readonly ?LtExtender $ltExtender = null,
@@ -44,7 +55,12 @@ final class SigningService
         private readonly SignatureCompleter $completer = new SignatureCompleter(),
         private readonly XmlDsigVerifier $dsigVerifier = new XmlDsigVerifier(),
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+        private readonly int $preparedSignatureTtlSeconds = self::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS,
+    ) {
+        if ($preparedSignatureTtlSeconds < 1) {
+            throw new InvalidArgumentException('A prepared signature must be allowed at least a second before it is finalized');
+        }
+    }
 
     /**
      * Build everything that is signed and return what the signer must sign.
@@ -96,6 +112,7 @@ final class SigningService
      *
      * @throws SessionMismatchException       when the container or the prepared signature changed, or the prepared signature cannot be read
      * @throws InvalidSignatureValueException when the value is not a signature over what was prepared
+     * @throws PreparedSignatureExpiredException when the signature was prepared longer ago than the limit allows
      * @throws SigningException               when trust, the timestamp or the revocation answer fails, with the original exception as the previous one
      */
     public function finalize(AsicContainer $container, DataToBeSigned $dataToBeSigned, string $signatureValue): SigningResult
@@ -137,6 +154,7 @@ final class SigningService
         if (!$verification->signatureValid) {
             throw new InvalidSignatureValueException('The signature value does not verify against the signer\'s certificate');
         }
+        $this->requireFresh($signature);
 
         $timestampTime = null;
         $ocspProducedAt = null;
@@ -249,6 +267,28 @@ final class SigningService
             return EcdsaSignature::toRaw($signatureValue, $key);
         } catch (CryptoException $exception) {
             throw new InvalidSignatureValueException($exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Refuse a signature prepared longer ago than the limit.
+     *
+     * The age is taken from the signing time inside the signature. The
+     * signature has just verified, so that time is what was signed; the stored
+     * `createdAt` is only kept beside it and could have been changed.
+     */
+    private function requireFresh(\DOMElement $signature): void
+    {
+        $signingTime = (new XadesSignatureParser())->parse($signature)->signingTime
+            ?? throw new SessionMismatchException('The prepared signature carries no signing time');
+        $age = $this->clock->now()->getTimestamp() - $signingTime->getTimestamp();
+
+        if ($age > $this->preparedSignatureTtlSeconds) {
+            throw new PreparedSignatureExpiredException(\sprintf('The signature was prepared %d seconds ago and must be finalized within %d; prepare it again', $age, $this->preparedSignatureTtlSeconds));
+        }
+        // Otherwise a signature prepared on a clock set ahead would outlast the limit.
+        if (-$age > self::CLOCK_SKEW_SECONDS) {
+            throw new SigningException(\sprintf('The prepared signature is dated %d seconds ahead of this server\'s clock, more than the %d allowed for clocks that differ', -$age, self::CLOCK_SKEW_SECONDS));
         }
     }
 

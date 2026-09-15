@@ -12,14 +12,17 @@ use Allkiri\Crypto\EcdsaSignature;
 use Allkiri\Crypto\KeyPair;
 use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampVerificationException;
+use Allkiri\Exception\InvalidArgumentException;
 use Allkiri\Signing\CertificateNotForSigningException;
 use Allkiri\Signing\DataToBeSigned;
 use Allkiri\Signing\InvalidSignatureValueException;
 use Allkiri\Signing\LocalKeySigner;
+use Allkiri\Signing\PreparedSignatureExpiredException;
 use Allkiri\Signing\SessionMismatchException;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningException;
 use Allkiri\Signing\SigningOptions;
+use Allkiri\Signing\SigningService;
 use Allkiri\Tests\Support\Pki\TestCertificates;
 use Allkiri\Tests\Support\Pki\TestCertificateSignature;
 use Allkiri\Tests\Support\Pki\TestIssuer;
@@ -34,6 +37,7 @@ use Allkiri\Xades\Dsig\ArrayReferenceResolver;
 use Allkiri\Xades\Dsig\XmlDsigVerifier;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\Ns;
+use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureDocument;
 use Allkiri\Xades\SignatureProfile;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -557,6 +561,121 @@ final class SigningServiceTest extends TestCase
             self::assertStringContainsString('archive timestamp', $e->getMessage());
             self::assertInstanceOf(TimestampVerificationException::class, $e->getPrevious());
         }
+    }
+
+    /**
+     * The prepared signature with only its stored creation time changed.
+     */
+    private static function withCreatedAt(DataToBeSigned $prepared, \DateTimeImmutable $createdAt): DataToBeSigned
+    {
+        return new DataToBeSigned(
+            $prepared->signatureId,
+            $prepared->signatureFileName,
+            $prepared->algorithm,
+            $prepared->digest,
+            $prepared->signedInfoCanonical,
+            $prepared->signatureXml,
+            $prepared->signerCertificate,
+            $prepared->containerFingerprint,
+            $prepared->level,
+            $createdAt,
+        );
+    }
+
+    /**
+     * #27: a signature prepared long ago is not finished today.
+     */
+    public function testAPreparedSignatureOlderThanItsLifetimeIsRefusedBeforeAnythingIsSpent(): void
+    {
+        $fixture = new SigningFixture();
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $fixture->signingService->prepare($container, $keyPair->certificate);
+        $value = $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical);
+        $fixture->clock->advance('PT10M1S');
+
+        try {
+            $fixture->signingService->finalize($container, $prepared, $value);
+            self::fail('a signature prepared eleven minutes ago was finished');
+        } catch (PreparedSignatureExpiredException $e) {
+            self::assertStringContainsString('601 seconds ago', $e->getMessage());
+        }
+        self::assertSame(0, $fixture->tsa->requests, 'no timestamp was bought');
+        self::assertSame(0, $fixture->ocsp->requests);
+    }
+
+    public function testAPreparedSignatureIsAcceptedToTheLastSecondOfItsLifetime(): void
+    {
+        $fixture = new SigningFixture();
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $fixture->signingService->prepare($container, $keyPair->certificate);
+        $fixture->clock->advance('PT10M');
+
+        $result = $fixture->signingService->finalize($container, $prepared, $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical));
+
+        self::assertSame(SignatureLevel::LT, $result->level);
+    }
+
+    /**
+     * The stored creation time sits beside the signature and could be
+     * changed; the signing time inside it was signed.
+     */
+    public function testTheAgeIsTakenFromTheSignedSigningTimeNotFromCreatedAt(): void
+    {
+        $fixture = new SigningFixture();
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $fixture->signingService->prepare($container, $keyPair->certificate, new SigningOptions(SignatureLevel::B));
+        $value = $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical);
+
+        $longAgo = self::withCreatedAt($prepared, new \DateTimeImmutable('2020-01-01T00:00:00Z'));
+        self::assertSame(SignatureLevel::B, $fixture->signingService->finalize($container, $longAgo, $value)->level, 'an old createdAt does not expire a fresh signature');
+
+        $fixture->clock->advance('PT11M');
+        $renewed = self::withCreatedAt($prepared, $fixture->clock->now());
+        $this->expectException(PreparedSignatureExpiredException::class);
+
+        $fixture->signingService->finalize($container, $renewed, $value);
+    }
+
+    public function testASigningTimeAheadOfTheClockIsToleratedOnlyWithinTheSkew(): void
+    {
+        $fixture = new SigningFixture();
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $fixture->signingService->prepare($container, $keyPair->certificate, new SigningOptions(SignatureLevel::B));
+        $value = $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical);
+
+        // This server's clock is behind the one that prepared the signature.
+        $fixture->clock->set('2026-03-01T09:56:00Z');
+        self::assertSame(SignatureLevel::B, $fixture->signingService->finalize($container, $prepared, $value)->level);
+
+        $fixture->clock->set('2026-03-01T09:54:00Z');
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('360 seconds ahead of this server\'s clock');
+
+        $fixture->signingService->finalize($container, $prepared, $value);
+    }
+
+    public function testTheLifetimeIsConfigurableAndMustBePositive(): void
+    {
+        $fixture = new SigningFixture();
+        $service = new SigningService($fixture->clock, builder: new SignatureBuilder($fixture->clock), preparedSignatureTtlSeconds: 60);
+        $container = self::container();
+        $keyPair = TestPki::signerEc256();
+        $prepared = $service->prepare($container, $keyPair->certificate, new SigningOptions(SignatureLevel::B));
+        $fixture->clock->advance('PT61S');
+
+        try {
+            $service->finalize($container, $prepared, $keyPair->privateKey->sign($prepared->algorithm, $prepared->signedInfoCanonical));
+            self::fail('a signature was finished after its one-minute lifetime');
+        } catch (PreparedSignatureExpiredException) {
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+
+        new SigningService($fixture->clock, preparedSignatureTtlSeconds: 0);
     }
 
     public function testALateOcspResponseIsAWarningNotAFailure(): void

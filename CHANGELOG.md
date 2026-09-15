@@ -267,6 +267,12 @@ signatures with a local key, and the API the eID means will plug into.
 
 ### Fixed
 
+- A prepared signature no longer lasts for ever. `finalize()` refuses one
+  prepared more than ten minutes earlier, by the signing time the signature
+  carries, with the new `PreparedSignatureExpiredException`, and one dated more
+  than five minutes ahead of the server's clock, before a timestamp is bought.
+  The limit is the new trailing `preparedSignatureTtlSeconds` argument of
+  `Allkiri` and `SigningService`.
 - The signer's certificate chain is checked in `prepare()`, at level T and
   above, and again in `finalize()` before a timestamp is bought. It was first
   checked after the timestamp had been bought, and at level T not at all, so an

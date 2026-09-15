@@ -252,7 +252,10 @@ Both use `SmartIdPoller`, which long-polls within the session budget. Do not use
 them in a web request. `SmartIdPoller::wait()` returns the final status whatever
 it says: a refusal as the service reported it, and a `TIMEOUT` status when
 `sessionTimeoutSeconds` passes first. `waitForSuccess()` throws
-`SmartIdSessionException` for both.
+`SmartIdSessionException` for both. A signature must also be finalized within
+`preparedSignatureTtlSeconds` of being prepared, ten minutes by default, so a
+session timeout above 600 seconds needs that limit raised on the `Allkiri`
+constructor too.
 
 ## Errors
 

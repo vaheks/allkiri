@@ -85,6 +85,11 @@ final class Allkiri
          * digidoc4j refuses; pass your own to change the thresholds.
          */
         private readonly AsicReader $reader = new AsicReader(),
+        /**
+         * How long after `prepare()` a signature can still be finalized. Raise
+         * it if a Mobile-ID or Smart-ID session timeout is longer.
+         */
+        private readonly int $preparedSignatureTtlSeconds = SigningService::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS,
     ) {}
 
     public function environment(): Environment
@@ -164,6 +169,7 @@ final class Allkiri
                 new LtExtender($this->tspClient(), $this->ocspClient(), $this->chainBuilder(), $this->trustStore()),
                 new LtaExtender($this->tspClient(), logger: $this->logger),
                 logger: $this->logger,
+                preparedSignatureTtlSeconds: $this->preparedSignatureTtlSeconds,
             );
         }
 

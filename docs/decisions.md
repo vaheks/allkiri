@@ -820,3 +820,22 @@ the original as `previous`.
 
 In production this moves the first loading of the trusted lists from the first
 `finalize()` to the first `prepare()`.
+
+### A prepared signature expires
+
+`DataToBeSigned` carried `createdAt`, and `finalize()` never read it: a session
+left in a store for days could still be finished and timestamped today. SK ends
+a Mobile-ID or Smart-ID session after two minutes, but card signing had no limit
+at all.
+
+`finalize()` now refuses a signature prepared more than ten minutes earlier,
+before anything is bought, with `PreparedSignatureExpiredException`. Ten minutes
+leaves room for a slow person and for clocks that differ a little between
+servers. The age is measured from the signing time inside the signature, not
+from `createdAt`: the signature has just verified, so its signing time is what
+was signed, while `createdAt` is only stored beside it. For the same reason a
+signing time more than five minutes ahead of the server's clock is refused, the
+skew OCSP and validation already allow; otherwise preparing on a clock set ahead
+would stretch the limit. The limit is `preparedSignatureTtlSeconds` on the
+`Allkiri` constructor, and on `SigningService` for applications that build their
+own.

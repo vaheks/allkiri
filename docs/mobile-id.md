@@ -64,7 +64,9 @@ $configuration = MobileIdConfiguration::demo()
 `pollTimeoutMs` (default 10 000, maximum 60 000) is how long the service may
 hold one status request open before answering. `sessionTimeoutSeconds`
 (default 120) is how long the library keeps asking before giving up on the
-person.
+person. A signature must also be finalized within `preparedSignatureTtlSeconds`
+of being prepared, ten minutes by default, so a session timeout above 600
+seconds needs that limit raised on the `Allkiri` constructor too.
 
 The HTTP client must be willing to wait longer than a single poll.
 `Allkiri::mobileIdClient()` takes care of that; if you build `MobileIdClient`
