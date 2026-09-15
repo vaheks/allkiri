@@ -191,6 +191,77 @@ final class SmartIdValueObjectsTest extends TestCase
         Interactions::of();
     }
 
+    public function testForTextOffersTheThreeDialoguesStrongestFirst(): void
+    {
+        $expected = Interactions::of(
+            Interaction::confirmationMessageAndVerificationCodeChoice('Sign the lease with Allkiri OÜ?'),
+            Interaction::confirmationMessage('Sign the lease with Allkiri OÜ?'),
+            Interaction::displayTextAndPin('Sign the lease with Allkiri OÜ?'),
+        );
+
+        self::assertSame($expected->encoded, Interactions::forText('Sign the lease with Allkiri OÜ?')->encoded);
+    }
+
+    public function testForTextUsesOneTextForAllThreeUpToSixtyCharacters(): void
+    {
+        $text = str_repeat('õ', 60);
+
+        self::assertSame([$text, $text, $text], self::texts(Interactions::forText($text)));
+    }
+
+    public function testForTextTakesAShorterTextForThePinDialogue(): void
+    {
+        $text = str_repeat('õ', 200);
+
+        self::assertSame([$text, $text, 'Sign the lease'], self::texts(Interactions::forText($text, 'Sign the lease')));
+    }
+
+    public function testForTextRefusesToCutATextThePinDialogueCannotHold(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The PIN dialogue shows at most 60 characters and the text has 61; give it a shorter text of its own');
+
+        Interactions::forText(str_repeat('õ', 61));
+    }
+
+    /**
+     * @return iterable<string, array{string, ?string, string}>
+     */
+    public static function forTextRefusals(): iterable
+    {
+        yield 'a text over 200 characters' => [str_repeat('a', 201), 'Sign', 'allows 200 characters, got 201'];
+        yield 'a PIN text over 60 characters' => ['Sign the lease', str_repeat('a', 61), 'allows 60 characters, got 61'];
+        yield 'an empty text' => ['', 'Sign', 'needs text'];
+        yield 'an empty PIN text' => ['Sign the lease', '', 'needs text'];
+    }
+
+    #[DataProvider('forTextRefusals')]
+    public function testForTextKeepsEachDialoguesOwnRules(string $text, ?string $pinText, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        Interactions::forText($text, $pinText);
+    }
+
+    public function testForTextSuitsADeviceLink(): void
+    {
+        $forDeviceLink = Interactions::forText('Log in')->forDeviceLink();
+
+        self::assertSame(
+            [InteractionType::ConfirmationMessage, InteractionType::DisplayTextAndPin],
+            array_map(static fn(Interaction $interaction): InteractionType => $interaction->type, $forDeviceLink->interactions),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function texts(Interactions $interactions): array
+    {
+        return array_map(static fn(Interaction $interaction): string => $interaction->text, $interactions->interactions);
+    }
+
     /**
      * @return iterable<string, array{InteractionType, int}>
      */

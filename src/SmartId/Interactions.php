@@ -36,6 +36,42 @@ final readonly class Interactions implements \JsonSerializable
     }
 
     /**
+     * The three dialogues for one sentence, strongest first.
+     *
+     * The verification-code choice comes first, because a person who is not
+     * looking at your page cannot tell which of its three codes to press. Then
+     * the same sentence on a screen of its own, then the plain PIN dialogue.
+     * The PIN dialogue holds only 60 characters, so a longer sentence needs a
+     * shorter text for it. Nothing is cut to fit: a person reads exactly what
+     * you wrote, or the list is refused.
+     *
+     * The authenticator's and the signer's device-link methods drop the
+     * verification-code choice, which a device link cannot show;
+     * `SmartIdClient` sends the list as given.
+     *
+     * @param string      $text    up to 200 characters
+     * @param string|null $pinText up to 60 characters; `$text` when null
+     *
+     * @throws InvalidArgumentException when a text is empty, not UTF-8 or too long
+     */
+    public static function forText(string $text, ?string $pinText = null): self
+    {
+        $choice = Interaction::confirmationMessageAndVerificationCodeChoice($text);
+        $confirmation = Interaction::confirmationMessage($text);
+
+        $pinLimit = InteractionType::DisplayTextAndPin->maximumLength();
+        if ($pinText === null && mb_strlen($text, 'UTF-8') > $pinLimit) {
+            throw new InvalidArgumentException(\sprintf(
+                'The PIN dialogue shows at most %d characters and the text has %d; give it a shorter text of its own',
+                $pinLimit,
+                mb_strlen($text, 'UTF-8'),
+            ));
+        }
+
+        return self::of($choice, $confirmation, Interaction::displayTextAndPin($pinText ?? $text));
+    }
+
+    /**
      * The same list, restricted to what device-link flows accept.
      *
      * @throws InvalidArgumentException when nothing would be left

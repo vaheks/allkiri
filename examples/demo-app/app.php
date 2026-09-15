@@ -37,7 +37,6 @@ use Allkiri\MobileId\MobileIdSessionStatus;
 use Allkiri\MobileId\MobileIdSigningSession;
 use Allkiri\SmartId\CertificateLevel;
 use Allkiri\SmartId\DocumentNumber;
-use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
 use Allkiri\SmartId\SmartIdSession;
@@ -82,7 +81,7 @@ final class App
         return $this->config;
     }
 
-    // --- the four means, for signing in -------------------------------------
+    // --- the three means, for signing in ------------------------------------
 
     /**
      * @return array<string, mixed>
@@ -181,7 +180,9 @@ final class App
         $authenticator = $this->allkiri->smartIdAuthenticator($this->config->smartId);
         $session = $authenticator->startNotification(
             SemanticsIdentifier::estonian(self::string($request, 'identityCode')),
-            self::interactions('Log in to ' . $this->config->serviceName()),
+            // A relying party's name can be long, so the PIN dialogue gets a
+            // short text of its own rather than a cut one.
+            self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
         );
         $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
         $this->forgetFinished('smart-id');
@@ -450,15 +451,12 @@ final class App
 
     // --- configuration ------------------------------------------------------
 
-    private static function interactions(string $text): Interactions
+    private static function interactions(string $text, ?string $pinText = null): Interactions
     {
-        return Interactions::of(
-            // Offered first because it is the strongest: the app shows three
-            // codes and only one matches the page.
-            Interaction::confirmationMessageAndVerificationCodeChoice($text),
-            Interaction::confirmationMessage($text),
-            Interaction::displayTextAndPin(mb_substr($text, 0, 60)),
-        );
+        // The strongest dialogue first: the app shows three codes and only one
+        // matches the page. Nothing is cut to fit the PIN dialogue's 60
+        // characters, so a longer text needs a shorter one of its own.
+        return Interactions::forText($text, $pinText);
     }
 
     // --- waiting for a person -----------------------------------------------

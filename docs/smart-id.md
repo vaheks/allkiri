@@ -76,11 +76,21 @@ An interaction is a dialogue you would like the app to show. You give a list in
 order of preference; the app uses the first it understands and reports which.
 
 ```php
-use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 
+$interactions = Interactions::forText('Sign the lease with Allkiri OÜ?', 'Sign the lease');
+```
+
+`forText()` builds the three below, strongest first: the verification-code
+choice, the confirmation message, then the PIN dialogue. The PIN dialogue holds
+only 60 characters, so a longer sentence needs a shorter text for it, given as
+the second argument as here; nothing is cut to fit. For any other list, build it
+yourself:
+
+```php
+use Allkiri\SmartId\Interaction;
+
 $interactions = Interactions::of(
-    Interaction::confirmationMessageAndVerificationCodeChoice('Sign the lease with Allkiri OÜ?'),
     Interaction::confirmationMessage('Sign the lease with Allkiri OÜ?'),
     Interaction::displayTextAndPin('Sign the lease'),
 );

@@ -148,6 +148,10 @@ signatures with a local key, and the API the eID means will plug into.
   the error `cardLogin()` or `cardSign()` rejected with and says who can act on
   it, the person, the site's operator or its developers, with a sentence for
   them, for each of web-eid.js 2.x's thirteen codes. The demo page shows it.
+- **`Interactions::forText()`.** The three Smart-ID dialogues for one sentence,
+  strongest first: the verification-code choice, the confirmation message and
+  the PIN dialogue. The PIN dialogue holds 60 characters, so a longer sentence
+  needs a shorter PIN text of its own; nothing is cut to fit.
 
 ### Changed
 

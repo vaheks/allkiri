@@ -14,7 +14,6 @@ use Allkiri\MobileId\MobileIdIdentity;
 use Allkiri\MobileId\MobileIdPoller;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\SmartId\CertificateLevel;
-use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
 use Allkiri\SmartId\SmartIdPoller;
@@ -189,11 +188,7 @@ final class LiveSmokeTest extends TestCase
 
     private static function interactions(string $text): Interactions
     {
-        return Interactions::of(
-            Interaction::confirmationMessageAndVerificationCodeChoice($text),
-            Interaction::confirmationMessage($text),
-            Interaction::displayTextAndPin(mb_substr($text, 0, 60)),
-        );
+        return Interactions::forText($text);
     }
 
     private static function required(string $name): string
