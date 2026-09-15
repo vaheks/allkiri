@@ -34,6 +34,12 @@ final class ContainerValidator
         private readonly AsicReader $reader = new AsicReader(),
     ) {}
 
+    /**
+     * Validate a container held in memory.
+     *
+     * @param string            $filename the name the report carries; nothing is read from it
+     * @param ValidationOptions $options  the moment to validate at, and a trust store to use instead of the validator's own
+     */
     public function validate(string $bytes, string $filename = 'document.asice', ValidationOptions $options = new ValidationOptions()): ValidationReport
     {
         $validationTime = $options->validationTime ?? $this->clock->now();
@@ -71,7 +77,13 @@ final class ContainerValidator
         return new ValidationReport($filename, $validationTime, $this->policy->name, $signatures, $containerFindings);
     }
 
-    public function validateFile(string $path, ?ValidationOptions $options = null): ValidationReport
+    /**
+     * Validate a container read from a file. A file that cannot be read is
+     * reported as `NOT_A_CONTAINER`, not thrown.
+     *
+     * @param ValidationOptions $options the moment to validate at, and a trust store to use instead of the validator's own
+     */
+    public function validateFile(string $path, ValidationOptions $options = new ValidationOptions()): ValidationReport
     {
         $bytes = @file_get_contents($path);
         if ($bytes === false) {
@@ -80,7 +92,7 @@ final class ContainerValidator
             ]);
         }
 
-        return $this->validate($bytes, basename($path), $options ?? new ValidationOptions());
+        return $this->validate($bytes, basename($path), $options);
     }
 
     /**

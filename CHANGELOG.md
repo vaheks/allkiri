@@ -237,6 +237,10 @@ signatures with a local key, and the API the eID means will plug into.
 - `MobileIdPoller` and `SmartIdPoller` run on one internal polling loop. What
   each returns or throws is unchanged: Mobile-ID's `wait()` throws on a refusal
   or a timeout, Smart-ID's returns the status.
+- `ContainerValidator::validateFile()`, `SmartIdSigner::startNotification()` and
+  `SmartIdSigner::startDeviceLink()` default their options to a new
+  `ValidationOptions` or `SigningOptions`, as every other method does, and no
+  longer accept `null` for them. Leave the argument out instead.
 
 ### Fixed
 
