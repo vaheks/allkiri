@@ -37,6 +37,26 @@ TOTAL-PASSED end to end once its PKI is trusted.
 ASN.1 layer is tested against what SK actually sends rather than against our
 own encoder.
 
+## Coverage
+
+```bash
+composer test:coverage
+```
+
+Line coverage of the unit suite, written to `coverage/`: `summary.txt`,
+`clover.xml` for tools, and an HTML report in `coverage/html/`. It needs pcov,
+or Xdebug with `XDEBUG_MODE=coverage`. Without either, PHPUnit warns that no
+coverage driver is available, and because warnings fail this suite, the run
+fails too.
+
+CI measures it on every push and pull request, in a job of its own on PHP 8.4
+with pcov. The summary is on the run's page, and the reports are kept as the
+`coverage` artifact for 14 days. Nothing fails on a percentage.
+
+Two things the number leaves out. `DemoAppTest` runs the demo application in a
+PHP process of its own, so library code a request reaches there is not counted.
+The integration suite is not measured at all.
+
 ## Integration tests
 
 ```bash
