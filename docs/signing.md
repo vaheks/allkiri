@@ -39,6 +39,8 @@ $_SESSION['signing'] = json_encode($dataToBeSigned);
 $digestForTheCard = $dataToBeSigned->digestBase64();
 
 // Request 2: the value comes back.
+// A SessionDataException here means the store handed back something that
+// cannot be read as a prepared signature; start again.
 $dataToBeSigned = DataToBeSigned::fromJson($_SESSION['signing']);
 $result = $allkiri->signingService()->finalize($container, $dataToBeSigned, $signatureValue);
 ```

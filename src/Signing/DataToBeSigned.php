@@ -98,6 +98,9 @@ final readonly class DataToBeSigned implements \JsonSerializable
         ));
     }
 
+    /**
+     * @throws \Allkiri\Exception\SessionDataException when what was stored cannot be read back
+     */
     public static function fromJson(#[\SensitiveParameter] string $json): self
     {
         return self::fromArray(StoredData::decode($json, 'DataToBeSigned'));

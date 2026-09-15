@@ -6,7 +6,9 @@ namespace Allkiri\Tests\Unit;
 
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\DataFile;
-use Allkiri\Exception\AllkiriException;
+use Allkiri\Crypto\CertificateException;
+use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\Exception\SessionDataException;
 use Allkiri\MobileId\MobileIdIdentity;
 use Allkiri\MobileId\MobileIdSession;
 use Allkiri\MobileId\MobileIdSigningSession;
@@ -20,6 +22,7 @@ use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\WebEid\CardAlgorithm;
 use Allkiri\WebEid\WebEidChallenge;
+use Allkiri\WebEid\WebEidException;
 use Allkiri\WebEid\WebEidSigningSession;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -161,9 +164,71 @@ final class StoredDataTest extends TestCase
         try {
             self::restorers()[$label]($json);
             self::fail(\sprintf('A malformed %s was restored', $label));
-        } catch (AllkiriException $exception) {
+        } catch (SessionDataException $exception) {
             self::assertStringContainsString($message, $exception->getMessage());
             self::assertStringNotContainsString(self::SECRET, $exception->getMessage());
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, \Closure(array<mixed>): array<mixed>, class-string<\Throwable>}>
+     */
+    public static function refusedByTheObject(): iterable
+    {
+        $set = static fn(string $key, mixed $value): \Closure => static fn(array $data): array => [$key => $value] + $data;
+
+        yield 'a certificate that is not one' => ['DataToBeSigned', $set('signerCertificate', 'AAAA'), CertificateException::class];
+        yield 'a phone number in no known form' => ['Mobile-ID session', $set('phoneNumber', '123'), InvalidArgumentException::class];
+        yield 'a challenge that expires before it was issued' => ['Web eID challenge', $set('expiresAt', '2026-03-01T09:00:00+00:00'), InvalidArgumentException::class];
+        yield 'a session started for an account and a person' => [
+            'Smart-ID session',
+            static fn(array $data): array => ['documentNumber' => 'PNOEE-40504040001-MOCK-Q', 'semanticsIdentifier' => 'PNOEE-40504040001'] + $data,
+            InvalidArgumentException::class,
+        ];
+        yield 'an interaction of a type Smart-ID does not have' => ['Smart-ID session', $set('interactions', base64_encode('[{"type":"telepathy","displayText60":"Log in"}]')), \ValueError::class];
+        yield 'a nested session of the wrong type' => [
+            'Mobile-ID signing session',
+            static function (array $data): array {
+                $session = \is_array($data['session'] ?? null) ? $data['session'] : [];
+
+                return ['session' => ['type' => MobileIdSession::TYPE_AUTHENTICATION] + $session] + $data;
+            },
+            InvalidArgumentException::class,
+        ];
+        yield 'a card algorithm with nothing in it' => ['Web eID signing session', $set('algorithm', []), WebEidException::class];
+    }
+
+    /**
+     * What the reader accepts but the object refuses, and what PHP itself
+     * throws, still arrives as a SessionDataException, with the original kept.
+     *
+     * @param \Closure(array<mixed>): array<mixed> $mutate
+     * @param class-string<\Throwable>             $previous
+     */
+    #[DataProvider('refusedByTheObject')]
+    public function testWhatTheObjectRefusesIsWrapped(string $label, \Closure $mutate, string $previous): void
+    {
+        try {
+            self::restorers()[$label](json_encode($mutate(self::stored()[$label]), JSON_THROW_ON_ERROR));
+            self::fail(\sprintf('A malformed %s was restored', $label));
+        } catch (SessionDataException $exception) {
+            self::assertStringContainsString($label, $exception->getMessage());
+            self::assertInstanceOf($previous, $exception->getPrevious());
+        }
+    }
+
+    public function testANestedFailureIsNotWrappedTwice(): void
+    {
+        $stored = self::stored()['Mobile-ID signing session'];
+        $session = \is_array($stored['session'] ?? null) ? $stored['session'] : [];
+        unset($session['sessionId']);
+
+        try {
+            MobileIdSigningSession::fromArray(['session' => $session] + $stored);
+            self::fail('A signing session with a malformed session was restored');
+        } catch (SessionDataException $exception) {
+            self::assertSame('Mobile-ID session is missing "sessionId"', $exception->getMessage());
+            self::assertNull($exception->getPrevious());
         }
     }
 
@@ -178,7 +243,7 @@ final class StoredDataTest extends TestCase
         try {
             SmartIdSession::fromArray($data);
             self::fail('A stored session without an identifier was restored');
-        } catch (AllkiriException $exception) {
+        } catch (SessionDataException $exception) {
             $frames = array_filter(
                 $exception->getTrace(),
                 static fn(array $frame): bool => str_starts_with($frame['class'] ?? '', 'Allkiri\\') && !str_starts_with($frame['class'] ?? '', 'Allkiri\\Tests\\'),

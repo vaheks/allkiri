@@ -85,6 +85,8 @@ $_SESSION['mid'] = json_encode($session);
 Then, from a browser poll a second or two apart:
 
 ```php
+// A SessionDataException here means the store handed back something that
+// cannot be read as a session; start again.
 $session = MobileIdSession::fromJson($_SESSION['mid']);
 $identity = $authenticator->poll($session);   // null while they are still deciding
 

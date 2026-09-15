@@ -58,6 +58,8 @@ back:
 
 ```php
 // POST /auth/login
+// A SessionDataException here means the store handed back something that
+// cannot be read as a challenge; ask for a new one.
 $challenge = WebEidChallenge::fromJson($_SESSION['web-eid']);
 unset($_SESSION['web-eid']);            // one challenge, one use
 
