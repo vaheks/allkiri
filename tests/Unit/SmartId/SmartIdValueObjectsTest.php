@@ -213,6 +213,41 @@ final class SmartIdValueObjectsTest extends TestCase
         new Interaction($type, str_repeat('a', $limit + 1));
     }
 
+    /**
+     * JSON cannot carry text that is not UTF-8, and json_encode's JsonException
+     * escaped the request that was being built.
+     */
+    public function testInteractionTextMustBeUtf8(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must be UTF-8');
+
+        Interaction::displayTextAndPin("Log in \xC3");
+    }
+
+    public function testTheRelyingPartyNameMustBeUtf8(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The relying party name must be UTF-8');
+
+        SmartIdConfiguration::production('11111111-2222-3333-4444-555555555555', "Pood \xC3");
+    }
+
+    public function testACallbackUrlThatIsNotUtf8IsRefusedBeforeAnythingIsSent(): void
+    {
+        $http = new \Allkiri\Tests\Support\Http\MockHttpClient();
+        $service = \Allkiri\Tests\Support\SmartId\MockSmartIdService::register($http);
+        $client = new \Allkiri\SmartId\SmartIdClient($service->configuration(), $http);
+
+        try {
+            $client->startAnonymousDeviceLinkAuthentication(random_bytes(64), \Allkiri\SmartId\Interactions::of(Interaction::displayTextAndPin('Log in')), initialCallbackUrl: "https://rp.example.test/back\xC3");
+            self::fail('a callback URL that is not UTF-8 was sent');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('The callback URL must be UTF-8', $exception->getMessage());
+        }
+        self::assertSame([], $http->requests());
+    }
+
     public function testInteractionTextMustNotBeEmpty(): void
     {
         $this->expectException(InvalidArgumentException::class);

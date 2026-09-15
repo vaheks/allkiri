@@ -55,6 +55,13 @@ final readonly class MobileIdConfiguration
         if ($relyingPartyName === '') {
             throw new InvalidArgumentException('The relying party name must not be empty');
         }
+        // Both travel as JSON, which cannot carry anything but UTF-8.
+        if (!mb_check_encoding($relyingPartyName, 'UTF-8')) {
+            throw new InvalidArgumentException('The relying party name must be UTF-8');
+        }
+        if (!mb_check_encoding($displayText, 'UTF-8')) {
+            throw new InvalidArgumentException('The display text must be UTF-8');
+        }
         if ($displayText !== '') {
             if ($displayTextFormat->lengthOf($displayText) > $displayTextFormat->maximumLength()) {
                 throw new InvalidArgumentException(\sprintf(

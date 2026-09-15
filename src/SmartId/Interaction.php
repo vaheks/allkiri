@@ -21,6 +21,10 @@ final readonly class Interaction implements \JsonSerializable
         if ($text === '') {
             throw new InvalidArgumentException(\sprintf('An interaction of type %s needs text', $type->value));
         }
+        // It travels as JSON, which cannot carry anything else.
+        if (!mb_check_encoding($text, 'UTF-8')) {
+            throw new InvalidArgumentException(\sprintf('The text of an interaction of type %s must be UTF-8', $type->value));
+        }
         // The service counts characters, and the app truncates nothing: too
         // long is a refused request.
         $length = mb_strlen($text, 'UTF-8');

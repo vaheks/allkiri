@@ -130,6 +130,25 @@ final class MobileIdValueObjectsTest extends TestCase
         self::assertSame(MobileIdLanguage::English, MobileIdLanguage::forLocale('de'));
     }
 
+    /**
+     * JSON cannot carry text that is not UTF-8, and json_encode's JsonException
+     * escaped the first request instead.
+     */
+    public function testTheTextsSentToTheServiceMustBeUtf8(): void
+    {
+        foreach ([
+            'The relying party name must be UTF-8' => static fn(): MobileIdConfiguration => new MobileIdConfiguration('https://mid.allkiri.test/mid-api', MobileIdConfiguration::DEMO_RELYING_PARTY_UUID, "Pood \xC3"),
+            'The display text must be UTF-8' => static fn(): MobileIdConfiguration => MobileIdConfiguration::demo("Allkirjasta \xC3"),
+        ] as $message => $configure) {
+            try {
+                $configure();
+                self::fail($message);
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame($message, $exception->getMessage());
+            }
+        }
+    }
+
     public function testDisplayTextLengthIsCountedInCharactersNotBytes(): void
     {
         self::assertSame(100, DisplayTextFormat::Gsm7->maximumLength());
