@@ -112,26 +112,41 @@ apart from an attacker's. SK does not accept generic names such as "login" or
 associates with the site they are on. The display text goes underneath, and is
 the place for what is being signed, such as the document's name.
 
-**Do not reveal who has Mobile-ID.** An authentication for someone with no
-Mobile-ID still starts a session and only reports `NotMidClient` when polled,
-so treating that differently in the interface turns your login form into a way
-of mining who has Mobile-ID and who does not. SK's [secure implementation
+**Do not reveal who has Mobile-ID.** Treating someone without Mobile-ID
+differently in the interface turns your form into a way of mining who has it
+and who does not. SK's [secure implementation
 guide](https://github.com/SK-EID/MID/wiki/Secure-Implementation-Guide) asks you
 to show a verification code regardless and then fail the same way a timeout
-fails:
+fails.
+
+Signing in needs nothing special at the start: an authentication for someone
+with no Mobile-ID still starts a session and has a real verification code. The
+difference arrives only when polling, as `NotMidClient`, so word it like a
+timeout there:
 
 ```php
 try {
-    $session = $authenticator->start($identity);
-    $code = $session->verificationCode;
+    $identity = $authenticator->poll($session);
+} catch (MobileIdSessionException $exception) {
+    // NotMidClient arrives here as well; it gets the same words as Timeout.
+    $problem = 'No such account, or nobody answered in time.';
+}
+```
+
+Signing, below, is where it can show at once. The certificate is fetched before
+anything reaches the phone, so `$signer->start()` throws
+`CertificateNotFoundException` for someone without Mobile-ID:
+
+```php
+try {
+    $signing = $signer->start($container, $identity);
+    $code = $signing->verificationCode();
 } catch (CertificateNotFoundException) {
     $code = VerificationCode::random();   // indistinguishable from a real one
-    $session = null;
+    $signing = null;                      // then fail as a timeout would
 }
 
 echo "Verification code {$code}";
-
-// Later, for both cases: "No such account, or nobody answered in time."
 ```
 
 The same goes for the other failures. `MobileIdResult::message()` is written
