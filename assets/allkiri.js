@@ -270,7 +270,10 @@
       if (!challenge || !challenge.nonce) {
         throw new Error('The server did not return a challenge');
       }
-      return library.authenticate({ challengeNonce: challenge.nonce }, options);
+      // The nonce itself, not an object holding it: web-eid.js passes this on
+      // unchanged, and the native application reads anything but a string as
+      // an empty nonce and fails before it touches the card.
+      return library.authenticate(challenge.nonce, options);
     }).then(function (token) {
       return post(urls.loginUrl, { token: JSON.stringify(token) }, urls);
     });

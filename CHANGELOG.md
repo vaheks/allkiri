@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
+  the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
+  itself. The native application read the object as an empty nonce and showed
+  "Operation failed" before asking for PIN 1. `docs/web-eid.md` showed the same
+  call. Signing with the card was not affected (#32).
 - The demo application could sign with Smart-ID only if you typed in a document
   number. The document number names one Smart-ID account, and hardly anyone
   knows their own, so in live mode a real person could not sign with Smart-ID.

@@ -53,8 +53,8 @@ header('Content-Type: application/json');
 echo json_encode(['nonce' => $challenge->nonce]);
 ```
 
-The page then calls `webeid.authenticate({challengeNonce})` and posts the token
-back:
+The page then calls `webeid.authenticate(nonce, options)`, with the nonce as a
+plain string, and posts the token back:
 
 ```php
 // POST /auth/login

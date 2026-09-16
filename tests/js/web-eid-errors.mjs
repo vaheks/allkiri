@@ -128,6 +128,28 @@ async function main() {
   check('cardLogin rejects with web-eid.js\'s own error', loginFailure === cancelled);
   check('which the page can describe', describe(loginFailure) !== null && describe(loginFailure).who === 'person');
 
+  // --- cardLogin hands web-eid.js what it takes -----------------------------
+
+  // authenticate(challengeNonce, options): the nonce itself. An object holding
+  // it reaches the native application unchanged, which reads it as an empty
+  // nonce and fails with ERR_WEBEID_NATIVE_FATAL before the card is touched.
+  let authenticateArguments = null;
+  globalThis.window = {
+    webeid: {
+      authenticate: (...args) => {
+        authenticateArguments = args;
+        return Promise.reject(cancelled);
+      },
+    },
+  };
+  await rejection(allkiri.cardLogin({ challengeUrl: '/api/card/challenge', loginUrl: '/api/card/login', lang: 'et' }));
+  check('cardLogin gives web-eid.js the nonce as a string',
+    authenticateArguments !== null && authenticateArguments[0] === 'bm9uY2Utb2YtdGhpcnR5LXR3by1ieXRlcy1sb25nLi4u',
+    JSON.stringify(authenticateArguments));
+  check('and the language as its options',
+    authenticateArguments !== null && authenticateArguments[1] && authenticateArguments[1].lang === 'et',
+    JSON.stringify(authenticateArguments));
+
   const missing = webEidError('ERR_WEBEID_NATIVE_UNAVAILABLE');
   globalThis.window = { webeid: { getSigningCertificate: () => Promise.reject(missing) } };
   const signFailure = await rejection(allkiri.cardSign({ prepareUrl: '/api/card/sign/prepare', completeUrl: '/api/card/sign/complete' }));
