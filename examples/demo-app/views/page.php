@@ -101,7 +101,9 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 <section>
   <strong>Sign it</strong>
   <p class="note">Signs whatever you uploaded. Each signature is added to the same container.
-  Mobile-ID and Smart-ID use the numbers entered in step 1.</p>
+  Mobile-ID uses the phone number and identity code entered in step 1.</p>
+  <label for="sign-sid-code">Smart-ID identity code</label>
+  <input type="text" id="sign-sid-code" value="<?= $prefill('50001029996') ?>">
   <button id="sign-card">With an ID card</button>
   <button id="sign-mid">With Mobile-ID</button>
   <button id="sign-sid">With Smart-ID</button>
@@ -242,30 +244,21 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
     }).then(signed).catch(failed('sign-status'));
   };
 
-  // Two steps. Smart-ID signs with one account, not a person, so the server
-  // first needs to know which. After a Smart-ID sign-in it already does;
-  // otherwise the app asks the person, and then the signature is requested.
+  // Two requests to the phone. Smart-ID signs with one account, not a person,
+  // so the app is first asked which account will sign. Once it has answered,
+  // the server asks that account for the signature and returns its code.
   $('sign-sid').onclick = function () {
-    var body = { identityCode: $('sid-code').value };
     $('sign-code').textContent = '';
-    say('sign-status', 'Finding your Smart-ID account…');
-    allkiri.post('/api/smart-id/sign/choose', body)
-      .then(function (answer) {
-        if (answer.chosen) { return answer; }
-        say('sign-status', 'Answer the request in the Smart-ID app. It tells this page which of your accounts will sign.');
-        return allkiri.poll('/api/smart-id/sign/choose/poll');
-      })
+    say('sign-status', 'Sending to the app…');
+    allkiri.post('/api/smart-id/sign/start', { identityCode: $('sign-sid-code').value })
       .then(function () {
-        say('sign-status', 'Sending to the app…');
-        return allkiri.notificationFlow({
-          startUrl: '/api/smart-id/sign/start',
-          pollUrl: '/api/smart-id/sign/poll',
-          body: body,
-          onCode: function (code) {
-            allkiri.showVerificationCode($('sign-code'), code);
-            say('sign-status', 'Pick this code in the Smart-ID app.');
-          }
-        });
+        say('sign-status', 'Answer the request in the Smart-ID app. It tells this page which of your accounts will sign.');
+        return allkiri.poll('/api/smart-id/sign/chosen');
+      })
+      .then(function (chosen) {
+        allkiri.showVerificationCode($('sign-code'), chosen.verificationCode);
+        say('sign-status', 'Pick this code in the Smart-ID app.');
+        return allkiri.poll('/api/smart-id/sign/poll');
       })
       .then(signed).catch(failed('sign-status'));
   };

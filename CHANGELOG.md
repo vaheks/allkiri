@@ -11,10 +11,11 @@ All notable changes to this project are documented here. The format follows
 - The demo application could sign with Smart-ID only if you typed in a document
   number. The document number names one Smart-ID account, and hardly anyone
   knows their own, so in live mode a real person could not sign with Smart-ID.
-  Signing now takes the identity code, as signing in does. After a Smart-ID
-  sign-in the demo reuses the account that answered. Otherwise it first asks the
-  phone which account will sign, with `SmartIdSigner::chooseCertificate()`. The
-  document-number field is gone (#31).
+  Signing now takes an identity code in a field of its own. It first asks the
+  phone which account will sign, with `SmartIdSigner::chooseCertificate()`, then
+  asks that account for the signature. Nothing from signing in is used, so
+  someone signed in with Mobile-ID or an ID card signs with Smart-ID the same
+  way. The document-number field is gone (#31).
 
 ## [0.6.0-alpha.1] - 2026-09-15
 

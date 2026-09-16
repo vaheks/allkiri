@@ -141,9 +141,12 @@ to the same container, so you can sign one file with several means and watch
 them accumulate. Signing with the card is four steps alternating between browser
 and server, because the card's certificate has to be known before the digest
 exists. Smart-ID has the same need in another form: it gives out a certificate
-only for one account, not a person. After a Smart-ID sign-in the demo keeps that
-account. Otherwise it first asks the phone which account will sign, which is one
-more prompt before the PIN.
+only for one account, not a person. So signing with Smart-ID takes an identity
+code, asks the phone which account will sign, and only then asks for the
+signature: two prompts. It uses nothing from signing in, so any means can sign
+in and any can sign. An application that signs right after a Smart-ID sign-in
+can skip the first prompt, because the sign-in names the account; see
+[docs/smart-id.md](../../docs/smart-id.md#signing).
 
 **Archiving.** One button, which lays an archive timestamp over everything
 signed so far. That is what keeps a signature verifiable after the algorithms
