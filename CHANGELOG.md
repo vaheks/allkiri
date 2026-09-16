@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The demo page's "Sign a file" section has a block for each means, as "Sign
+  in" does, each with its own fields, verification code and status line, and
+  a block for archiving and downloading the container. Mobile-ID signing takes
+  its own phone number and identity code instead of reading the sign-in fields.
+
 ### Fixed
 
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js

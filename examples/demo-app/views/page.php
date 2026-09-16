@@ -91,6 +91,9 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 
 <h2>2. Sign a file</h2>
 
+<p class="note">Upload a file, then sign it with any of the three, as often as you like.
+Each signature is added to the same container. Signing uses nothing from step 1.</p>
+
 <section>
   <label for="upload">Choose a file to put in a container</label>
   <input type="file" id="upload">
@@ -99,18 +102,39 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 </section>
 
 <section>
-  <strong>Sign it</strong>
-  <p class="note">Signs whatever you uploaded. Each signature is added to the same container.
-  Mobile-ID uses the phone number and identity code entered in step 1.</p>
-  <label for="sign-sid-code">Smart-ID identity code</label>
-  <input type="text" id="sign-sid-code" value="<?= $prefill('50001029996') ?>">
-  <button id="sign-card">With an ID card</button>
-  <button id="sign-mid">With Mobile-ID</button>
-  <button id="sign-sid">With Smart-ID</button>
-  <div class="code" id="sign-code"></div>
-  <div class="status" id="sign-status"></div>
+  <strong>ID card</strong>
+  <p class="note">Reads the signing certificate from the card, then asks for PIN 2.</p>
+  <button id="card-sign">Sign with an ID card</button>
+  <div class="status" id="card-sign-status"></div>
+</section>
+
+<section>
+  <strong>Mobile-ID</strong>
+  <label for="mid-sign-phone">Phone number</label>
+  <input type="text" id="mid-sign-phone" value="<?= $prefill('+37200000766') ?>">
+  <label for="mid-sign-identity">Identity code</label>
+  <input type="text" id="mid-sign-identity" value="<?= $prefill('60001019906') ?>">
+  <button id="mid-sign">Sign with Mobile-ID</button>
+  <div class="code" id="mid-sign-code"></div>
+  <div class="status" id="mid-sign-status"></div>
+</section>
+
+<section>
+  <strong>Smart-ID</strong>
+  <p class="note">Two prompts: the app first asks which of your accounts will sign, then for PIN 2.</p>
+  <label for="sid-sign-identity">Identity code</label>
+  <input type="text" id="sid-sign-identity" value="<?= $prefill('50001029996') ?>">
+  <button id="sid-sign">Sign with Smart-ID</button>
+  <div class="code" id="sid-sign-code"></div>
+  <div class="status" id="sid-sign-status"></div>
+</section>
+
+<section>
+  <strong>Container</strong>
+  <p class="note">Holds the file and every signature above. An archive timestamp covers all of them.</p>
   <button id="archive">Add an archive timestamp</button>
   <button id="download">Download the container</button>
+  <div class="status" id="container-status"></div>
 </section>
 
 <h2>3. Validate</h2>
@@ -220,54 +244,58 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
       .catch(failed('upload-status'));
   };
 
-  function signed(result) {
-    say('sign-status', 'Signed. The container is now ' + result.level + '.');
-    $('sign-code').textContent = '';
+  // Each means reports in its own block. The container they add to is the same.
+  function signed(statusId, codeId) {
+    return function (result) {
+      if (codeId) { $(codeId).textContent = ''; }
+      say(statusId, 'Signed. The container is now ' + result.level + '.');
+    };
   }
 
-  $('sign-card').onclick = function () {
-    say('sign-status', 'Insert the card…');
+  $('card-sign').onclick = function () {
+    say('card-sign-status', 'Insert the card…');
     allkiri.cardSign({ prepareUrl: '/api/card/sign/prepare', completeUrl: '/api/card/sign/complete' })
-      .then(signed).catch(cardFailed('sign-status'));
+      .then(signed('card-sign-status')).catch(cardFailed('card-sign-status'));
   };
 
-  $('sign-mid').onclick = function () {
-    say('sign-status', 'Sending to the phone…');
+  $('mid-sign').onclick = function () {
+    say('mid-sign-status', 'Sending to the phone…');
+    $('mid-sign-code').textContent = '';
     allkiri.notificationFlow({
       startUrl: '/api/mobile-id/sign/start',
       pollUrl: '/api/mobile-id/sign/poll',
-      body: { phoneNumber: $('mid-phone').value, identityCode: $('mid-code').value },
+      body: { phoneNumber: $('mid-sign-phone').value, identityCode: $('mid-sign-identity').value },
       onCode: function (code) {
-        allkiri.showVerificationCode($('sign-code'), code);
-        say('sign-status', 'Check this code, then enter PIN 2.');
+        allkiri.showVerificationCode($('mid-sign-code'), code);
+        say('mid-sign-status', 'Check this code, then enter PIN 2.');
       }
-    }).then(signed).catch(failed('sign-status'));
+    }).then(signed('mid-sign-status', 'mid-sign-code')).catch(failed('mid-sign-status'));
   };
 
   // Two requests to the phone. Smart-ID signs with one account, not a person,
   // so the app is first asked which account will sign. Once it has answered,
   // the server asks that account for the signature and returns its code.
-  $('sign-sid').onclick = function () {
-    $('sign-code').textContent = '';
-    say('sign-status', 'Sending to the app…');
-    allkiri.post('/api/smart-id/sign/start', { identityCode: $('sign-sid-code').value })
+  $('sid-sign').onclick = function () {
+    say('sid-sign-status', 'Sending to the app…');
+    $('sid-sign-code').textContent = '';
+    allkiri.post('/api/smart-id/sign/start', { identityCode: $('sid-sign-identity').value })
       .then(function () {
-        say('sign-status', 'Answer the request in the Smart-ID app. It tells this page which of your accounts will sign.');
+        say('sid-sign-status', 'Answer the request in the Smart-ID app. It tells this page which of your accounts will sign.');
         return allkiri.poll('/api/smart-id/sign/chosen');
       })
       .then(function (chosen) {
-        allkiri.showVerificationCode($('sign-code'), chosen.verificationCode);
-        say('sign-status', 'Pick this code in the Smart-ID app.');
+        allkiri.showVerificationCode($('sid-sign-code'), chosen.verificationCode);
+        say('sid-sign-status', 'Pick this code in the Smart-ID app, then enter PIN 2.');
         return allkiri.poll('/api/smart-id/sign/poll');
       })
-      .then(signed).catch(failed('sign-status'));
+      .then(signed('sid-sign-status', 'sid-sign-code')).catch(failed('sid-sign-status'));
   };
 
   $('archive').onclick = function () {
-    say('sign-status', 'Timestamping…');
+    say('container-status', 'Timestamping…');
     allkiri.post('/api/archive')
-      .then(function (r) { say('sign-status', 'Archived. The container is now ' + r.level + '.'); })
-      .catch(failed('sign-status'));
+      .then(function (r) { say('container-status', 'Archived. The container is now ' + r.level + '.'); })
+      .catch(failed('container-status'));
   };
 
   $('download').onclick = function () { window.location = '/api/download'; };
