@@ -39,6 +39,7 @@ use Allkiri\SmartId\CertificateLevel;
 use Allkiri\SmartId\DocumentNumber;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
+use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdSession;
 use Allkiri\SmartId\SmartIdSessionStatus;
 use Allkiri\SmartId\SmartIdSigningSession;
@@ -206,6 +207,12 @@ final class App
             },
             function (string $stored, SmartIdSessionStatus $status): array {
                 $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->complete(SmartIdSession::fromJson($stored), $status);
+                // The account that answered, which complete() has checked is
+                // this person's. Signing needs it, and someone who has just
+                // signed in with Smart-ID should not be asked for it again.
+                if ($status->documentNumber !== null) {
+                    $_SESSION['smart-id-account'] = $status->documentNumber->value;
+                }
 
                 return ['done' => true] + $this->signedIn($identity);
             },
@@ -292,18 +299,80 @@ final class App
     }
 
     /**
+     * Find out which Smart-ID account will sign, before anything is prepared.
+     *
+     * The signature is built around the certificate, and Smart-ID hands one over
+     * only for a named account, which a person may have several of. A Smart-ID
+     * sign-in has already named one, so if it was this person nothing is asked.
+     * Otherwise their phone is asked to choose, which costs one interaction.
+     *
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdSignChoose(array $request): array
+    {
+        $person = SemanticsIdentifier::estonian(self::string($request, 'identityCode'));
+        unset($_SESSION['smart-id-choice']);
+        $this->forgetFinished('smart-id-choice');
+
+        if ($this->smartIdAccount($person) !== null) {
+            return ['chosen' => true];
+        }
+
+        $sessionId = $this->allkiri->smartIdSigner($this->smartIdSigning())->chooseCertificate($person);
+        // The person goes with it, so the answer can be checked against them.
+        $_SESSION['smart-id-choice'] = json_encode(['session' => $sessionId, 'person' => (string) $person], JSON_THROW_ON_ERROR);
+        $this->audit('account choice started', ['mean' => 'smart-id', 'session' => $sessionId]);
+
+        return ['chosen' => false];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function smartIdSignChoosePoll(): array
+    {
+        return $this->pollWithoutTheLock(
+            'smart-id-choice',
+            'No Smart-ID account choice is in progress',
+            function (string $stored): ?SmartIdSessionStatus {
+                $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(self::choice($stored)['session']);
+
+                return $status->isRunning() ? null : $status;
+            },
+            function (string $stored, SmartIdSessionStatus $status): array {
+                $choice = self::choice($stored);
+                $chosen = $this->allkiri->smartIdSigner($this->smartIdSigning())->completeCertificateChoice($status);
+                // Only this person's devices were asked, so anything else is the
+                // service misbehaving, and a signature made with it would be
+                // someone else's.
+                if ((string) $chosen->documentNumber->semanticsIdentifier() !== $choice['person']) {
+                    throw new \RuntimeException('Smart-ID chose an account that belongs to someone other than the person asked');
+                }
+                $_SESSION['smart-id-account'] = $chosen->documentNumber->value;
+                $this->audit('account chosen', ['mean' => 'smart-id', 'session' => $choice['session']]);
+
+                return ['done' => true];
+            },
+        );
+    }
+
+    /**
      * @param array<string, mixed> $request
      *
      * @return array<string, mixed>
      */
     public function smartIdSignStart(array $request): array
     {
-        $configuration = $this->config->smartId->withCertificateLevel(CertificateLevel::Qscd);
-        $signer = $this->allkiri->smartIdSigner($configuration);
+        $person = SemanticsIdentifier::estonian(self::string($request, 'identityCode'));
+        $account = $this->smartIdAccount($person)
+            ?? throw new \RuntimeException('Choose the Smart-ID account to sign with first');
+        $signer = $this->allkiri->smartIdSigner($this->smartIdSigning());
 
         $signing = $signer->startNotification(
             $this->container(),
-            new DocumentNumber(self::string($request, 'documentNumber')),
+            $account,
             self::interactions('Sign the uploaded file'),
         );
         $_SESSION['signing-smart-id'] = json_encode($signing, JSON_THROW_ON_ERROR);
@@ -332,7 +401,7 @@ final class App
                 return $status->isRunning() ? null : $status;
             },
             function (string $stored, SmartIdSessionStatus $status): array {
-                $signer = $this->allkiri->smartIdSigner($this->config->smartId->withCertificateLevel(CertificateLevel::Qscd));
+                $signer = $this->allkiri->smartIdSigner($this->smartIdSigning());
                 $result = $signer->complete($this->container(), SmartIdSigningSession::fromJson($stored), $status);
                 $this->storeContainer($result->container);
                 $this->auditSigned('smart-id', $result);
@@ -457,6 +526,44 @@ final class App
         // matches the page. Nothing is cut to fit the PIN dialogue's 60
         // characters, so a longer text needs a shorter one of its own.
         return Interactions::forText($text, $pinText);
+    }
+
+    /**
+     * QSCD, because that is what a qualified signature requires.
+     */
+    private function smartIdSigning(): SmartIdConfiguration
+    {
+        return $this->config->smartId->withCertificateLevel(CertificateLevel::Qscd);
+    }
+
+    /**
+     * The Smart-ID account this browser already knows for the person, if any.
+     *
+     * Only an account that belongs to them counts: whoever signed in last may
+     * not be who is signing now.
+     */
+    private function smartIdAccount(SemanticsIdentifier $person): ?DocumentNumber
+    {
+        $stored = $_SESSION['smart-id-account'] ?? null;
+        if (!\is_string($stored)) {
+            return null;
+        }
+        $account = new DocumentNumber($stored);
+
+        return (string) $account->semanticsIdentifier() === (string) $person ? $account : null;
+    }
+
+    /**
+     * @return array{session: string, person: string}
+     */
+    private static function choice(string $stored): array
+    {
+        $choice = json_decode($stored, true, 2, JSON_THROW_ON_ERROR);
+        if (!\is_array($choice) || !\is_string($choice['session'] ?? null) || !\is_string($choice['person'] ?? null)) {
+            throw new \RuntimeException('The stored Smart-ID account choice is unreadable');
+        }
+
+        return ['session' => $choice['session'], 'person' => $choice['person']];
     }
 
     // --- waiting for a person -----------------------------------------------

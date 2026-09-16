@@ -55,7 +55,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <strong>Test services.</strong>
   Nothing made here is a valid signature. Use the credentials SK publishes:
   Mobile-ID <code>+37200000766</code> / <code>60001019906</code>,
-  Smart-ID <code>50001029996</code> (document <code>PNOEE-50001029996-DEMO-Q</code>),
+  Smart-ID <code>50001029996</code>,
   or a test ID card.
 </p>
 <?php } ?>
@@ -100,12 +100,11 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 
 <section>
   <strong>Sign it</strong>
-  <p class="note">Signs whatever you uploaded. Each signature is added to the same container.</p>
+  <p class="note">Signs whatever you uploaded. Each signature is added to the same container.
+  Mobile-ID and Smart-ID use the numbers entered in step 1.</p>
   <button id="sign-card">With an ID card</button>
   <button id="sign-mid">With Mobile-ID</button>
   <button id="sign-sid">With Smart-ID</button>
-  <label for="sid-doc" style="margin-top:.8rem">Smart-ID document number</label>
-  <input type="text" id="sid-doc" value="<?= $prefill('PNOEE-50001029996-DEMO-Q') ?>">
   <div class="code" id="sign-code"></div>
   <div class="status" id="sign-status"></div>
   <button id="archive">Add an archive timestamp</button>
@@ -243,17 +242,32 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
     }).then(signed).catch(failed('sign-status'));
   };
 
+  // Two steps. Smart-ID signs with one account, not a person, so the server
+  // first needs to know which. After a Smart-ID sign-in it already does;
+  // otherwise the app asks the person, and then the signature is requested.
   $('sign-sid').onclick = function () {
-    say('sign-status', 'Sending to the app…');
-    allkiri.notificationFlow({
-      startUrl: '/api/smart-id/sign/start',
-      pollUrl: '/api/smart-id/sign/poll',
-      body: { documentNumber: $('sid-doc').value },
-      onCode: function (code) {
-        allkiri.showVerificationCode($('sign-code'), code);
-        say('sign-status', 'Pick this code in the Smart-ID app.');
-      }
-    }).then(signed).catch(failed('sign-status'));
+    var body = { identityCode: $('sid-code').value };
+    $('sign-code').textContent = '';
+    say('sign-status', 'Finding your Smart-ID account…');
+    allkiri.post('/api/smart-id/sign/choose', body)
+      .then(function (answer) {
+        if (answer.chosen) { return answer; }
+        say('sign-status', 'Answer the request in the Smart-ID app. It tells this page which of your accounts will sign.');
+        return allkiri.poll('/api/smart-id/sign/choose/poll');
+      })
+      .then(function () {
+        say('sign-status', 'Sending to the app…');
+        return allkiri.notificationFlow({
+          startUrl: '/api/smart-id/sign/start',
+          pollUrl: '/api/smart-id/sign/poll',
+          body: body,
+          onCode: function (code) {
+            allkiri.showVerificationCode($('sign-code'), code);
+            say('sign-status', 'Pick this code in the Smart-ID app.');
+          }
+        });
+      })
+      .then(signed).catch(failed('sign-status'));
   };
 
   $('archive').onclick = function () {

@@ -219,6 +219,8 @@ $endpoints = [
     '/api/upload' => static fn(): array => $app->upload(upload('file')),
     '/api/mobile-id/sign/start' => static fn(): array => $app->mobileIdSignStart(body()),
     '/api/mobile-id/sign/poll' => static fn(): array => $app->mobileIdSignPoll(),
+    '/api/smart-id/sign/choose' => static fn(): array => $app->smartIdSignChoose(body()),
+    '/api/smart-id/sign/choose/poll' => static fn(): array => $app->smartIdSignChoosePoll(),
     '/api/smart-id/sign/start' => static fn(): array => $app->smartIdSignStart(body()),
     '/api/smart-id/sign/poll' => static fn(): array => $app->smartIdSignPoll(),
     '/api/card/sign/prepare' => static fn(): array => $app->cardSignPrepare(body()),

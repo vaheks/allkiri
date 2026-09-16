@@ -122,8 +122,7 @@ All published by SK for their demo services. No real person is involved.
 | Means | What to use |
 |---|---|
 | Mobile-ID | `+37200000766` with identity code `60001019906` |
-| Smart-ID (sign in) | identity code `50001029996` |
-| Smart-ID (signing) | document number `PNOEE-50001029996-DEMO-Q` |
+| Smart-ID | identity code `50001029996` |
 | ID card | a physical test card and reader |
 
 More numbers, including ones that fail in documented ways, are in
@@ -141,7 +140,10 @@ a verification code and polls the server until it says the session finished.
 to the same container, so you can sign one file with several means and watch
 them accumulate. Signing with the card is four steps alternating between browser
 and server, because the card's certificate has to be known before the digest
-exists.
+exists. Smart-ID has the same need in another form: it gives out a certificate
+only for one account, not a person. After a Smart-ID sign-in the demo keeps that
+account. Otherwise it first asks the phone which account will sign, which is one
+more prompt before the PIN.
 
 **Archiving.** One button, which lays an archive timestamp over everything
 signed so far. That is what keeps a signature verifiable after the algorithms
