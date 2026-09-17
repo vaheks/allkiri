@@ -273,7 +273,7 @@ $endpoints = [
     '/api/mobile-id/login/poll' => static fn(): array => $app->mobileIdLoginPoll(),
     '/api/smart-id/login/start' => static fn(): array => $app->smartIdLoginStart(body()),
     '/api/smart-id/login/poll' => static fn(): array => $app->smartIdLoginPoll(),
-    '/api/smart-id/login/qr/start' => static fn(): array => $app->smartIdQrLoginStart(body()),
+    '/api/smart-id/login/qr/start' => static fn(): array => $app->smartIdQrLoginStart(),
     '/api/smart-id/login/qr/link' => static fn(): array => $app->smartIdQrLink(),
     '/api/smart-id/login/qr/poll' => static fn(): array => $app->smartIdQrLoginPoll(),
     '/api/smart-id/login/qr/state' => static fn(): array => $app->smartIdQrLoginState(),

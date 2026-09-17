@@ -208,27 +208,22 @@ final class App
      * code to show, because the code or the link on this page is what ties the
      * request to it.
      *
-     * On a computer the page draws a QR code for a phone to scan. On a phone it
-     * asks for the same session with a callback URL, and opens the Smart-ID app
-     * on that phone with a Web2App link; the app sends the person back to
-     * smartIdCallback(). The QR code works for such a session too, as SK wants
-     * one session to serve both.
+     * The page offers it two ways: a QR code for a phone to scan, first on a
+     * computer, and a Web2App link that opens the Smart-ID app on the same phone,
+     * first on a phone. The app sends the person back to smartIdCallback(). SK
+     * wants one session to serve both, and a session a link can finish needs a
+     * callback URL, so every one of these gets one. A QR link carries none.
      *
      * It is kept apart from the sign-in by identity code, so either can run
      * while the other does, as Mobile-ID's can.
      *
-     * @param array<string, mixed> $request
-     *
      * @return array<string, mixed>
      */
-    public function smartIdQrLoginStart(array $request): array
+    public function smartIdQrLoginStart(): array
     {
-        $sameDevice = ($request['sameDevice'] ?? false) === true;
-        $callbackUrl = $sameDevice
-            // A random value in the URL, kept with the session in this browser's
-            // own session, is what ties the returning browser to this one.
-            ? SmartIdCallback::initialUrl($this->config->webEid->origin . '/smart-id/callback')
-            : null;
+        // A random value in the URL, kept with the session in this browser's own
+        // session, is what ties the returning browser to this one.
+        $callbackUrl = SmartIdCallback::initialUrl($this->config->webEid->origin . '/smart-id/callback');
 
         $session = $this->allkiri->smartIdAuthenticator($this->config->smartId)->startAnonymous(
             self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
@@ -239,7 +234,7 @@ final class App
         $_SESSION['smart-id-qr'] = json_encode($session, JSON_THROW_ON_ERROR);
         unset($_SESSION['smart-id-qr-result']);
         $this->forgetFinished('smart-id-qr');
-        $this->audit('authentication started', ['mean' => $sameDevice ? 'smart-id-app' : 'smart-id-qr', 'session' => $session->sessionId]);
+        $this->audit('authentication started', ['mean' => 'smart-id-device-link', 'session' => $session->sessionId]);
 
         if ($session->sessionSecret === null) {
             throw new \RuntimeException('Smart-ID started a device-link session without a secret');
@@ -247,10 +242,11 @@ final class App
 
         // A Web2App link is built once and is not secret: its authentication
         // code proves the link, and the secret behind it stays here.
-        return ['started' => true] + ($sameDevice ? [
+        return [
+            'started' => true,
             'link' => $session->deviceLink($this->config->smartId->scheme, $this->config->smartId->relyingPartyNameBase64(), DeviceLink::TYPE_WEB2APP)
                 ->url($session->sessionSecret),
-        ] : []);
+        ];
     }
 
     /**
@@ -315,7 +311,7 @@ final class App
             function (string $stored, SmartIdSessionStatus $status): array {
                 $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->complete(SmartIdSession::fromJson($stored), $status);
 
-                return ['done' => true] + $this->signedIn($identity);
+                return ['done' => true] + $this->signedIn($identity, ['flow' => $status->flowType?->value]);
             },
         );
     }
@@ -397,7 +393,7 @@ final class App
             throw $error;
         }
 
-        $answer = ['done' => true] + $this->signedIn($identity);
+        $answer = ['done' => true] + $this->signedIn($identity, ['flow' => $status->flowType?->value]);
         // For the tab the person started on, in the session as it now is: its
         // state check reads the first, and a QR poll still running the second.
         $_SESSION['smart-id-qr-result'] = $answer;
@@ -917,9 +913,11 @@ final class App
     // --- the bits a framework would do for you ------------------------------
 
     /**
+     * @param array<string, mixed> $audit more for the audit line, such as the Smart-ID flow that answered
+     *
      * @return array<string, mixed>
      */
-    private function signedIn(\Allkiri\Auth\AuthenticatedIdentity $identity): array
+    private function signedIn(\Allkiri\Auth\AuthenticatedIdentity $identity, array $audit = []): array
     {
         // A new session id for a signed-in session, so an id someone planted or
         // saw before sign-in is worth nothing after it. The page's token and the
@@ -932,7 +930,7 @@ final class App
             // Which certificate it was, so the claim can be checked years later
             // against the revocation data in whatever they went on to sign.
             'serial' => $identity->certificate->serialNumber(),
-        ]);
+        ] + $audit);
 
         return [
             'identity' => $identity->semanticsIdentifier(),

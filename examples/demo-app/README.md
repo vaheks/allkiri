@@ -149,28 +149,32 @@ point of view: ask the server for a challenge, have the card sign it, post the
 token back. Mobile-ID and Smart-ID push a request to a phone, so the page shows
 a verification code and polls the server until it says the session finished.
 
-Smart-ID can also sign in without an identity code. That session names nobody:
-whoever answers is who comes back. What the page offers depends on the device,
-as SK's guidance says. Add `?device=phone` or `?device=computer` to the address
-to override the guess.
+Smart-ID can also sign in without an identity code, with one "Sign in with
+Smart-ID" button. That session names nobody: whoever answers is who comes back.
+The server starts it with a callback URL, `ALLKIRI_ORIGIN` plus
+`/smart-id/callback` and a random value, so that it can be finished either of two
+ways, as SK wants one session to serve both. What the button shows first
+depends on the device, as SK's guidance says. Add `?device=phone` or
+`?device=computer` to the address to override the guess.
 
-- **On a computer**, it draws a QR code for a phone to scan. The server keeps the
-  session and its secret, and the page asks for a freshly signed link every
-  second, because the app refuses a stale one. The poll asks SK for a second at
-  a time rather than ten, so that `php -S`, which answers one request at a time,
-  does not hold the next link back.
-- **On a phone or a tablet**, "Open the Smart-ID app" comes first.
-  1. The server starts the session with a callback URL, `ALLKIRI_ORIGIN` plus
-     `/smart-id/callback` and a random value.
-  2. The page jumps to the Web2App link it gets back, and also shows that link
-     in case the phone ignored the jump.
-  3. After PIN 1 the app opens the callback URL in a new tab. That page checks
+- **On a computer**, it draws a QR code for a phone to scan. The page asks for a
+  freshly signed link every second, because the app refuses a stale one. The
+  poll asks SK for a second at a time rather than ten, so that `php -S`, which
+  answers one request at a time, does not hold the next link back.
+- **On a phone or a tablet**, it opens the Smart-ID app.
+  1. The page jumps to the Web2App link the server returned, and also shows
+     that link in case the phone ignored the jump.
+  2. After PIN 1 the app opens the callback URL in a new tab. That page checks
      it with `SmartIdCallback`: the random value, the digest of the session
      secret and the user challenge verifier. It then signs the person in and
      forgets the session, so the link works once.
-  4. The tab the person started in only watches for the result, without
-     asking SK. "Show a QR code for another device" draws a code for the same
-     session.
+  3. The tab the person started in only watches for the result, without
+     asking SK.
+
+Under the button, a link offers the other way for the same session: "Use
+Smart-ID on another device (QR code)" on a phone, "On this phone? Open the
+Smart-ID app" on a computer. A wrong guess about the device is one tap from
+right. The audit line of each sign-in says which flow finished it.
 
 The callback needs the page's own browser: one that did not start the sign-in,
 such as an app's built-in browser, has no session to check against, and the

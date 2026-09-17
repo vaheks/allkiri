@@ -144,8 +144,7 @@ final class DemoAppTest extends TestCase
         $page = self::request('GET', '/');
 
         self::assertStringContainsString('id="sid-login"', $page['body'], 'by identity code');
-        self::assertStringContainsString('id="sid-qr-login"', $page['body'], 'by QR code');
-        self::assertStringContainsString('id="sid-app-login"', $page['body'], 'by the app on the same phone');
+        self::assertStringContainsString('id="sid-device-login"', $page['body'], 'by QR code or by the app on the same phone');
         self::assertStringContainsString('<script src="/allkiri-qr.js"></script>', $page['body'], 'the encoder the QR code needs');
         self::assertStringContainsString("linkUrl: '/api/smart-id/login/qr/link'", $page['body']);
     }
