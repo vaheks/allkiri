@@ -215,31 +215,48 @@ final class App
     // --- signing a file -----------------------------------------------------
 
     /**
-     * Take an upload and put it in a container, ready to be signed.
+     * Take the uploaded files and put them all in one container, ready to be
+     * signed.
      *
-     * @param array{name?: string, tmp_name?: string} $file
+     * Uploading again starts a new container. Nothing is ever added to one that
+     * exists: each signature covers exactly the files that were in it.
+     *
+     * @param list<array{name: string, tmp_name: string, error: int}> $files
      *
      * @return array<string, mixed>
      */
-    public function upload(array $file): array
+    public function upload(array $files): array
     {
-        $name = basename((string) ($file['name'] ?? 'document'));
-        $path = (string) ($file['tmp_name'] ?? '');
-        if ($path === '' || !is_uploaded_file($path)) {
+        if ($files === []) {
             throw new \RuntimeException('Nothing was uploaded');
         }
 
-        $container = AsicContainer::create(DataFile::fromString($name, (string) file_get_contents($path)));
+        $dataFiles = [];
+        $received = [];
+        foreach ($files as $file) {
+            $name = $file['name'] === '' ? 'document' : basename($file['name']);
+            if ($file['error'] !== UPLOAD_ERR_OK || $file['tmp_name'] === '' || !is_uploaded_file($file['tmp_name'])) {
+                throw new \RuntimeException(\sprintf(
+                    '"%s" did not arrive%s',
+                    $name,
+                    \in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? ': it is larger than this server accepts' : '',
+                ));
+            }
+            $dataFiles[] = DataFile::fromString($name, (string) file_get_contents($file['tmp_name']));
+            $received[] = ['name' => $name, 'size' => filesize($file['tmp_name'])];
+        }
+
+        // Refuses two files of the same name, which a container cannot hold.
+        $container = AsicContainer::create(...$dataFiles);
         $this->storeContainer($container);
         $this->audit('container created', [
-            'file' => $name,
-            'bytes' => filesize($path),
-            // What the signature will actually cover, which is the thing to
+            'files' => $received,
+            // What the signatures will actually cover, which is the thing to
             // record before anyone signs anything.
             'fingerprint' => $container->fingerprint(),
         ]);
 
-        return ['name' => $name, 'size' => filesize($path)];
+        return ['files' => $received];
     }
 
     /**

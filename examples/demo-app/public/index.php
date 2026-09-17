@@ -84,6 +84,38 @@ function upload(string $field): array
     ];
 }
 
+/**
+ * Every file of a field sent as name="field[]", in the shape the application
+ * expects.
+ *
+ * PHP gives such a field one array per attribute rather than one per file, so
+ * this puts each file back together.
+ *
+ * @return list<array{name: string, tmp_name: string, error: int}>
+ */
+function uploads(string $field): array
+{
+    $files = $_FILES[$field] ?? null;
+    if (!is_array($files) || !is_array($files['name'] ?? null)) {
+        return [];
+    }
+    $paths = is_array($files['tmp_name'] ?? null) ? $files['tmp_name'] : [];
+    $errors = is_array($files['error'] ?? null) ? $files['error'] : [];
+
+    $uploads = [];
+    foreach ($files['name'] as $index => $name) {
+        $path = $paths[$index] ?? null;
+        $error = $errors[$index] ?? null;
+        $uploads[] = [
+            'name' => is_string($name) ? $name : '',
+            'tmp_name' => is_string($path) ? $path : '',
+            'error' => is_int($error) ? $error : UPLOAD_ERR_NO_FILE,
+        ];
+    }
+
+    return $uploads;
+}
+
 function send(mixed $payload, int $status = 200): never
 {
     http_response_code($status);
@@ -216,7 +248,7 @@ $endpoints = [
     '/api/smart-id/login/poll' => static fn(): array => $app->smartIdLoginPoll(),
 
     // Signing a file
-    '/api/upload' => static fn(): array => $app->upload(upload('file')),
+    '/api/upload' => static fn(): array => $app->upload(uploads('files')),
     '/api/mobile-id/sign/start' => static fn(): array => $app->mobileIdSignStart(body()),
     '/api/mobile-id/sign/poll' => static fn(): array => $app->mobileIdSignPoll(),
     '/api/smart-id/sign/start' => static fn(): array => $app->smartIdSignStart(body()),

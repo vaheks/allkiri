@@ -1,7 +1,7 @@
 # The allkiri demo
 
 A small application that signs in with an ID card, Mobile-ID or Smart-ID, signs
-an uploaded file with any of them, archives the result, and validates a
+uploaded files with any of them, archives the result, and validates a
 container.
 Plain PHP, no framework: one file of endpoints and one of configuration.
 
@@ -136,9 +136,11 @@ point of view: ask the server for a challenge, have the card sign it, post the
 token back. Mobile-ID and Smart-ID push a request to a phone, so the page shows
 a verification code and polls the server until it says the session finished.
 
-**Signing.** An upload becomes an ASiC-E container, and each signature is added
-to the same container, so you can sign one file with several means and watch
-them accumulate. Each means has a block of its own, as in signing in, and uses
+**Signing.** An upload of one or more files becomes an ASiC-E container, and
+each signature, covering all of the files, is added to the same container, so
+you can sign with several means and watch them accumulate. Uploading again
+starts a new container: a file cannot join one that is already signed, because
+each signature covers exactly the files that were there. Each means has a block of its own, as in signing in, and uses
 nothing from signing in: anyone signed in any way can sign with any means.
 Signing with the card is four steps alternating between browser and server,
 because the card's certificate has to be known before the digest exists.

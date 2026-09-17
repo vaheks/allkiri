@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The demo application puts several files in one container: the upload field
+  takes any number of files and they are signed together. A second file of
+  the same name is refused (#33).
+
 ### Changed
 
 - The demo page's "Sign a file" section has a block for each means, as "Sign

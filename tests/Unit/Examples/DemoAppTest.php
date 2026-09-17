@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Allkiri\Tests\Unit\Examples;
 
+use Allkiri\Container\AsicReader;
+use Allkiri\Container\DataFile;
 use Allkiri\Tests\Support\Http\LocalHttpServer;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -102,18 +104,8 @@ final class DemoAppTest extends TestCase
         $page = self::openPage();
         $sessionId = substr($page['cookie'], \strlen('PHPSESSID='));
         $before = self::containersIn(self::STORAGE);
-        $boundary = 'allkiri-' . bin2hex(random_bytes(8));
-        $body = '--' . $boundary . "\r\n"
-            . "Content-Disposition: form-data; name=\"file\"; filename=\"leping.txt\"\r\n"
-            . "Content-Type: text/plain\r\n\r\n"
-            . "Tere, allkiri!\r\n"
-            . '--' . $boundary . "--\r\n";
 
-        $upload = self::request('POST', '/api/upload', [
-            'Cookie' => $page['cookie'],
-            'X-CSRF-Token' => $page['token'],
-            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
-        ], $body);
+        $upload = self::upload($page, [['leping.txt', "Tere, allkiri!\r\n"], ['lisa.txt', "Teine fail\r\n"]]);
 
         self::assertSame(200, $upload['status'], $upload['body']);
         $created = array_values(array_diff(self::containersIn(self::STORAGE), $before));
@@ -124,10 +116,27 @@ final class DemoAppTest extends TestCase
 
             $download = self::request('GET', '/api/download', ['Cookie' => $page['cookie']]);
             self::assertSame(200, $download['status']);
-            self::assertStringStartsWith("PK\x03\x04", $download['body']);
+            // Every file chosen, in one container.
+            $container = (new AsicReader())->read($download['body']);
+            self::assertSame(
+                ['leping.txt' => "Tere, allkiri!\r\n", 'lisa.txt' => "Teine fail\r\n"],
+                array_column(array_map(static fn(DataFile $file): array => [$file->name, $file->content], $container->dataFiles), 1, 0),
+            );
         } finally {
             unlink($created[0]);
         }
+    }
+
+    public function testTwoFilesOfTheSameNameAreRefused(): void
+    {
+        $page = self::openPage();
+        $before = self::containersIn(self::STORAGE);
+
+        $upload = self::upload($page, [['leping.txt', 'first'], ['leping.txt', 'second']]);
+
+        self::assertSame(400, $upload['status'], $upload['body']);
+        self::assertStringContainsString('Duplicate data file name', $upload['body']);
+        self::assertSame($before, self::containersIn(self::STORAGE), 'nothing is kept');
     }
 
     public function testThePageLoadsAPinnedCopyOfWebEidJs(): void
@@ -216,6 +225,33 @@ final class DemoAppTest extends TestCase
     private static function quietLog(): array
     {
         return ['ALLKIRI_LOG' => self::$log, 'ALLKIRI_LOG_HTTP' => '0', 'ALLKIRI_LOG_PERSONAL_DATA' => '0'];
+    }
+
+    /**
+     * Post files as the page does, all under name="files[]".
+     *
+     * @param array{cookie: string, token: string} $page
+     * @param list<array{string, string}>          $files name and content, in order
+     *
+     * @return array{status: int, headers: array<string, list<string>>, body: string}
+     */
+    private static function upload(array $page, array $files): array
+    {
+        $boundary = 'allkiri-' . bin2hex(random_bytes(8));
+        $body = '';
+        foreach ($files as [$name, $content]) {
+            $body .= '--' . $boundary . "\r\n"
+                . "Content-Disposition: form-data; name=\"files[]\"; filename=\"" . $name . "\"\r\n"
+                . "Content-Type: text/plain\r\n\r\n"
+                . $content . "\r\n";
+        }
+        $body .= '--' . $boundary . "--\r\n";
+
+        return self::request('POST', '/api/upload', [
+            'Cookie' => $page['cookie'],
+            'X-CSRF-Token' => $page['token'],
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+        ], $body);
     }
 
     /**

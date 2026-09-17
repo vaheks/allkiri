@@ -91,12 +91,13 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 
 <h2>2. Sign a file</h2>
 
-<p class="note">Upload a file, then sign it with any of the three, as often as you like.
-Each signature is added to the same container. Signing uses nothing from step 1.</p>
+<p class="note">Upload one or more files, then sign them with any of the three, as often as you like.
+Each signature covers all the files and is added to the same container. Signing uses nothing from step 1.</p>
 
 <section>
-  <label for="upload">Choose a file to put in a container</label>
-  <input type="file" id="upload">
+  <label for="upload">Choose the files to put in a container</label>
+  <input type="file" id="upload" multiple>
+  <p class="note">Uploading again starts a new container. Files cannot be added to one that is already signed.</p>
   <button id="upload-go">Upload</button>
   <div class="status" id="upload-status"></div>
 </section>
@@ -131,7 +132,7 @@ Each signature is added to the same container. Signing uses nothing from step 1.
 
 <section>
   <strong>Container</strong>
-  <p class="note">Holds the file and every signature above. An archive timestamp covers all of them.</p>
+  <p class="note">Holds the files and every signature above. An archive timestamp covers all of them.</p>
   <button id="archive">Add an archive timestamp</button>
   <button id="download">Download the container</button>
   <div class="status" id="container-status"></div>
@@ -231,15 +232,19 @@ Each signature is added to the same container. Signing uses nothing from step 1.
   // --- signing a file ----------------------------------------------------
 
   $('upload-go').onclick = function () {
-    var file = $('upload').files[0];
-    if (!file) { say('upload-status', 'Choose a file first', true); return; }
+    var files = $('upload').files;
+    if (!files.length) { say('upload-status', 'Choose one or more files first', true); return; }
     var form = new FormData();
-    form.append('file', file);
+    for (var i = 0; i < files.length; i++) {
+      form.append('files[]', files[i]);
+    }
     fetch('/api/upload', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: form })
       .then(function (r) { return r.json(); })
       .then(function (answer) {
         if (answer.error) { throw new Error(answer.error); }
-        say('upload-status', 'Ready to sign: ' + answer.name + ' (' + answer.size + ' bytes)');
+        say('upload-status', 'Ready to sign: ' + answer.files.map(function (f) {
+          return f.name + ' (' + f.size + ' bytes)';
+        }).join(', '));
       })
       .catch(failed('upload-status'));
   };
