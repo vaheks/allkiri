@@ -11,9 +11,17 @@ All notable changes to this project are documented here. The format follows
 - The demo application puts several files in one container: the upload field
   takes any number of files and they are signed together. A second file of
   the same name is refused (#33).
+- `SivaException` says why SiVa gave no verdict, in `reason`: the request was
+  invalid, SiVa could not be reached, bot protection answered instead, SiVa
+  answered with an error status, or its answer was not a report. A Cloudflare
+  challenge page, which RIA's SiVa now sometimes sends a server, is recognised
+  by its `cf-mitigated` header and reported as `SIVA_CHALLENGED` without the
+  page's HTML (#34).
 
 ### Changed
 
+- `SivaException`'s constructor takes the reason first:
+  `new SivaException($reason, $message, $previous)` (#34).
 - The demo page's "Sign a file" section has a block for each means, as "Sign
   in" does, each with its own fields, verification code and status line, and
   a block for archiving and downloading the container. Mobile-ID signing takes

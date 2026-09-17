@@ -33,7 +33,7 @@ final readonly class SivaReport
         $report = $data['validationReport'] ?? null;
         $conclusion = \is_array($report) ? ($report['validationConclusion'] ?? null) : null;
         if (!\is_array($conclusion)) {
-            throw new SivaException('SiVa answered without a validation conclusion');
+            throw new SivaException(SivaException::REASON_MALFORMED, 'SiVa answered without a validation conclusion');
         }
 
         $signatures = [];

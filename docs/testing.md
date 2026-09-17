@@ -77,6 +77,13 @@ change.
 | `ALLKIRI_MID_URL`, `ALLKIRI_MID_RP_UUID`, `ALLKIRI_MID_RP_NAME` | Mobile-ID endpoint and relying party; default to the public demo values |
 | `ALLKIRI_SMARTID_URL`, `ALLKIRI_SMARTID_RP_UUID`, `ALLKIRI_SMARTID_RP_NAME` | the same for Smart-ID |
 
+SiVa sits behind Cloudflare, which now and then answers a CI runner with a
+challenge page instead of a verdict. The tests ask SiVa through
+`IntegrationTestCase::askSiva()`, which waits ten seconds and asks once more,
+then skips the rest of the test with the reason. Whatever the test checked
+before asking SiVa has already passed or failed. The workflow prints the reasons
+for skipped tests, so look there when the SiVa checks stop running.
+
 `ListOfListsLiveTest` needs no configuration and is the one that matters most
 nightly: it fails when the European list of trusted lists is signed by a
 certificate this library does not ship, which is the only warning that

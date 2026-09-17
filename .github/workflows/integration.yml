@@ -55,5 +55,7 @@ jobs:
           printf '%s' "$ALLKIRI_TEST_P12_BASE64" | base64 -d > "$RUNNER_TEMP/test.p12"
           echo "ALLKIRI_TEST_P12=$RUNNER_TEMP/test.p12" >> "$GITHUB_ENV"
 
+      # Print why a test was skipped or left incomplete, so a SiVa check
+      # skipped because of a bot-protection challenge shows in the log.
       - name: Integration tests
-        run: composer test:integration
+        run: composer test:integration -- --display-skipped --display-incomplete

@@ -68,7 +68,7 @@ final class SivaValidationTest extends IntegrationTestCase
         self::assertSame(SignatureLevel::LT, $result->level);
         $bytes = $allkiri->writer()->write($result->container);
 
-        $report = $this->siva($http, $environment)->validate($bytes, 'allkiri.asice');
+        $report = self::askSiva($this->siva($http, $environment), $bytes, 'allkiri.asice');
 
         self::assertSame(1, $report->signaturesCount);
         $signature = $report->signatures[0];
@@ -102,7 +102,7 @@ final class SivaValidationTest extends IntegrationTestCase
         );
         $bytes = $allkiri->writer()->write($result->container);
 
-        $report = $this->siva($http, $environment)->validate($bytes, 'allkiri.asice');
+        $report = self::askSiva($this->siva($http, $environment), $bytes, 'allkiri.asice');
 
         self::assertTrue($report->isValid(), 'SiVa rejected the signature: ' . implode('; ', $report->allErrors()));
         self::assertSame('XAdES_BASELINE_LT', $report->signatures[0]->signatureFormat);
@@ -119,7 +119,7 @@ final class SivaValidationTest extends IntegrationTestCase
         $http = self::http(60);
         $file = __DIR__ . '/../fixtures/containers/valid-asice-esteid2018.asice';
 
-        $report = $this->siva($http, $environment)->validate((string) file_get_contents($file), basename($file));
+        $report = self::askSiva($this->siva($http, $environment), (string) file_get_contents($file), basename($file));
 
         self::assertTrue($report->isValid(), 'SiVa rejected a digidoc4j container: ' . implode('; ', $report->allErrors()));
         self::assertSame('XAdES_BASELINE_LT', $report->signatures[0]->signatureFormat);

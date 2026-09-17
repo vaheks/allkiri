@@ -222,7 +222,7 @@ final class MobileIdDemoTest extends IntegrationTestCase
 
         // Then RIA's.
         $siva = new SivaClient(self::http(60), (string) Environment::demo()->sivaUrl);
-        $sivaReport = $siva->validate($bytes, 'mobile-id.asice');
+        $sivaReport = self::askSiva($siva, $bytes, 'mobile-id.asice');
 
         self::assertSame('ASiC-E', $sivaReport->signatureForm);
         self::assertSame('XAdES_BASELINE_LT', $sivaReport->signatures[0]->signatureFormat);
@@ -273,7 +273,7 @@ final class MobileIdDemoTest extends IntegrationTestCase
         );
 
         $siva = new SivaClient(self::http(60), (string) Environment::demo()->sivaUrl);
-        $report = $siva->validate($bytes, 'archived.asice');
+        $report = self::askSiva($siva, $bytes, 'archived.asice');
 
         self::assertSame('XAdES_BASELINE_LTA', $report->signatures[0]->signatureFormat, 'SiVa should read the archive timestamp');
         self::assertSame(

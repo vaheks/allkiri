@@ -197,6 +197,23 @@ It sends the whole container, so do not point it at a service you would not
 show the document to. For the same reason the URL must be HTTPS; plain HTTP is
 accepted only to `localhost`, `127.0.0.1` or `[::1]`.
 
+When SiVa cannot give a verdict, `validate()` throws `SivaException`, and its
+`reason` says why:
+
+| `reason` | Meaning |
+|---|---|
+| `SIVA_REQUEST_INVALID` | the request could not be built, such as a file name that is not UTF-8; nothing was sent |
+| `SIVA_TRANSPORT` | SiVa could not be reached |
+| `SIVA_CHALLENGED` | bot protection answered instead of SiVa |
+| `SIVA_HTTP_STATUS` | SiVa answered with an error status, quoted in the message |
+| `SIVA_MALFORMED` | the answer was not a validation report |
+
+RIA's SiVa sits behind Cloudflare since 2026, which now and then answers a
+server with a challenge page meant for a browser. allkiri recognises it by the
+`cf-mitigated: challenge` header Cloudflare sets and reports `SIVA_CHALLENGED`
+without the page. It does not retry: asking again a little later usually works,
+and a server that is refused every time needs RIA to let it through.
+
 ## Known differences from SiVa
 
 | | allkiri | SiVa |

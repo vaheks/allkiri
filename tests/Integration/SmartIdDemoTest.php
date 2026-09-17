@@ -223,7 +223,7 @@ final class SmartIdDemoTest extends IntegrationTestCase
 
         // Then RIA's.
         $siva = new SivaClient(self::http(60), (string) Environment::demo()->sivaUrl);
-        $sivaReport = $siva->validate($bytes, 'smart-id.asice');
+        $sivaReport = self::askSiva($siva, $bytes, 'smart-id.asice');
 
         self::assertSame('ASiC-E', $sivaReport->signatureForm);
         self::assertSame('XAdES_BASELINE_LT', $sivaReport->signatures[0]->signatureFormat);
