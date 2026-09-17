@@ -43,9 +43,15 @@ final class LocalHttpServer
      *                                            must not be empty: on Windows the server would see it as unset
      * @param string|null           $router       with a document root, a script that sees every request, as the last
      *                                            argument of `php -S` is
+     * @param array<string, string> $ini          settings for the server, as `php -d` gives them
      */
-    public static function start(?string $documentRoot = null, array $environment = [], ?string $router = null): self
+    public static function start(?string $documentRoot = null, array $environment = [], ?string $router = null, array $ini = []): self
     {
+        $settings = [];
+        foreach ($ini as $name => $value) {
+            $settings[] = '-d';
+            $settings[] = $name . '=' . $value;
+        }
         $serve = $documentRoot === null
             ? [\dirname(__DIR__, 2) . '/fixtures/http/router.php']
             : ['-t', $documentRoot, ...($router === null ? [] : [$router])];
@@ -56,7 +62,7 @@ final class LocalHttpServer
             // server binding it, which is what the retries are for.
             $port = self::freePort();
             $process = proc_open(
-                [PHP_BINARY, '-S', '127.0.0.1:' . $port, ...$serve],
+                [PHP_BINARY, ...$settings, '-S', '127.0.0.1:' . $port, ...$serve],
                 [0 => ['file', $nowhere, 'r'], 1 => ['file', $nowhere, 'w'], 2 => ['file', $nowhere, 'w']],
                 $pipes,
                 null,

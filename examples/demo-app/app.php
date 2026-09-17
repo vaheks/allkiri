@@ -362,7 +362,6 @@ final class App
     public function smartIdCallback(array $query): array
     {
         $stored = $_SESSION['smart-id-qr'] ?? null;
-        unset($_SESSION['smart-id-qr']);
         if (!\is_string($stored)) {
             throw new \RuntimeException(
                 'No Smart-ID sign-in is waiting in this browser. If the Smart-ID app opened a different browser than the one you started in, '
@@ -371,13 +370,23 @@ final class App
             );
         }
 
+        // Before SK is asked anything, and before the waiting sign-in is
+        // touched: any site can send this browser here, and a link that is not
+        // this session's own proves nothing. Refusing it leaves the sign-in to
+        // the app's real callback.
         try {
             $session = SmartIdSession::fromJson($stored);
             $callback = SmartIdCallback::fromQuery($query);
-            // Before SK is asked anything: a link that is not this session's
-            // own proves nothing.
             $session->verifyCallback($callback);
+        } catch (\Throwable $error) {
+            $this->audit('authentication refused', ['mean' => 'smart-id-app', 'reason' => $error->getMessage()]);
 
+            throw $error;
+        }
+        // The callback is this session's own, and it is used once.
+        unset($_SESSION['smart-id-qr']);
+
+        try {
             // SK may not have the answer ready the moment the app returns.
             $client = $this->allkiri->smartIdClient($this->config->smartId);
             $status = $client->sessionStatus($session->sessionId);

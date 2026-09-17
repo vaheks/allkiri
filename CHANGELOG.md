@@ -107,6 +107,12 @@ All notable changes to this project are documented here. The format follows
   timestamp and archive timestamps are now held to the trust the validator
   applies. An untrusted archive timestamp is reported with the new reason
   `TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED` (#47).
+- The demo application no longer lets another site cancel a Smart-ID sign-in
+  waiting for the app. `/smart-id/callback` is a plain link, and it forgot the
+  waiting session before checking the callback, so any page the visitor opened
+  could send them there and the tab they started in showed an error. A
+  callback that is not the session's own is now refused without touching it
+  (#48).
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
   the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
   itself. The native application read the object as an empty nonce and showed

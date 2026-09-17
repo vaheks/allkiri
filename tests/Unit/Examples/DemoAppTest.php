@@ -6,6 +6,8 @@ namespace Allkiri\Tests\Unit\Examples;
 
 use Allkiri\Container\AsicReader;
 use Allkiri\Container\DataFile;
+use Allkiri\SmartId\Interactions;
+use Allkiri\SmartId\SmartIdSession;
 use Allkiri\Tests\Support\Http\LocalHttpServer;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -27,9 +29,14 @@ final class DemoAppTest extends TestCase
 
     private static string $log = '';
 
+    /** The server's session files, so a test can put a sign-in in progress there without asking SK. */
+    private static string $sessions = '';
+
     public static function setUpBeforeClass(): void
     {
         self::$log = sys_get_temp_dir() . '/allkiri-demo-test-' . bin2hex(random_bytes(4)) . '.log';
+        self::$sessions = sys_get_temp_dir() . '/allkiri-demo-sessions-' . bin2hex(random_bytes(4));
+        mkdir(self::$sessions);
         self::$server = self::startDemo(['ALLKIRI_MODE' => 'demo'] + self::quietLog());
     }
 
@@ -39,6 +46,13 @@ final class DemoAppTest extends TestCase
         self::$server = null;
         if (is_file(self::$log)) {
             unlink(self::$log);
+        }
+        $files = glob(self::$sessions . '/sess_*');
+        foreach ($files === false ? [] : $files as $file) {
+            unlink($file);
+        }
+        if (is_dir(self::$sessions)) {
+            rmdir(self::$sessions);
         }
     }
 
@@ -198,6 +212,41 @@ final class DemoAppTest extends TestCase
     }
 
     /**
+     * The callback is a plain link, so any site can send a visitor's browser
+     * to it with their cookie. One that is not the waiting session's own is
+     * refused without touching that session: the app's real callback still
+     * finds it, and the tab it started in is not told it failed.
+     */
+    public function testAForgedCallbackLeavesTheWaitingSignInAlone(): void
+    {
+        $page = self::openPage();
+        $sessionFile = self::$sessions . '/sess_' . substr($page['cookie'], \strlen('PHPSESSID='));
+        self::assertFileExists($sessionFile);
+        $waiting = new SmartIdSession(
+            'de305d54-75b4-431b-adb2-eb6b9e546014',
+            SmartIdSession::TYPE_AUTHENTICATION,
+            random_bytes(32),
+            Interactions::forText('Sign in to the allkiri demo'),
+            sessionToken: 'token',
+            sessionSecret: base64_encode(random_bytes(32)),
+            deviceLinkBase: 'https://sid.demo.sk.ee/device-link',
+            startedAt: new \DateTimeImmutable(),
+            initialCallbackUrl: 'https://localhost:8443/smart-id/callback?value=' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='),
+        );
+        file_put_contents($sessionFile, 'smart-id-qr|' . serialize(json_encode($waiting, JSON_THROW_ON_ERROR)), FILE_APPEND);
+
+        $forged = self::request('GET', '/smart-id/callback?value=RrKjjT4aggzu27YBddX1bQ&sessionSecretDigest=U4CKK13H1XFiyBofev9asqrzIrY5_Gszi_nL_zDKkBc&userChallengeVerifier=XtPfaGa8JnGtYrJjboooUf0KfY9sMEHrWFpSQrsUv9c', ['Cookie' => $page['cookie']]);
+
+        self::assertSame(400, $forged['status'], $forged['body']);
+        self::assertStringContainsString('Not signed in', $forged['body']);
+        self::assertStringNotContainsString('No Smart-ID sign-in is waiting', $forged['body'], 'it was waiting, and was checked against');
+        $state = self::request('POST', '/api/smart-id/login/qr/state', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
+        self::assertSame(200, $state['status'], $state['body']);
+        self::assertSame(['done' => false], json_decode($state['body'], true), 'the tab it started in keeps waiting');
+        self::assertStringContainsString('smart-id-qr|', (string) file_get_contents($sessionFile), 'the sign-in is still there for the real callback');
+    }
+
+    /**
      * Signing in replaces the session id while the page may still have a call
      * on its way with the old one, as a QR code's link requests do every second.
      * PHP answers that call with a fresh, empty session. If its cookie reached
@@ -288,7 +337,7 @@ final class DemoAppTest extends TestCase
      */
     private static function startDemo(array $environment): LocalHttpServer
     {
-        return LocalHttpServer::start(self::DOCUMENT_ROOT, $environment, self::DOCUMENT_ROOT . '/index.php');
+        return LocalHttpServer::start(self::DOCUMENT_ROOT, $environment, self::DOCUMENT_ROOT . '/index.php', ['session.save_path' => self::$sessions]);
     }
 
     /**
