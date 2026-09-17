@@ -566,8 +566,16 @@ publishes are all read from the verified list of lists, so a national list can
 rotate its signing certificate without a release here.
 
 `ListOfListsLiveTest` fails when the list of lists is signed by something not in
-that directory, which is the only warning that the Journal has published a new
-set.
+that directory. By then production trust no longer loads, so two earlier
+warnings were added in September 2026 (#35). The Commission changes the set
+with a "pivot" first: a list whose entry for itself names the new set, signed
+with a certificate the old set trusts. The Journal follows months later: pivot
+378 on 2026-01-21, C/2026/1944 on 2026-04-15. The test fails when that entry
+names certificates we don't ship, and when the Journal publication the list
+names differs from the one in `resources/trust/eu/README.md`.
+
+Following the pivots, as DSS does, would let a change of set pass without a
+release here. It is not done yet (#37).
 
 ### A territory has two pointers, and the PDF may come first
 

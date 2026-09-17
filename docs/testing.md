@@ -85,9 +85,13 @@ before asking SiVa has already passed or failed. The workflow prints the reasons
 for skipped tests, so look there when the SiVa checks stop running.
 
 `ListOfListsLiveTest` needs no configuration and is the one that matters most
-nightly: it fails when the European list of trusted lists is signed by a
-certificate this library does not ship, which is the only warning that
-`resources/trust/eu` needs refreshing from the Official Journal.
+nightly, because `resources/trust/eu` can only be refreshed by hand. It fails
+when the European list of trusted lists names signing certificates this
+library does not ship, which is the first sign of a change; when it names an
+Official Journal publication other than the one in
+`resources/trust/eu/README.md`, which means the new set is published; and when
+it is signed by a certificate this library does not ship, which means
+production trust no longer loads. The README says how to refresh.
 
 ### The test signing key and the demo OCSP service
 

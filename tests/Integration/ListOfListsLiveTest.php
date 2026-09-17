@@ -8,12 +8,17 @@ use Allkiri\Allkiri;
 use Allkiri\Clock\SystemClock;
 use Allkiri\Config\ArrayCache;
 use Allkiri\Config\Environment;
+use Allkiri\Crypto\Certificate;
+use Allkiri\Http\HttpRequest;
+use Allkiri\Resources;
 use Allkiri\Trust\ListOfListsTrustStore;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use Allkiri\Trust\TrustedList\TrustedListParser;
 use Allkiri\Trust\TrustedList\TrustedListPointer;
+use Allkiri\Trust\TrustedList\TrustedListVerifier;
+use Allkiri\Xml\Xml;
 
 /**
  * Production trust, end to end against the live services.
@@ -45,6 +50,75 @@ final class ListOfListsLiveTest extends IntegrationTestCase
         self::assertGreaterThan(0, $list->sequenceNumber);
         self::assertGreaterThanOrEqual(27, \count($list->pointers), 'every member state should be pointed to');
         self::assertFalse($list->isExpiredAt(new \DateTimeImmutable()), 'the list of lists has passed its next update');
+    }
+
+    /**
+     * The warning before the one above. The list of lists points to itself too,
+     * and that entry names the certificates allowed to sign it. When the
+     * Commission changes them, it first publishes a "pivot": a list whose entry
+     * names the new set, signed with a certificate the old set already trusts.
+     * The Official Journal follows later; the last change was a pivot on
+     * 2026-01-21 and a publication on 2026-04-15. From the pivot on, any list
+     * may be signed with a certificate we do not ship.
+     */
+    public function testTheListOfListsStillNamesTheCertificatesWeShip(): void
+    {
+        $list = $this->loader()->load(Environment::euListOfLists()->toSource());
+        $pointer = $list->pointerTo('EU');
+        self::assertNotNull($pointer, 'the list of lists no longer points to itself');
+
+        $shipped = self::byFingerprint(Environment::euListOfLists()->allowedSigners);
+        $named = self::byFingerprint($pointer->signingCertificates);
+        $added = array_diff_key($named, $shipped);
+        $dropped = array_diff_key($shipped, $named);
+
+        self::assertTrue($added === [] && $dropped === [], \sprintf(
+            'List of lists %d names a different set of certificates that may sign it. New: %s. No longer named: %s. '
+            . 'The Commission is changing its signing certificates, and a list signed with a new one will not load. '
+            . 'Refresh resources/trust/eu as its README describes once the Official Journal publishes the new set; '
+            . 'testTheListOfListsStillNamesTheJournalPublicationWeShip fails when it has.',
+            $list->sequenceNumber,
+            $added === [] ? 'none' : implode('; ', $added),
+            $dropped === [] ? 'none' : implode('; ', $dropped),
+        ));
+    }
+
+    /**
+     * The list of lists names the Official Journal publication its signing
+     * certificates come from. When that changes, the publication a refresh of
+     * `resources/trust/eu` needs is out.
+     *
+     * The expected publication is read from that directory's README, so
+     * refreshing the certificates as the README describes moves this test too.
+     */
+    public function testTheListOfListsStillNamesTheJournalPublicationWeShip(): void
+    {
+        self::assertSame(
+            1,
+            preg_match('~^\| URL \| <(https://eur-lex\.europa\.eu/[^>]+)> \|$~m', Resources::read('trust/eu/README.md'), $shipped),
+            'resources/trust/eu/README.md should name the Journal publication its certificates come from',
+        );
+
+        $xml = self::http(60)->send(HttpRequest::get(ListOfListsSource::EU_URL))->body;
+        (new TrustedListVerifier())->verify($xml, Environment::euListOfLists()->allowedSigners);
+
+        // The current publication comes first; older ones and the pivot lists follow.
+        $document = Xml::load($xml);
+        $named = null;
+        foreach (Xml::elements(Xml::xpath($document, ['tsl' => TrustedListParser::NS_TSL]), '/tsl:TrustServiceStatusList/tsl:SchemeInformation/tsl:SchemeInformationURI/tsl:URI', $document) as $uri) {
+            $value = trim($uri->textContent);
+            if (str_starts_with($value, 'https://eur-lex.europa.eu/')) {
+                $named = $value;
+                break;
+            }
+        }
+
+        self::assertSame($shipped[1], $named, \sprintf(
+            'The list of lists now names %s as the publication of the certificates that may sign it, where the certificates in resources/trust/eu come from %s. '
+            . 'Refresh resources/trust/eu from the new publication as its README describes.',
+            $named ?? 'no Official Journal publication',
+            $shipped[1],
+        ));
     }
 
     /**
@@ -185,5 +259,20 @@ final class ListOfListsLiveTest extends IntegrationTestCase
 
         self::assertSame('EU', $list->territory);
         self::assertSame([], $list->anchors, 'a list of lists publishes pointers, not services');
+    }
+
+    /**
+     * @param list<Certificate> $certificates
+     *
+     * @return array<string, string> SHA-256 of the DER => subject
+     */
+    private static function byFingerprint(array $certificates): array
+    {
+        $byFingerprint = [];
+        foreach ($certificates as $certificate) {
+            $byFingerprint[hash('sha256', $certificate->der())] = $certificate->subjectDn();
+        }
+
+        return $byFingerprint;
     }
 }

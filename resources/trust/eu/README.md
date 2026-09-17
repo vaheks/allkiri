@@ -51,10 +51,22 @@ each certificate, in hexadecimal and base64.
 
 ## Keeping them current
 
-The set changes when the Commission publishes a new decision, which the list of
-lists then points to. `tests/Integration/ListOfListsLiveTest.php` fetches the
-live list and fails if it is signed by something not in this directory, so a
-nightly run is the warning that these need refreshing.
+The Commission changes the set in two steps. First it publishes a "pivot": a
+list of lists whose entry for itself names the new set, signed with a
+certificate the old set already trusts. Any list after that may be signed with a
+new certificate. The Official Journal publishes the new set later; the last
+change had its pivot on 2026-01-21 and its publication on 2026-04-15.
+
+`tests/Integration/ListOfListsLiveTest.php` watches the live list every night
+and fails:
+
+- when its entry for itself names certificates other than the ones here: the
+  change has begun;
+- when it names a Journal publication other than the one in the table above,
+  which the test reads from this file: the new set is published and these
+  files can be refreshed;
+- when it is signed by a certificate not in this directory: production no
+  longer loads it.
 
 To refresh: read the `SchemeInformationURI` values in the current list of lists,
 open the Journal publication they name, and replace these files with the
