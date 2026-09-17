@@ -196,11 +196,88 @@ final class App
      */
     public function smartIdLoginPoll(): array
     {
+        return $this->smartIdSignInPoll('smart-id', 'No Smart-ID session is in progress', null);
+    }
+
+    /**
+     * Start a Smart-ID sign-in that anyone can answer by scanning a QR code.
+     *
+     * Nobody is named: the person is whoever scans the code, and who they are
+     * comes back in the certificate. There is no verification code to show,
+     * because the code on this page is what ties the request to it.
+     *
+     * It is kept apart from the sign-in by identity code, so either can run
+     * while the other does, as Mobile-ID's can.
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdQrLoginStart(): array
+    {
+        $session = $this->allkiri->smartIdAuthenticator($this->config->smartId)->startAnonymous(
+            self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
+        );
+        // The session secret is in here, and it stays on the server: whoever
+        // holds it can make links the app accepts.
+        $_SESSION['smart-id-qr'] = json_encode($session, JSON_THROW_ON_ERROR);
+        $this->forgetFinished('smart-id-qr');
+        $this->audit('authentication started', ['mean' => 'smart-id-qr', 'session' => $session->sessionId]);
+
+        return ['started' => true];
+    }
+
+    /**
+     * The QR code's link as of now.
+     *
+     * A link carries the seconds since the session started, and the app refuses
+     * a stale one, so the page asks for a new link every second. Only the
+     * finished link leaves the server, never the secret that signs it.
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdQrLink(): array
+    {
+        $stored = $_SESSION['smart-id-qr'] ?? null;
+        // Nothing here writes to the session, and the page asks every second,
+        // so no other call from this browser waits behind this one.
+        session_write_close();
+        if (!\is_string($stored)) {
+            throw new \RuntimeException('No QR sign-in is in progress');
+        }
+        $session = SmartIdSession::fromJson($stored);
+        if ($session->sessionSecret === null) {
+            throw new \RuntimeException('The stored QR sign-in has no session secret');
+        }
+
+        $link = $session->deviceLink($this->config->smartId->scheme, $this->config->smartId->relyingPartyNameBase64());
+
+        return ['link' => $link->url($session->sessionSecret, $session->elapsedSeconds())];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function smartIdQrLoginPoll(): array
+    {
+        // While the code is showing, the page asks for a new link every second.
+        // A server that answers one request at a time, as php -S does, would
+        // hold those back for as long as SK holds a status request open, and the
+        // code on the screen would go stale. So this asks SK for one second at a
+        // time, the least it takes.
+        return $this->smartIdSignInPoll('smart-id-qr', 'No QR sign-in is in progress', 1_000);
+    }
+
+    /**
+     * @param int|null $timeoutMs how long SK may hold the status request; the configuration's when null
+     *
+     * @return array<string, mixed>
+     */
+    private function smartIdSignInPoll(string $key, string $nothingInProgress, ?int $timeoutMs): array
+    {
         return $this->pollWithoutTheLock(
-            'smart-id',
-            'No Smart-ID session is in progress',
-            function (string $stored): ?SmartIdSessionStatus {
-                $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(SmartIdSession::fromJson($stored)->sessionId);
+            $key,
+            $nothingInProgress,
+            function (string $stored) use ($timeoutMs): ?SmartIdSessionStatus {
+                $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(SmartIdSession::fromJson($stored)->sessionId, $timeoutMs);
 
                 return $status->isRunning() ? null : $status;
             },

@@ -494,6 +494,23 @@ Their own repository disables the linked-notification test with the note that
 device-link demo accounts are not currently testable. The link construction is
 pinned offline instead.
 
+**2026-09-17: the mock is public and works.** SK's automated testing page
+documents `POST https://sid.demo.sk.ee/mock/device-link` with a document number,
+the link and the flow type. It stands in for the person: the session ends as
+the named test account would end it. Checked through the demo's QR sign-in, all
+with `PNOEE-40404040009-MOCK-Q`:
+- A link posted within a second or two signed in "OK TEST", with the ACSP_V2
+  signature, the chain and the revocation status all checked by the library.
+- The same link with one character of its authentication code changed was also
+  answered 200, but the session ended with `PROTOCOL_FAILURE`. So the mock
+  checks our code, and a pass means SK computed the same one.
+- A correct link posted eight seconds after it was built was answered 200 and
+  did nothing; the session kept running. A link is only good while its
+  `elapsedSeconds` is current.
+
+That makes a device-link integration test possible. It needs to build the link
+and post it straight away, as the check above did.
+
 ## 2026-09-12 — Phase 4, Web eID and production trust
 
 ### What the dependency does, and what it does not

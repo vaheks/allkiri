@@ -123,7 +123,20 @@ All published by SK for their demo services. No real person is involved.
 |---|---|
 | Mobile-ID | `+37200000766` with identity code `60001019906` |
 | Smart-ID | identity code `50001029996` |
+| Smart-ID with a QR code | the Smart-ID demo app with a demo account, or SK's mock scan below |
 | ID card | a physical test card and reader |
+
+Without a phone, SK's demo service can scan for you. Take a link the page has
+just drawn, for example from the browser's network panel, and post it within a
+second or two:
+
+```bash
+curl -H 'Content-Type: application/json' https://sid.demo.sk.ee/mock/device-link \
+  -d '{"documentNumber": "PNOEE-40404040009-MOCK-Q", "flowType": "QR", "deviceLink": "<the link>"}'
+```
+
+The page then signs in as that test account. A link a few seconds old is
+ignored, so be quick.
 
 More numbers, including ones that fail in documented ways, are in
 [the Mobile-ID list](https://github.com/SK-EID/MID/wiki/Test-number-for-automated-testing-in-DEMO)
@@ -135,6 +148,16 @@ and [the Smart-ID list](https://sk-eid.github.io/smart-id-documentation/test_acc
 point of view: ask the server for a challenge, have the card sign it, post the
 token back. Mobile-ID and Smart-ID push a request to a phone, so the page shows
 a verification code and polls the server until it says the session finished.
+
+Smart-ID can also sign in with a QR code, which names nobody: whoever scans it
+is who comes back. The server starts the session and keeps its secret; the page
+asks for a freshly signed link every second, because the app refuses a stale
+one, and polls as the others do. The poll asks SK for a second at a time rather
+than ten, so that `php -S`, which answers one request at a time, does not hold
+the next link back. The two Smart-ID sign-ins are kept apart and can run side by
+side. If one finishes while the other is still waiting, the other may end with
+a token error, because signing in replaces the session id, and it only needs
+starting again.
 
 **Signing.** An upload of one or more files becomes an ASiC-E container, and
 each signature, covering all of the files, is added to the same container, so

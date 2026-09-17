@@ -139,6 +139,54 @@ final class DemoAppTest extends TestCase
         self::assertSame($before, self::containersIn(self::STORAGE), 'nothing is kept');
     }
 
+    public function testThePageOffersBothSmartIdSignIns(): void
+    {
+        $page = self::request('GET', '/');
+
+        self::assertStringContainsString('id="sid-login"', $page['body'], 'by identity code');
+        self::assertStringContainsString('id="sid-qr-login"', $page['body'], 'by QR code');
+        self::assertStringContainsString('<script src="/allkiri-qr.js"></script>', $page['body'], 'the encoder the QR code needs');
+        self::assertStringContainsString("linkUrl: '/api/smart-id/login/qr/link'", $page['body']);
+    }
+
+    /**
+     * The link endpoint only ever answers for a session this browser started.
+     * The session secret that signs a link never leaves the server, so there is
+     * nothing else it could build one from.
+     */
+    public function testAQrLinkNeedsASignInInProgress(): void
+    {
+        $page = self::openPage();
+
+        $link = self::request('POST', '/api/smart-id/login/qr/link', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
+
+        self::assertSame(400, $link['status'], $link['body']);
+        self::assertStringContainsString('No QR sign-in is in progress', $link['body']);
+        self::assertSame(403, self::request('POST', '/api/smart-id/login/qr/link', ['Cookie' => $page['cookie']])['status'], 'no token');
+        self::assertSame(405, self::request('GET', '/api/smart-id/login/qr/link')['status']);
+
+        $poll = self::request('POST', '/api/smart-id/login/qr/poll', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
+        self::assertSame(400, $poll['status'], $poll['body']);
+        self::assertStringContainsString('No QR sign-in is in progress', $poll['body']);
+    }
+
+    /**
+     * Signing in replaces the session id while the page may still have a call
+     * on its way with the old one, as a QR code's link requests do every second.
+     * PHP answers that call with a fresh, empty session. If its cookie reached
+     * the browser after the signed-in one, the person would be signed out and
+     * every later call refused.
+     */
+    public function testACallRefusedForItsTokenLeavesTheCookieAlone(): void
+    {
+        $replaced = bin2hex(random_bytes(16));
+
+        $refused = self::request('POST', '/api/smart-id/login/qr/link', ['Cookie' => 'PHPSESSID=' . $replaced, 'X-CSRF-Token' => str_repeat('0', 64)]);
+
+        self::assertSame(403, $refused['status'], $refused['body']);
+        self::assertSame([], $refused['headers']['set-cookie'] ?? []);
+    }
+
     public function testThePageLoadsAPinnedCopyOfWebEidJs(): void
     {
         $page = self::request('GET', '/');

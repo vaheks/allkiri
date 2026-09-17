@@ -350,6 +350,20 @@ result, runs a certificate choice, and signs containers with SHA-256 and
 SHA-512, checking both with our validator and with SiVa. Set `ALLKIRI_ARTEFACTS`
 to keep the containers.
 
-Device-link flows are not covered there: completing one needs someone to scan a
-code, and SK drives that through a mock service of their own. The link
-construction is covered offline instead.
+Device-link flows are not covered there yet: completing one needs someone to
+scan a code. The link construction is covered offline instead. SK's demo service
+can stand in for the scan: post a link you built to
+`https://sid.demo.sk.ee/mock/device-link`, with one of the `MOCK` accounts from
+[SK's test account list](https://sk-eid.github.io/smart-id-documentation/test_accounts.html),
+and the session ends as that account's row says:
+
+```bash
+curl -H 'Content-Type: application/json' https://sid.demo.sk.ee/mock/device-link \
+  -d '{"documentNumber": "PNOEE-40404040009-MOCK-Q", "flowType": "QR", "deviceLink": "https://sid.demo.sk.ee/device-link?..."}'
+```
+
+Send it within a second or two of building the link. The service answers 200
+either way, but it acts only on a fresh link with a correct authentication
+code: a link a few seconds old leaves the session running, and a wrong code
+ends it with `PROTOCOL_FAILURE`. The demo application's QR sign-in was checked
+this way.

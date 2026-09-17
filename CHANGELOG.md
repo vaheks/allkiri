@@ -11,6 +11,12 @@ All notable changes to this project are documented here. The format follows
 - The demo application puts several files in one container: the upload field
   takes any number of files and they are signed together. A second file of
   the same name is refused (#33).
+- The demo application signs in with a Smart-ID QR code, beside the sign-in
+  by identity code. The server starts an anonymous device-link session and
+  keeps its secret, and the page draws a freshly signed link every second with
+  `allkiri.deviceLinkQr()`. A call the demo refuses for its token no longer
+  sets a session cookie. Such a call can carry an id that signing in has just
+  replaced, and its empty session used to overwrite the signed-in one (#30).
 - `SivaException` says why SiVa gave no verdict, in `reason`: the request was
   invalid, SiVa could not be reached, bot protection answered instead, SiVa
   answered with an error status, or its answer was not a report. A Cloudflare

@@ -246,6 +246,9 @@ $endpoints = [
     '/api/mobile-id/login/poll' => static fn(): array => $app->mobileIdLoginPoll(),
     '/api/smart-id/login/start' => static fn(): array => $app->smartIdLoginStart(body()),
     '/api/smart-id/login/poll' => static fn(): array => $app->smartIdLoginPoll(),
+    '/api/smart-id/login/qr/start' => static fn(): array => $app->smartIdQrLoginStart(),
+    '/api/smart-id/login/qr/link' => static fn(): array => $app->smartIdQrLink(),
+    '/api/smart-id/login/qr/poll' => static fn(): array => $app->smartIdQrLoginPoll(),
 
     // Signing a file
     '/api/upload' => static fn(): array => $app->upload(uploads('files')),
@@ -271,6 +274,10 @@ if ($method !== 'POST') {
 }
 // Before anything reads the request.
 if (!carriesCsrfToken()) {
+    // Signing in replaces the session id, and a call the page sent just before
+    // still carries the old one. PHP answers that call with a new, empty
+    // session, and its cookie must not overwrite the one sign-in is sending.
+    header_remove('Set-Cookie');
     send(['error' => 'This call did not carry the page\'s token. Reload the page and try again.'], 403);
 }
 

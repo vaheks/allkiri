@@ -89,6 +89,15 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <div class="status" id="sid-login-status"></div>
 </section>
 
+<section>
+  <strong>Smart-ID with a QR code</strong>
+  <p class="note">No identity code: scan the code with the Smart-ID app on your phone<?= $live ? '' : ' (the Smart-ID demo app, with a demo account)' ?>. The code changes every second.</p>
+  <button id="sid-qr-login">Show a QR code</button>
+  <button id="sid-qr-stop" hidden>Stop</button>
+  <div id="qr"></div>
+  <div class="status" id="sid-qr-status"></div>
+</section>
+
 <h2>2. Sign a file</h2>
 
 <p class="note">Upload one or more files, then sign them with any of the three, as often as you like.
@@ -227,6 +236,60 @@ Each signature covers all the files and is added to the same container. Signing 
       }
     }).then(function (user) { say('sid-login-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'); })
       .catch(failed('sid-login-status'));
+  };
+
+  // The server starts a session nobody is named in, then mints a fresh link
+  // for the code every second; the page never sees the secret that signs them.
+  // A new code or Stop ends the attempt on the page, and the attempt it ended
+  // still settles a moment later, as cancelled. Only the latest attempt writes
+  // to the block.
+  var qrRun = null;
+  var qrAttempt = 0;
+
+  function qrClear() {
+    qrRun = null;
+    $('qr').innerHTML = '';
+    $('sid-qr-stop').hidden = true;
+  }
+
+  $('sid-qr-login').onclick = function () {
+    if (qrRun) { qrRun.stop(); }
+    var attempt = ++qrAttempt;
+    var current = function () { return attempt === qrAttempt; };
+    qrClear();
+    say('sid-qr-status', 'Starting…');
+
+    allkiri.post('/api/smart-id/login/qr/start')
+      .then(function () {
+        if (!current()) { return null; }
+        say('sid-qr-status', 'Scan the code with the Smart-ID app, then enter PIN 1.');
+        qrRun = allkiri.deviceLinkQr({
+          linkUrl: '/api/smart-id/login/qr/link',
+          pollUrl: '/api/smart-id/login/qr/poll',
+          element: $('qr'),
+          size: 240,
+          onError: function (error) { if (current()) { failed('sid-qr-status')(error); } }
+        });
+        $('sid-qr-stop').hidden = false;
+        return qrRun.promise;
+      })
+      .then(function (user) {
+        if (!current() || !user) { return; }
+        qrClear();
+        say('sid-qr-status', 'Signed in as ' + user.name + ' (' + user.identity + ')');
+      }, function (error) {
+        if (!current()) { return; }
+        qrClear();
+        failed('sid-qr-status')(error);
+      });
+  };
+
+  $('sid-qr-stop').onclick = function () {
+    if (!qrRun) { return; }
+    qrAttempt++;
+    qrRun.stop();
+    qrClear();
+    say('sid-qr-status', 'Stopped.');
   };
 
   // --- signing a file ----------------------------------------------------
