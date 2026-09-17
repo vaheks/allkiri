@@ -22,4 +22,7 @@ final class TimestampVerificationException extends TimestampException
     public const REASON_TSA_KEY_USAGE = 'TIMESTAMP_TSA_KEY_USAGE_INVALID';
     public const REASON_IMPRINT = 'TIMESTAMP_MESSAGE_IMPRINT_MISMATCH';
     public const REASON_NONCE = 'TIMESTAMP_NONCE_MISMATCH';
+
+    /** The token verifies, but its authority does not chain to a trusted timestamping service. */
+    public const REASON_AUTHORITY_NOT_TRUSTED = 'TIMESTAMP_AUTHORITY_NOT_TRUSTED';
 }

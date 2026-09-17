@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Allkiri\Signing;
 
 use Allkiri\Crypto\Tsp\TimestampToken;
+use Allkiri\Crypto\Tsp\TimestampVerificationException;
 use Allkiri\Crypto\Tsp\TspClient;
+use Allkiri\Trust\ChainBuilder;
+use Allkiri\Trust\ChainBuildingException;
+use Allkiri\Trust\ServiceType;
 use Allkiri\Xades\Lta\ArchiveTimestampData;
 use Allkiri\Xades\Ns;
 use Allkiri\Xades\SignatureDocument;
@@ -32,8 +36,13 @@ use Psr\Log\LoggerInterface;
  */
 final class LtaExtender
 {
+    /**
+     * @param ChainBuilder $chainBuilder decides whether the authority of an
+     *                                   archive timestamp is trusted
+     */
     public function __construct(
         private readonly TspClient $tspClient,
+        private readonly ChainBuilder $chainBuilder,
         private readonly ?LoggerInterface $logger = null,
         private readonly ArchiveTimestampData $data = new ArchiveTimestampData(),
     ) {}
@@ -47,6 +56,7 @@ final class LtaExtender
      * @throws XadesException                           when the signature is not at LT, or what is stamped
      *                                                  cannot be reconstructed
      * @throws \Allkiri\Crypto\Tsp\TimestampException when the archive timestamp cannot be had or trusted
+     * @throws \Allkiri\Trust\TrustedList\TrustedListException when the trusted lists cannot be loaded
      *
      * @internal
      */
@@ -68,6 +78,15 @@ final class LtaExtender
         $stream = $this->data->forNewTimestamp($signature, $resolver, DsigNs::C14N_EXC);
         $stamped = $this->tspClient->timestamp($stream);
         $token = $stamped->token;
+        try {
+            $this->chainBuilder->build($stamped->tsaCertificate, $token->signedData()->certificates(), $token->genTime(), ServiceType::tsaTypes());
+        } catch (ChainBuildingException $e) {
+            throw new TimestampVerificationException(
+                TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED,
+                \sprintf('The archive timestamp authority "%s" is not trusted: %s', $stamped->tsaCertificate->subjectDn(), $e->getMessage()),
+                $e,
+            );
+        }
 
         $this->append($document, $unsigned, $token);
 

@@ -15,6 +15,7 @@ use Allkiri\Crypto\SignatureAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampException;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
 use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureCompleter;
@@ -295,6 +296,8 @@ final class SigningService
             return $lta->extend($document, $signature, $resolver);
         } catch (TimestampException $e) {
             throw new SigningException('Could not obtain a valid archive timestamp: ' . $e->getMessage(), 0, $e);
+        } catch (TrustedListException $e) {
+            throw new SigningException('The trusted lists the archive timestamp is checked against could not be loaded: ' . $e->getMessage(), 0, $e);
         }
     }
 

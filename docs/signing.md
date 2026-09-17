@@ -231,6 +231,13 @@ it), then the timestamp, the certificate chain and the OCSP response.
 | Timestamps | `http://tsa.demo.sk.ee/tsa` | `http://tsa.sk.ee`, contract with SK |
 | Revocation | `http://demo.sk.ee/ocsp` and the AIA responders | the AIA responder each certificate names is free; `ocsp.sk.ee` needs a contract |
 
+A timestamp is used only when its authority is a timestamping service the
+trusted lists name, for a signature timestamp and an archive timestamp alike.
+The service is reached over plain HTTP, and a token from anyone else would
+give a signature every validator refuses, so signing stops with a
+`SigningException` instead. SK's production timestamping units are on the
+Estonian list.
+
 By default allkiri asks the first http(s) responder the certificate itself names
 in its Authority Information Access extension; an address at any other scheme is
 skipped. Override that per issuing CA when you have a contract endpoint:

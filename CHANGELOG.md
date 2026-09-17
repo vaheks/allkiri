@@ -60,6 +60,8 @@ All notable changes to this project are documented here. The format follows
   answer cannot be accepted on the verifier alone.
   `SmartIdSigner::poll()` and `complete()` take one too, and refuse a Web2App
   or App2App signature without it (#40).
+- `LtaExtender` takes a `ChainBuilder` as its second argument, to decide
+  whether an archive timestamp's authority is trusted (#47).
 - `SivaException`'s constructor takes the reason first:
   `new SivaException($reason, $message, $previous)` (#34).
 - The demo page's "Sign a file" section has a block for each means, as "Sign
@@ -97,6 +99,14 @@ All notable changes to this project are documented here. The format follows
   validating. Its answer now counts only if the service was in good standing
   when the answer was produced; otherwise the responder has to be one the
   certificate's CA delegated to (#46).
+- Signing refuses a timestamp whose authority is not a trusted timestamping
+  service. The token's signature and imprint were checked, but its authority
+  was not, and the timestamp service is reached over plain HTTP. Someone on the
+  way could have made an application record as finished a signature that
+  every validator refuses, with a time of their choosing. The signature
+  timestamp and archive timestamps are now held to the trust the validator
+  applies. An untrusted archive timestamp is reported with the new reason
+  `TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED` (#47).
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
   the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
   itself. The native application read the object as an empty nonce and showed

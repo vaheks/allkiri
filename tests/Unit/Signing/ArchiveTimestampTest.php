@@ -14,6 +14,7 @@ use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\Tsp\TimestampRequest;
 use Allkiri\Crypto\Tsp\TimestampResponse;
 use Allkiri\Crypto\Tsp\TimestampToken;
+use Allkiri\Crypto\Tsp\TimestampVerificationException;
 use Allkiri\Http\HttpRequest;
 use Allkiri\Signing\LocalKeySigner;
 use Allkiri\Signing\SignatureLevel;
@@ -24,6 +25,9 @@ use Allkiri\Tests\Support\Pki\TestKey;
 use Allkiri\Tests\Support\Pki\TestPki;
 use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
+use Allkiri\Trust\CompositeTrustStore;
+use Allkiri\Trust\InMemoryTrustStore;
+use Allkiri\Trust\ServiceType;
 use Allkiri\Validation\ContainerValidator;
 use Allkiri\Validation\FindingCodes;
 use Allkiri\Validation\Report\Indication;
@@ -214,6 +218,30 @@ final class ArchiveTimestampTest extends TestCase
         $this->expectExceptionMessageMatches('/extend to LT first/');
 
         $this->fixture->signingService->archive($bes->container);
+    }
+
+    /**
+     * An archive timestamp from an authority no list names protects nothing:
+     * the validator would refuse it. It is not written.
+     */
+    public function testAnArchiveTimestampFromAnUntrustedAuthorityIsRefused(): void
+    {
+        $lt = $this->signLt();
+        $untrusted = new CompositeTrustStore(
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc),
+            InMemoryTrustStore::fromCertificates([TestPki::ocspResponder()->certificate], ServiceType::OcspQc),
+        );
+
+        try {
+            $this->fixture->signingServiceTrusting($untrusted)->archive($lt->container);
+            self::fail('an archive timestamp from an untrusted authority was added');
+        } catch (SigningException $e) {
+            self::assertStringContainsString('archive timestamp authority "', $e->getMessage());
+            $previous = $e->getPrevious();
+            self::assertInstanceOf(TimestampVerificationException::class, $previous);
+            self::assertSame(TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED, $previous->reason);
+        }
+        self::assertSame(0, substr_count((string) $lt->container->signatureFile('META-INF/signatures0.xml')?->xml, 'ArchiveTimeStamp'));
     }
 
     public function testArchivingNeedsATimestampService(): void

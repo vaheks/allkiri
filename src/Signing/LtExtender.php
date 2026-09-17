@@ -130,6 +130,16 @@ final class LtExtender
         } catch (TimestampException $e) {
             throw new SigningException('Could not obtain a valid timestamp for the signature: ' . $e->getMessage(), 0, $e);
         }
+        // A well-formed token proves nothing unless its authority is trusted,
+        // and the timestamp service may be reached over plain HTTP. A token
+        // from anyone else would give a signature every validator refuses.
+        try {
+            $this->chainBuilder->build($result->tsaCertificate, $result->token->signedData()->certificates(), $result->genTime(), ServiceType::tsaTypes());
+        } catch (ChainBuildingException $e) {
+            throw new SigningException(\sprintf('The timestamp authority "%s" is not trusted: %s', $result->tsaCertificate->subjectDn(), $e->getMessage()), 0, $e);
+        } catch (TrustedListException $e) {
+            throw self::listsUnavailable($e);
+        }
 
         $dom = $document->document();
         $id = 'TS-' . $signature->getAttribute('Id');

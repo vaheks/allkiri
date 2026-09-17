@@ -94,7 +94,7 @@ final class SigningFixture
         return new SigningService(
             $this->clock,
             new LtExtender($this->tspClient, $this->ocspClient, new ChainBuilder($store), $store),
-            new LtaExtender($this->tspClient),
+            new LtaExtender($this->tspClient, new ChainBuilder($store)),
             builder: new SignatureBuilder($this->clock),
         );
     }

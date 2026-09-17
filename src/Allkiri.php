@@ -162,7 +162,7 @@ final class Allkiri
             $this->signingService = new SigningService(
                 $this->clock,
                 new LtExtender($this->tspClient(), $this->ocspClient(), $this->chainBuilder(), $this->trustStore()),
-                new LtaExtender($this->tspClient(), logger: $this->logger),
+                new LtaExtender($this->tspClient(), $this->chainBuilder(), logger: $this->logger),
                 logger: $this->logger,
                 preparedSignatureTtlSeconds: $this->preparedSignatureTtlSeconds,
             );

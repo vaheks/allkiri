@@ -537,6 +537,33 @@ final class SigningServiceTest extends TestCase
     }
 
     /**
+     * A timestamp whose authority no list names gives a signature every
+     * validator refuses, with whatever time that authority chose. Signing
+     * stops there, before revocation is asked about.
+     */
+    public function testATimestampFromAnUntrustedAuthorityIsRefused(): void
+    {
+        $fixture = new SigningFixture();
+        $fixture->tsa->genTimeOffsetSeconds = -300;
+        $untrusted = new CompositeTrustStore(
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc),
+            InMemoryTrustStore::fromCertificates([TestPki::ocspResponder()->certificate], ServiceType::OcspQc),
+        );
+
+        foreach ([SignatureLevel::T, SignatureLevel::LT] as $level) {
+            try {
+                $fixture->signingServiceTrusting($untrusted)->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()), new SigningOptions($level));
+                self::fail('a signature was finished with an untrusted timestamp at level ' . $level->value);
+            } catch (SigningException $e) {
+                self::assertStringContainsString('The timestamp authority "', $e->getMessage());
+                self::assertStringContainsString('is not trusted', $e->getMessage());
+            }
+        }
+        self::assertSame(2, $fixture->tsa->requests);
+        self::assertSame(0, $fixture->ocsp->requests, 'no revocation answer was asked for');
+    }
+
+    /**
      * The test CA and TSA, and this responder as a listed OCSP service,
      * granted since 2020 and withdrawn at the given time, if any.
      */
