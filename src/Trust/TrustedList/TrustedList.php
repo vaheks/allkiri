@@ -14,8 +14,11 @@ use Allkiri\Trust\TrustAnchor;
 final readonly class TrustedList
 {
     /**
-     * @param list<TrustAnchor>    $anchors
-     * @param list<TrustedListPointer> $pointers non-empty only for a list of trusted lists
+     * @param list<TrustAnchor>        $anchors
+     * @param list<TrustedListPointer> $pointers              non-empty only for a list of trusted lists
+     * @param list<string>             $schemeInformationUris the SchemeInformationURI values, in the list's
+     *                                                        own order; a list of lists names its Official
+     *                                                        Journal publications and pivot lists here
      */
     public function __construct(
         public string $territory,
@@ -25,6 +28,7 @@ final readonly class TrustedList
         public ?\DateTimeImmutable $nextUpdate,
         public array $anchors,
         public array $pointers = [],
+        public array $schemeInformationUris = [],
     ) {}
 
     /**

@@ -595,8 +595,31 @@ with a certificate the old set trusts. The Journal follows months later: pivot
 names certificates we don't ship, and when the Journal publication the list
 names differs from the one in `resources/trust/eu/README.md`.
 
-Following the pivots, as DSS does, would let a change of set pass without a
-release here. It is not done yet (#37).
+**Pivots are followed since September 2026 (#37).** The trust store works as
+the Commission's explanation describes and as DSS implements it:
+- it reads the list before trusting it, only to find the `.xml` entries in
+  `SchemeInformationURI` above the publication the shipped set comes from;
+- it verifies those pivots oldest first, each against the set the one before
+  gave, and takes the set each names for the list of lists;
+- it then verifies the list against the set reached.
+
+Nothing read before verification can widen trust: a pivot counts only when a
+certificate trusted so far signed it. Three choices follow DSS:
+- a pivot that cannot be fetched or verified is skipped, and the set stays;
+- when the shipped publication is no longer named, every listed pivot is
+  tried, with a warning that a release is due;
+- a newest pivot naming another address for the list is only reported,
+  because the Commission keeps the old address through a transition that a new
+  publication, and so a release, ends anyway.
+
+A known-answer check runs nightly: pivot 378, the newest listed below C/2026/1944,
+verifies against the shipped six and names exactly them.
+
+The limit is the reset. After a new publication, the Commission drops the old
+one and its pivots at the end of a transition of at least 15 days, so the
+shipped set still has to be refreshed within that time. Remembering the chain
+across the reset would make the cache a source of trust, which it is not
+allowed to be.
 
 ### A territory has two pointers, and the PDF may come first
 

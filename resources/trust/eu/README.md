@@ -57,16 +57,23 @@ certificate the old set already trusts. Any list after that may be signed with a
 new certificate. The Official Journal publishes the new set later; the last
 change had its pivot on 2026-01-21 and its publication on 2026-04-15.
 
+allkiri follows pivots from the publication these files come from, so the first
+step needs no release. The second does. After a new publication, the
+Commission keeps the old one and its pivots listed for a transition period of
+at least 15 days, then drops them, and the chain from these files is gone. So
+refresh them within those 15 days, and change `Environment::EU_OFFICIAL_JOURNAL_URL`
+together with the table above; a unit test holds the two together.
+
 `tests/Integration/ListOfListsLiveTest.php` watches the live list every night
 and fails:
 
 - when its entry for itself names certificates other than the ones here: the
-  change has begun;
+  change has begun, and the trust store follows it;
 - when it names a Journal publication other than the one in the table above,
   which the test reads from this file: the new set is published and these
   files can be refreshed;
-- when it is signed by a certificate not in this directory: production no
-  longer loads it.
+- when it is signed by a certificate neither in this directory nor introduced
+  by a pivot: production no longer loads it.
 
 To refresh: read the `SchemeInformationURI` values in the current list of lists,
 open the Journal publication they name, and replace these files with the

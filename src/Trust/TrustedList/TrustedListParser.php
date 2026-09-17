@@ -71,7 +71,15 @@ final class TrustedListParser
             }
         }
 
-        return new TrustedList($territory, $operator, $sequence, $issueDate, $nextUpdate, $anchors, $pointers);
+        $schemeInformationUris = [];
+        foreach (Xml::elements($xpath, 'tsl:SchemeInformationURI/tsl:URI', $info) as $uri) {
+            $value = trim($uri->textContent);
+            if ($value !== '') {
+                $schemeInformationUris[] = $value;
+            }
+        }
+
+        return new TrustedList($territory, $operator, $sequence, $issueDate, $nextUpdate, $anchors, $pointers, $schemeInformationUris);
     }
 
     /**

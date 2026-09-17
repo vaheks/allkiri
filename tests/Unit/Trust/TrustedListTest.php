@@ -87,6 +87,8 @@ final class TrustedListTest extends TestCase
         self::assertTrue($pointer->allows(self::signer()), 'the pointer names the certificate that signs EE_T.xml');
         self::assertNotNull($lotl->pointerTo('EE_T'));
         self::assertNull($lotl->pointerTo('LV'));
+        // Where a list of lists names its Official Journal publication and pivots.
+        self::assertSame(['https://open-eid.github.io/test-TL/'], $lotl->schemeInformationUris);
     }
 
     public function testTheAnchorsAreUsableForRealChainBuilding(): void

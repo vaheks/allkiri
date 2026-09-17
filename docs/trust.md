@@ -22,14 +22,41 @@ is kept rather than just the current value.
 
 `Environment::production()` takes its trust from the European list of trusted
 lists, which the European Commission publishes to point at every member state's
-list. allkiri accepts that list only when it is signed by one of the six
-certificates the Official Journal of the European Union publishes for it, and
-those six ship in `resources/trust/eu`. Each national list it points to,
+list. allkiri accepts that list only when it is signed by a certificate that
+chains back to the six the Official Journal of the European Union publishes for
+it, and those six ship in `resources/trust/eu`. Each national list it points to,
 Estonia's by default, is accepted only when it is signed by a certificate the
 list of lists names for that country.
 
-Those six certificates are therefore the whole trust decision, so check them
-against the Journal rather than against this library.
+The Commission changes the certificates that sign the list of lists without
+waiting for the Journal, through pivot lists, as its [pivot
+explanation](https://ec.europa.eu/tools/lotl/pivot-lotl-explanation.html)
+describes:
+- a pivot names the new set and is signed with a certificate the old set
+  trusts;
+- the list of lists names each pivot, newest first, above the Journal
+  publication they build on.
+
+allkiri follows them:
+- It verifies each pivot newer than the publication its six come from
+  (`Environment::EU_OFFICIAL_JOURNAL_URL`), oldest first, against the set the
+  one before gave, and verifies the list against the set that results. So a
+  change of set needs no new release of allkiri.
+- A pivot that cannot be fetched or does not verify is skipped with a warning,
+  and adds nothing.
+- A newest pivot that moves the list to another address is only reported.
+- Pivots are cached for 30 days, since they never change.
+
+One change still needs a release. When the Commission publishes a new set in the
+Journal, it keeps the old publication and its pivots listed for a transition
+period of at least 15 days, then drops them. From then on the chain from the
+shipped six is gone. allkiri then warns, tries every pivot still listed, and
+works only if one of them was signed with a certificate it already trusts. The
+nightly `ListOfListsLiveTest` fails on the first day of that period, which is
+the time to refresh `resources/trust/eu`.
+
+Those six certificates are therefore the root of the trust decision, so check
+them against the Journal rather than against this library.
 [resources/trust/eu/README.md](../resources/trust/eu/README.md) names the
 publication, gives the SHA-256 of each file, and shows the command that
 computes it.

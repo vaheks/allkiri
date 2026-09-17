@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Production trust follows the pivot lists by which the Commission changes the
+  certificates that sign the EU list of trusted lists. The shipped certificates
+  come from Official Journal publication C/2026/1944
+  (`Environment::EU_OFFICIAL_JOURNAL_URL`, `ListOfListsSource::$officialJournalUrl`).
+  Each pivot newer than that publication is verified, oldest first, against the
+  set before it, and the list is verified against the set that results. A new
+  set of signing certificates therefore needs no release until the Commission
+  publishes it in the Journal and ends the transition that follows. A pivot
+  that cannot be fetched or verified is skipped with a warning. `TrustedList`
+  keeps its `SchemeInformationURI` values (#37).
 - The demo application puts several files in one container: the upload field
   takes any number of files and they are signed together. A second file of
   the same name is refused (#33).

@@ -21,9 +21,10 @@ use Psr\Log\LoggerInterface;
  * signing certificate without this library needing a release.
  *
  * Each step verifies the next. The list of lists is verified against the
- * shipped certificates, and a territory's list only against the certificates
- * the verified list of lists named for it. A list whose signature does not
- * verify is refused rather than used.
+ * shipped certificates, or those the pivot lists introduced since, and a
+ * territory's list only against the certificates the verified list of lists
+ * named for it. A list whose signature does not verify is refused rather than
+ * used.
  */
 final class ListOfListsTrustStore implements TrustStore
 {
@@ -51,7 +52,7 @@ final class ListOfListsTrustStore implements TrustStore
             return;
         }
 
-        $listOfListsSource = $this->source->toSource();
+        $listOfListsSource = $this->source->toSource($this->currentSigners());
         $listOfLists = $this->loader->load($listOfListsSource);
         // Anchors reached through the list of lists rest on it being current too.
         $listOfListsStatus = TrustedListStatus::of($listOfLists, $listOfListsSource->label());
@@ -94,6 +95,87 @@ final class ListOfListsTrustStore implements TrustStore
     public function anchors(?array $types = null): array
     {
         return $this->store()->anchors($types);
+    }
+
+    /**
+     * The certificates that may sign the list of lists now.
+     *
+     * The shipped ones come from an Official Journal publication. The
+     * Commission changes them by publishing a pivot list, whose entry for the
+     * list of lists names the new set and which is signed with a certificate
+     * the set before trusted, and names each pivot, newest first, above that
+     * publication in the list's SchemeInformationURI. Following the pivots
+     * newer than the shipped publication, oldest first, each verified against
+     * the set the one before gave, ends at the current set. That is the
+     * procedure the Commission describes, and the one DSS follows.
+     *
+     * The list is read for this before it is trusted, and nothing in it can
+     * widen trust: a pivot counts only when a certificate trusted so far signed
+     * it, and the list itself is then verified against the set reached. A pivot
+     * that cannot be fetched or verified is skipped, as DSS skips it, and the
+     * set stays as it was.
+     *
+     *
+     * @throws TrustedListException when the list of lists cannot be fetched or parsed
+     * @return list<\Allkiri\Crypto\Certificate>
+     */
+    private function currentSigners(): array
+    {
+        $signers = $this->source->allowedSigners;
+        $journal = $this->source->officialJournalUrl;
+        if ($journal === null) {
+            return $signers;
+        }
+
+        $unverified = $this->loader->read($this->source->toSource());
+        $pivots = [];
+        $journalNamed = false;
+        foreach ($unverified->schemeInformationUris as $uri) {
+            if ($uri === $journal) {
+                $journalNamed = true;
+                break;
+            }
+            if (str_ends_with($uri, '.xml')) {
+                $pivots[] = $uri;
+            }
+        }
+        if (!$journalNamed) {
+            // After a new publication the Commission leaves the old one listed
+            // for a transition period, then drops it with the pivots before it.
+            $this->logger?->warning('The list of trusted lists no longer names {journal}, the Official Journal publication the shipped certificates come from; a release with the new publication is due. Every pivot list it names is tried instead.', [
+                'journal' => $journal,
+            ]);
+        }
+
+        $location = null;
+        foreach (array_reverse($pivots) as $url) {
+            try {
+                $pivot = $this->loader->load($this->source->pivotSource($url, $signers));
+            } catch (TrustedListException $exception) {
+                $this->logger?->warning('Skipped the pivot list {pivot}: {reason}', ['pivot' => $url, 'reason' => $exception->getMessage()]);
+                continue;
+            }
+            $pointer = $pivot->pointerTo($pivot->territory);
+            if ($pointer === null || $pointer->signingCertificates === []) {
+                $this->logger?->warning('Skipped the pivot list {pivot}: it names no certificates for the list of lists', ['pivot' => $url]);
+                continue;
+            }
+            $signers = $pointer->signingCertificates;
+            $location = $pointer->location;
+            $this->logger?->info('Followed the pivot list {pivot}: {certificates} certificates may sign the list of lists', [
+                'pivot' => $url,
+                'certificates' => \count($signers),
+            ]);
+        }
+
+        if ($location !== null && $location !== $this->source->url) {
+            $this->logger?->warning('The newest pivot list places the list of trusted lists at {location}, but it is read from {configured}; the Commission keeps the old address for a transition period only', [
+                'location' => $location,
+                'configured' => $this->source->url,
+            ]);
+        }
+
+        return $signers;
     }
 
     public function findAnchor(\Allkiri\Crypto\Certificate $certificate): ?TrustAnchor

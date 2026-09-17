@@ -53,17 +53,22 @@ final class ListOfListsLiveTest extends IntegrationTestCase
     }
 
     /**
-     * The warning before the one above. The list of lists points to itself too,
-     * and that entry names the certificates allowed to sign it. When the
-     * Commission changes them, it first publishes a "pivot": a list whose entry
-     * names the new set, signed with a certificate the old set already trusts.
-     * The Official Journal follows later; the last change was a pivot on
-     * 2026-01-21 and a publication on 2026-04-15. From the pivot on, any list
-     * may be signed with a certificate we do not ship.
+     * The list of lists points to itself too, and that entry names the
+     * certificates allowed to sign it. When the Commission changes them, it
+     * first publishes a "pivot": a list whose entry names the new set, signed
+     * with a certificate the old set already trusts. The Official Journal
+     * follows later; the last change was a pivot on 2026-01-21 and a
+     * publication on 2026-04-15.
+     *
+     * The trust store follows pivots, so production keeps working. But after a
+     * new publication the Commission drops the chain that leads from ours, so
+     * this is the first sign that a refresh is coming due. The list is only
+     * read here, not verified: after a pivot it may be signed by a certificate
+     * we do not ship, and the production test verifies the real chain.
      */
     public function testTheListOfListsStillNamesTheCertificatesWeShip(): void
     {
-        $list = $this->loader()->load(Environment::euListOfLists()->toSource());
+        $list = $this->loader()->read(Environment::euListOfLists()->toSource());
         $pointer = $list->pointerTo('EU');
         self::assertNotNull($pointer, 'the list of lists no longer points to itself');
 
@@ -74,7 +79,8 @@ final class ListOfListsLiveTest extends IntegrationTestCase
 
         self::assertTrue($added === [] && $dropped === [], \sprintf(
             'List of lists %d names a different set of certificates that may sign it. New: %s. No longer named: %s. '
-            . 'The Commission is changing its signing certificates, and a list signed with a new one will not load. '
+            . 'The Commission is changing its signing certificates. The trust store follows the pivot list that says so, '
+            . 'but the chain from our publication is dropped at the end of the transition that follows the next one. '
             . 'Refresh resources/trust/eu as its README describes once the Official Journal publishes the new set; '
             . 'testTheListOfListsStillNamesTheJournalPublicationWeShip fails when it has.',
             $list->sequenceNumber,
@@ -119,6 +125,42 @@ final class ListOfListsLiveTest extends IntegrationTestCase
             $named ?? 'no Official Journal publication',
             $shipped[1],
         ));
+    }
+
+    /**
+     * The pivot lists the Commission archived are real lists of lists. The
+     * newest one listed below our publication introduced the set we ship, so
+     * it verifies against that set and names exactly it: the trust store's
+     * way of following pivots, checked against the real thing.
+     */
+    public function testTheNewestPivotBeforeOurPublicationNamesTheCertificatesWeShip(): void
+    {
+        $source = Environment::euListOfLists();
+        $list = $this->loader()->load($source->toSource());
+
+        $pivot = null;
+        $below = false;
+        foreach ($list->schemeInformationUris as $uri) {
+            if ($uri === $source->officialJournalUrl) {
+                $below = true;
+            } elseif ($below && str_ends_with($uri, '.xml')) {
+                $pivot = $uri;
+                break;
+            }
+        }
+        if ($pivot === null) {
+            self::markTestSkipped('The list of lists names no pivot below our publication; the Commission has reset the chain');
+        }
+
+        $pointer = $this->loader()->load($source->pivotSource($pivot, $source->allowedSigners))->pointerTo('EU');
+
+        self::assertNotNull($pointer, $pivot . ' does not point to the list of lists');
+        self::assertSame(ListOfListsSource::EU_URL, $pointer->location);
+        $named = self::byFingerprint($pointer->signingCertificates);
+        $shipped = self::byFingerprint($source->allowedSigners);
+        ksort($named);
+        ksort($shipped);
+        self::assertSame($shipped, $named, $pivot . ' names another set than the one we ship');
     }
 
     /**

@@ -21,6 +21,15 @@ use Psr\SimpleCache\InvalidArgumentException as CacheInvalidArgumentException;
  */
 final class TrustedListLoader
 {
+    /**
+     * Lists fetched by read() and not yet verified, by URL, so that the load()
+     * which follows does not download them again. Never cached: the cache holds
+     * verified lists only.
+     *
+     * @var array<string, string>
+     */
+    private array $unverified = [];
+
     public function __construct(
         private readonly HttpClient $http,
         private readonly ?CacheInterface $cache = null,
@@ -36,7 +45,9 @@ final class TrustedListLoader
     public function load(TrustedListSource $source): TrustedList
     {
         $cached = $this->cached($source);
-        $xml = $cached ?? $this->fetch($source);
+        $unverified = $this->unverified[$source->url] ?? null;
+        unset($this->unverified[$source->url]);
+        $xml = $cached ?? $unverified ?? $this->fetch($source);
         $this->verifier->verify($xml, $source->allowedSigners);
         $list = $this->parser->parse($xml, $source->label());
         // Stored when fetched, not again on every hit. Storing it again would
@@ -55,6 +66,25 @@ final class TrustedListLoader
         }
 
         return $list;
+    }
+
+    /**
+     * What a list says, without verifying who signed it.
+     *
+     * Nothing read here may be trusted. It exists for the one question that
+     * has to be asked before the signers are known: which pivot lists a list of
+     * lists names, each of which is then verified in turn. Load the list
+     * afterwards to use it; the download is not repeated.
+     *
+     * @internal
+     *
+     * @throws TrustedListException when the list cannot be fetched or parsed
+     */
+    public function read(TrustedListSource $source): TrustedList
+    {
+        $xml = $this->cached($source) ?? ($this->unverified[$source->url] ??= $this->fetch($source));
+
+        return $this->parser->parse($xml, $source->label());
     }
 
     /**

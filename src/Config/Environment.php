@@ -18,12 +18,21 @@ use Allkiri\Trust\TrustedList\TrustedListSource;
  * Which services to talk to and which trust anchors to believe.
  *
  * {@see demo()} is ready to use: the endpoints are free and the anchors are
- * SK's and Zetes' published test PKIs. {@see production()} needs the trusted
- * list's signing certificates pinned before it will load anything, because
- * that pin is the whole trust decision.
+ * SK's and Zetes' published test PKIs. {@see production()} takes its anchors
+ * from the European list of trusted lists, verified against the certificates
+ * the Official Journal publishes, which ship with the library because they are
+ * the whole trust decision.
  */
 final readonly class Environment
 {
+    /**
+     * The Official Journal publication the certificates in resources/trust/eu
+     * come from, as the list of lists names it. Pivot lists newer than it are
+     * followed. It moves with those certificates, as that directory's README
+     * describes.
+     */
+    public const EU_OFFICIAL_JOURNAL_URL = 'https://eur-lex.europa.eu/eli/C/2026/1944/oj';
+
     /**
      * @param array<string, string>   $ocspUrlOverrides issuer subject DN => responder URL, for contract endpoints and certificates without AIA
      * @param list<TrustedListSource> $trustedListSources
@@ -111,7 +120,7 @@ final readonly class Environment
             $signers[] = self::certificate(\sprintf('eu/lotl-signer-%d.pem', $i));
         }
 
-        return new ListOfListsSource(ListOfListsSource::EU_URL, $signers, $territories);
+        return new ListOfListsSource(ListOfListsSource::EU_URL, $signers, $territories, officialJournalUrl: self::EU_OFFICIAL_JOURNAL_URL);
     }
 
     /**
