@@ -72,6 +72,51 @@ The HTTP client must be willing to wait longer than a single poll.
 `Allkiri::mobileIdClient()` takes care of that; if you build `MobileIdClient`
 yourself, size your client with `$configuration->httpTimeoutSeconds()`.
 
+### Pinning SK's TLS key
+
+allkiri does not pin. It checks the service's certificate against the
+certificate authorities your system trusts, as for any HTTPS request. SK's
+[Mobile-ID documentation](https://github.com/SK-EID/MID) asks relying parties to
+pin the service's certificate as well, and publishes it among [its
+certificates](https://www.skidsolutions.eu/resources/certificates/). If your
+contract requires it, give a pinned HTTP client to the Mobile-ID client only,
+and build the authenticator and the signer on that client:
+
+```php
+use Allkiri\Http\CurlHttpClient;
+use Allkiri\MobileId\MobileIdAuthenticator;
+use Allkiri\MobileId\MobileIdClient;
+use Allkiri\MobileId\MobileIdSigner;
+
+$http = new CurlHttpClient(
+    $configuration->httpTimeoutSeconds(),
+    pinnedPublicKeys: explode(' ', $_ENV['MID_TLS_PINS']),
+);
+$client = new MobileIdClient($configuration, $http);
+$authenticator = new MobileIdAuthenticator($client, $allkiri->chainBuilder());
+$signer = new MobileIdSigner($client, $allkiri->signingService());
+```
+
+Do not pass a pinned client to `new Allkiri(...)`. That client also fetches the
+trusted lists and talks to SiVa, and a pin for SK's host refuses every other
+host, so production trust fails to load with `TRUSTED_LIST_TRANSPORT`.
+
+A pin is the base64 SHA-256 of the key, with or without the `sha256//` prefix.
+Compute it from the certificate SK publishes:
+
+```bash
+openssl x509 -in mid.crt -pubkey -noout \
+  | openssl pkey -pubin -outform der \
+  | openssl dgst -sha256 -binary | openssl enc -base64
+```
+
+SK replaces the certificate when it expires, usually with a new key, and
+announces it on its [news page](https://www.skidsolutions.eu/news/) a few weeks
+ahead. A pin that is not updated in time stops every Mobile-ID request with
+`MobileIdApiException` and curl's "public key does not match pinned public
+key". So keep the pins in configuration, list the old and the new one together
+until the switch, and remove the old one afterwards.
+
 ## Authenticating
 
 ```php

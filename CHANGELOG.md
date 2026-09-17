@@ -17,6 +17,10 @@ All notable changes to this project are documented here. The format follows
   challenge page, which RIA's SiVa now sometimes sends a server, is recognised
   by its `cf-mitigated` header and reported as `SIVA_CHALLENGED` without the
   page's HTML (#34).
+- `docs/mobile-id.md` and `docs/smart-id.md` say how to pin SK's TLS key when
+  a contract requires it. The pinned client goes to the Mobile-ID or Smart-ID
+  client only, because on `Allkiri` it would also refuse the trusted lists and
+  SiVa. The pins have to follow SK's certificate changes (#39).
 
 ### Changed
 
