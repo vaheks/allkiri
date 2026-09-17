@@ -93,6 +93,12 @@ Official Journal publication other than the one in
 it is signed by a certificate this library does not ship, which means
 production trust no longer loads. The README says how to refresh.
 
+`BundledCertificatesTest` fails when a certificate under `resources/trust`
+expires within 90 days, and says where its replacement comes from. Nothing in
+the library checks those dates, because a trusted list is accepted when its
+signer matches one of them byte for byte. It is an integration test only
+because its outcome depends on the day it runs.
+
 ### The test signing key and the demo OCSP service
 
 `tests/fixtures/pki/signer-rsa.cert.pem` has been uploaded at
