@@ -217,6 +217,33 @@ if ($path === '/' || $path === '/index.php') {
     exit;
 }
 
+// Where the Smart-ID app sends the person back after signing in on the same
+// phone. The app opens it as a plain link, so it is a GET with no token. What
+// it proves instead, the random value tied to this browser's session and the
+// digest of the session secret, is checked in App::smartIdCallback().
+if ($path === '/smart-id/callback') {
+    if ($method !== 'GET') {
+        header('Allow: GET');
+        http_response_code(405);
+        exit;
+    }
+    // The URL carries what proves the sign-in; nothing on this page may pass
+    // it on, and nothing may keep a copy.
+    header('Referrer-Policy: no-referrer');
+    header('Cache-Control: no-store');
+    try {
+        $signedIn = $app->smartIdCallback($_GET);
+        $problem = null;
+    } catch (Throwable $error) {
+        $signedIn = null;
+        $problem = $error->getMessage();
+        http_response_code(400);
+    }
+    header('Content-Type: text/html; charset=utf-8');
+    require __DIR__ . '/../views/callback.php';
+    exit;
+}
+
 // Reading the finished container is the one call that changes nothing, and the
 // only GET. A browser follows it as a link, so it carries no token.
 if ($path === '/api/download') {
@@ -246,9 +273,10 @@ $endpoints = [
     '/api/mobile-id/login/poll' => static fn(): array => $app->mobileIdLoginPoll(),
     '/api/smart-id/login/start' => static fn(): array => $app->smartIdLoginStart(body()),
     '/api/smart-id/login/poll' => static fn(): array => $app->smartIdLoginPoll(),
-    '/api/smart-id/login/qr/start' => static fn(): array => $app->smartIdQrLoginStart(),
+    '/api/smart-id/login/qr/start' => static fn(): array => $app->smartIdQrLoginStart(body()),
     '/api/smart-id/login/qr/link' => static fn(): array => $app->smartIdQrLink(),
     '/api/smart-id/login/qr/poll' => static fn(): array => $app->smartIdQrLoginPoll(),
+    '/api/smart-id/login/qr/state' => static fn(): array => $app->smartIdQrLoginState(),
 
     // Signing a file
     '/api/upload' => static fn(): array => $app->upload(uploads('files')),

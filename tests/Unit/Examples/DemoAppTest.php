@@ -145,6 +145,7 @@ final class DemoAppTest extends TestCase
 
         self::assertStringContainsString('id="sid-login"', $page['body'], 'by identity code');
         self::assertStringContainsString('id="sid-qr-login"', $page['body'], 'by QR code');
+        self::assertStringContainsString('id="sid-app-login"', $page['body'], 'by the app on the same phone');
         self::assertStringContainsString('<script src="/allkiri-qr.js"></script>', $page['body'], 'the encoder the QR code needs');
         self::assertStringContainsString("linkUrl: '/api/smart-id/login/qr/link'", $page['body']);
     }
@@ -168,6 +169,33 @@ final class DemoAppTest extends TestCase
         $poll = self::request('POST', '/api/smart-id/login/qr/poll', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
         self::assertSame(400, $poll['status'], $poll['body']);
         self::assertStringContainsString('No QR sign-in is in progress', $poll['body']);
+    }
+
+    /**
+     * The Smart-ID app opens the callback as a plain link, so it carries no
+     * token. What it proves instead is checked against the sign-in this browser
+     * started, and a browser that started none gets nothing, whatever the URL
+     * says.
+     */
+    public function testACallbackWithoutASignInInThisBrowserSignsNobodyIn(): void
+    {
+        $page = self::openPage();
+
+        $callback = self::request('GET', '/smart-id/callback?value=RrKjjT4aggzu27YBddX1bQ&sessionSecretDigest=U4CKK13H1XFiyBofev9asqrzIrY5_Gszi_nL_zDKkBc&userChallengeVerifier=XtPfaGa8JnGtYrJjboooUf0KfY9sMEHrWFpSQrsUv9c', ['Cookie' => $page['cookie']]);
+
+        self::assertSame(400, $callback['status'], $callback['body']);
+        self::assertSame(['text/html; charset=utf-8'], $callback['headers']['content-type'] ?? []);
+        self::assertStringContainsString('Not signed in', $callback['body']);
+        self::assertStringContainsString('No Smart-ID sign-in is waiting in this browser', $callback['body']);
+        self::assertStringContainsString('start again from your default browser', $callback['body']);
+        // The URL carries what proves a sign-in; the page passes it nowhere.
+        self::assertSame(['no-referrer'], $callback['headers']['referrer-policy'] ?? []);
+        self::assertSame(['no-store'], $callback['headers']['cache-control'] ?? []);
+        self::assertSame(405, self::request('POST', '/smart-id/callback', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']])['status']);
+
+        $state = self::request('POST', '/api/smart-id/login/qr/state', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
+        self::assertSame(400, $state['status'], $state['body']);
+        self::assertStringContainsString('No Smart-ID sign-in is in progress', $state['body']);
     }
 
     /**

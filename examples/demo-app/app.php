@@ -36,8 +36,11 @@ use Allkiri\MobileId\MobileIdSessionException;
 use Allkiri\MobileId\MobileIdSessionStatus;
 use Allkiri\MobileId\MobileIdSigningSession;
 use Allkiri\SmartId\CertificateLevel;
+use Allkiri\SmartId\DeviceLink;
+use Allkiri\SmartId\FlowType;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
+use Allkiri\SmartId\SmartIdCallback;
 use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdSession;
 use Allkiri\SmartId\SmartIdSessionStatus;
@@ -200,29 +203,54 @@ final class App
     }
 
     /**
-     * Start a Smart-ID sign-in that anyone can answer by scanning a QR code.
+     * Start a Smart-ID sign-in that names nobody: the person is whoever answers,
+     * and who they are comes back in the certificate. There is no verification
+     * code to show, because the code or the link on this page is what ties the
+     * request to it.
      *
-     * Nobody is named: the person is whoever scans the code, and who they are
-     * comes back in the certificate. There is no verification code to show,
-     * because the code on this page is what ties the request to it.
+     * On a computer the page draws a QR code for a phone to scan. On a phone it
+     * asks for the same session with a callback URL, and opens the Smart-ID app
+     * on that phone with a Web2App link; the app sends the person back to
+     * smartIdCallback(). The QR code works for such a session too, as SK wants
+     * one session to serve both.
      *
      * It is kept apart from the sign-in by identity code, so either can run
      * while the other does, as Mobile-ID's can.
      *
+     * @param array<string, mixed> $request
+     *
      * @return array<string, mixed>
      */
-    public function smartIdQrLoginStart(): array
+    public function smartIdQrLoginStart(array $request): array
     {
+        $sameDevice = ($request['sameDevice'] ?? false) === true;
+        $callbackUrl = $sameDevice
+            // A random value in the URL, kept with the session in this browser's
+            // own session, is what ties the returning browser to this one.
+            ? SmartIdCallback::initialUrl($this->config->webEid->origin . '/smart-id/callback')
+            : null;
+
         $session = $this->allkiri->smartIdAuthenticator($this->config->smartId)->startAnonymous(
             self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
+            initialCallbackUrl: $callbackUrl,
         );
         // The session secret is in here, and it stays on the server: whoever
         // holds it can make links the app accepts.
         $_SESSION['smart-id-qr'] = json_encode($session, JSON_THROW_ON_ERROR);
+        unset($_SESSION['smart-id-qr-result']);
         $this->forgetFinished('smart-id-qr');
-        $this->audit('authentication started', ['mean' => 'smart-id-qr', 'session' => $session->sessionId]);
+        $this->audit('authentication started', ['mean' => $sameDevice ? 'smart-id-app' : 'smart-id-qr', 'session' => $session->sessionId]);
 
-        return ['started' => true];
+        if ($session->sessionSecret === null) {
+            throw new \RuntimeException('Smart-ID started a device-link session without a secret');
+        }
+
+        // A Web2App link is built once and is not secret: its authentication
+        // code proves the link, and the secret behind it stays here.
+        return ['started' => true] + ($sameDevice ? [
+            'link' => $session->deviceLink($this->config->smartId->scheme, $this->config->smartId->relyingPartyNameBase64(), DeviceLink::TYPE_WEB2APP)
+                ->url($session->sessionSecret),
+        ] : []);
     }
 
     /**
@@ -279,7 +307,10 @@ final class App
             function (string $stored) use ($timeoutMs): ?SmartIdSessionStatus {
                 $status = $this->allkiri->smartIdClient($this->config->smartId)->sessionStatus(SmartIdSession::fromJson($stored)->sessionId, $timeoutMs);
 
-                return $status->isRunning() ? null : $status;
+                // An answer from the app on the same phone is finished by the
+                // callback it opens, which carries what proves it. Finished here
+                // it would be refused for want of one, and the session gone.
+                return $status->isRunning() || self::isSameDevice($status) ? null : $status;
             },
             function (string $stored, SmartIdSessionStatus $status): array {
                 $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->complete(SmartIdSession::fromJson($stored), $status);
@@ -287,6 +318,97 @@ final class App
                 return ['done' => true] + $this->signedIn($identity);
             },
         );
+    }
+
+    /**
+     * Where the page the person started on learns how an app sign-in ended.
+     *
+     * The app returns in a new tab, and that tab finishes the sign-in. This one
+     * only reads what it left, and never asks SK, so it answers at once: a call
+     * still on its way when the new tab replaces the session id is refused, and
+     * the shorter the call, the less often that happens.
+     *
+     * @return array<string, mixed>
+     */
+    public function smartIdQrLoginState(): array
+    {
+        $result = $_SESSION['smart-id-qr-result'] ?? null;
+        if (\is_array($result)) {
+            $answer = [];
+            foreach ($result as $name => $value) {
+                $answer[(string) $name] = $value;
+            }
+            if (\is_string($answer['error'] ?? null)) {
+                throw new \RuntimeException($answer['error']);
+            }
+
+            return $answer;
+        }
+        if (!\is_string($_SESSION['smart-id-qr'] ?? null)) {
+            throw new \RuntimeException('No Smart-ID sign-in is in progress');
+        }
+
+        return ['done' => false];
+    }
+
+    /**
+     * The page the Smart-ID app opens when the person is done on the same
+     * phone, with what SK's callback URL rules ask to be checked.
+     *
+     * The session comes from this browser's own session, never from the URL,
+     * which is what ties the returning browser to the one that started. It is
+     * forgotten whatever happens next, so a callback works once.
+     *
+     * @param array<mixed> $query the callback's query, as the app opened it
+     *
+     * @return array{name: string, identity: string}
+     */
+    public function smartIdCallback(array $query): array
+    {
+        $stored = $_SESSION['smart-id-qr'] ?? null;
+        unset($_SESSION['smart-id-qr']);
+        if (!\is_string($stored)) {
+            throw new \RuntimeException(
+                'No Smart-ID sign-in is waiting in this browser. If the Smart-ID app opened a different browser than the one you started in, '
+                . 'which happens from an app\'s built-in browser, from a browser that is not your default one, and in private mode, '
+                . 'start again from your default browser.',
+            );
+        }
+
+        try {
+            $session = SmartIdSession::fromJson($stored);
+            $callback = SmartIdCallback::fromQuery($query);
+            // Before SK is asked anything: a link that is not this session's
+            // own proves nothing.
+            $session->verifyCallback($callback);
+
+            // SK may not have the answer ready the moment the app returns.
+            $client = $this->allkiri->smartIdClient($this->config->smartId);
+            $status = $client->sessionStatus($session->sessionId);
+            for ($attempt = 1; $status->isRunning() && $attempt < 3; ++$attempt) {
+                $status = $client->sessionStatus($session->sessionId);
+            }
+
+            $identity = $this->allkiri->smartIdAuthenticator($this->config->smartId)->complete($session, $status, $callback);
+        } catch (\Throwable $error) {
+            $_SESSION['smart-id-qr-result'] = ['error' => $error->getMessage()];
+            $this->audit('authentication refused', ['mean' => 'smart-id-app', 'reason' => $error->getMessage()]);
+
+            throw $error;
+        }
+
+        $answer = ['done' => true] + $this->signedIn($identity);
+        // For the tab the person started on, in the session as it now is: its
+        // state check reads the first, and a QR poll still running the second.
+        $_SESSION['smart-id-qr-result'] = $answer;
+        $this->rememberFinished('smart-id-qr', $answer);
+
+        return ['name' => $identity->fullName(), 'identity' => $identity->semanticsIdentifier()];
+    }
+
+    private static function isSameDevice(SmartIdSessionStatus $status): bool
+    {
+        return $status->flowType === FlowType::Web2App || $status->flowType === FlowType::App2App;
     }
 
     // --- signing a file -----------------------------------------------------

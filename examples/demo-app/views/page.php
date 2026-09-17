@@ -89,11 +89,15 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <div class="status" id="sid-login-status"></div>
 </section>
 
-<section>
-  <strong>Smart-ID with a QR code</strong>
-  <p class="note">No identity code: scan the code with the Smart-ID app on your phone<?= $live ? '' : ' (the Smart-ID demo app, with a demo account)' ?>. The code changes every second.</p>
+<?php $demoApp = $live ? '' : ' (the Smart-ID demo app, with a demo account)'; ?>
+<section id="sid-device">
+  <strong>Smart-ID without an identity code</strong>
+  <p class="note" data-device="computer">Scan the code with the Smart-ID app on your phone<?= $demoApp ?>. The code changes every second.</p>
+  <p class="note" data-device="phone" hidden>Opens the Smart-ID app on this phone<?= $demoApp ?>, which brings you back in a new tab. To use Smart-ID on another device, show a QR code instead.</p>
+  <button id="sid-app-login" hidden>Open the Smart-ID app</button>
   <button id="sid-qr-login">Show a QR code</button>
   <button id="sid-qr-stop" hidden>Stop</button>
+  <p id="sid-app-again" hidden><a id="sid-app-link" href="#">Open the Smart-ID app</a> if it did not open by itself.</p>
   <div id="qr"></div>
   <div class="status" id="sid-qr-status"></div>
 </section>
@@ -238,57 +242,137 @@ Each signature covers all the files and is added to the same container. Signing 
       .catch(failed('sid-login-status'));
   };
 
-  // The server starts a session nobody is named in, then mints a fresh link
-  // for the code every second; the page never sees the secret that signs them.
-  // A new code or Stop ends the attempt on the page, and the attempt it ended
-  // still settles a moment later, as cancelled. Only the latest attempt writes
-  // to the block.
-  var qrRun = null;
-  var qrAttempt = 0;
-
-  function qrClear() {
-    qrRun = null;
-    $('qr').innerHTML = '';
-    $('sid-qr-stop').hidden = true;
+  // --- Smart-ID without an identity code ----------------------------------
+  //
+  // SK's guidance: on a phone or a tablet, open the Smart-ID app on the same
+  // device first and offer a QR code for another device second; on a computer,
+  // the QR code alone. ?device=phone or ?device=computer overrides the guess.
+  //
+  // Either way the server starts a session that names nobody and keeps its
+  // secret. For a QR code it mints a fresh link every second. For the app it
+  // starts the session with a callback URL and hands over one link, and the
+  // app brings the person back to /smart-id/callback in a new tab, which
+  // finishes the sign-in. This tab then only watches for the result. One
+  // session serves both, so a QR code shown after the app keeps it.
+  //
+  // A new attempt, or Stop, ends the one before on the page, and the one it
+  // ended still settles a moment later, as cancelled. Only the latest attempt
+  // writes to the block.
+  var forcedDevice = /[?&]device=(phone|computer)(&|$)/.exec(window.location.search);
+  var onPhone = forcedDevice ? forcedDevice[1] === 'phone' : !!(
+    (navigator.userAgentData && navigator.userAgentData.mobile)
+    || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+  document.querySelectorAll('#sid-device [data-device]').forEach(function (el) {
+    el.hidden = el.getAttribute('data-device') !== (onPhone ? 'phone' : 'computer');
+  });
+  if (onPhone) {
+    $('sid-app-login').hidden = false;
+    $('sid-qr-login').textContent = 'Show a QR code for another device';
   }
 
-  $('sid-qr-login').onclick = function () {
-    if (qrRun) { qrRun.stop(); }
-    var attempt = ++qrAttempt;
-    var current = function () { return attempt === qrAttempt; };
-    qrClear();
-    say('sid-qr-status', 'Starting…');
+  var device = { attempt: 0, active: false, appLink: null, qr: null, wait: null };
 
-    allkiri.post('/api/smart-id/login/qr/start')
-      .then(function () {
-        if (!current()) { return null; }
-        say('sid-qr-status', 'Scan the code with the Smart-ID app, then enter PIN 1.');
-        qrRun = allkiri.deviceLinkQr({
-          linkUrl: '/api/smart-id/login/qr/link',
-          pollUrl: '/api/smart-id/login/qr/poll',
-          element: $('qr'),
-          size: 240,
-          onError: function (error) { if (current()) { failed('sid-qr-status')(error); } }
-        });
-        $('sid-qr-stop').hidden = false;
-        return qrRun.promise;
-      })
-      .then(function (user) {
-        if (!current() || !user) { return; }
-        qrClear();
-        say('sid-qr-status', 'Signed in as ' + user.name + ' (' + user.identity + ')');
-      }, function (error) {
+  function deviceClear() {
+    if (device.qr) { device.qr.stop(); device.qr = null; }
+    if (device.wait) { device.wait.abort(); device.wait = null; }
+    $('qr').innerHTML = '';
+    $('sid-qr-stop').hidden = true;
+    $('sid-app-again').hidden = true;
+  }
+
+  // Returns whether the attempt it starts is still the latest.
+  function deviceBegin() {
+    var attempt = ++device.attempt;
+    deviceClear();
+    device.active = true;
+    return function () { return attempt === device.attempt; };
+  }
+
+  function deviceEnd() {
+    device.active = false;
+    device.appLink = null;
+    deviceClear();
+  }
+
+  function deviceSignedIn(current, elsewhere) {
+    return function (user) {
+      if (!current() || !user) { return; }
+      deviceEnd();
+      say('sid-qr-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'
+        + (elsewhere ? ', in the tab the Smart-ID app opened.' : ''));
+    };
+  }
+
+  // Before giving up, ask how the sign-in ended: the tab the app opened may
+  // have finished it. Signing in there replaces the session id, and a call
+  // this tab sent just before is refused for it, although nothing failed.
+  function deviceFailed(current) {
+    return function (error) {
+      if (!current()) { return; }
+      var fail = function () {
         if (!current()) { return; }
-        qrClear();
+        deviceEnd();
         failed('sid-qr-status')(error);
+      };
+      allkiri.post('/api/smart-id/login/qr/state').then(function (state) {
+        if (state && state.done) {
+          deviceSignedIn(current, true)(state);
+        } else {
+          fail();
+        }
+      }, fail);
+    };
+  }
+
+  $('sid-app-login').onclick = function () {
+    var link = device.active ? device.appLink : null;
+    var current = deviceBegin();
+    var started = link ? Promise.resolve({ link: link }) : allkiri.post('/api/smart-id/login/qr/start', { sameDevice: true });
+    if (!link) { say('sid-qr-status', 'Starting…'); }
+
+    started.then(function (answer) {
+      if (!current() || !answer) { return null; }
+      device.appLink = answer.link;
+      $('sid-app-link').href = answer.link;
+      $('sid-app-again').hidden = false;
+      $('sid-qr-stop').hidden = false;
+      say('sid-qr-status', 'Continue in the Smart-ID app. It brings you back in a new tab.');
+      // Some browsers hand a link to an app only straight from a tap, which is
+      // why the same link also stays on the page.
+      window.location.href = answer.link;
+      device.wait = new AbortController();
+      return allkiri.poll('/api/smart-id/login/qr/state', { interval: 1500, timeout: 600000, signal: device.wait.signal });
+    }).then(deviceSignedIn(current, true), deviceFailed(current));
+  };
+
+  $('sid-qr-login').onclick = function () {
+    var reuse = device.active && device.appLink !== null;
+    var current = deviceBegin();
+    if (!reuse) { device.appLink = null; }
+    var started = reuse ? Promise.resolve(true) : allkiri.post('/api/smart-id/login/qr/start', { sameDevice: false });
+    say('sid-qr-status', reuse ? 'Scan the code with the Smart-ID app, then enter PIN 1.' : 'Starting…');
+
+    started.then(function () {
+      if (!current()) { return null; }
+      say('sid-qr-status', 'Scan the code with the Smart-ID app, then enter PIN 1.');
+      device.qr = allkiri.deviceLinkQr({
+        linkUrl: '/api/smart-id/login/qr/link',
+        pollUrl: '/api/smart-id/login/qr/poll',
+        element: $('qr'),
+        size: 240,
+        onError: function (error) { if (current()) { failed('sid-qr-status')(error); } }
       });
+      $('sid-qr-stop').hidden = false;
+      return device.qr.promise;
+    }).then(deviceSignedIn(current, false), deviceFailed(current));
   };
 
   $('sid-qr-stop').onclick = function () {
-    if (!qrRun) { return; }
-    qrAttempt++;
-    qrRun.stop();
-    qrClear();
+    if (!device.active) { return; }
+    device.attempt++;
+    deviceEnd();
     say('sid-qr-status', 'Stopped.');
   };
 

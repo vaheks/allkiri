@@ -19,6 +19,12 @@ All notable changes to this project are documented here. The format follows
   the SHA-256 of the session secret, and for an authentication the user
   challenge verifier matches. `SmartIdCallback::initialUrl()` adds the random
   value to a callback URL (#40).
+- On a phone or a tablet, the demo application's Smart-ID sign-in without an
+  identity code opens the Smart-ID app on that device, as SK's guidance
+  recommends, and offers a QR code for another device second. The app brings
+  the person back to `/smart-id/callback`, which checks the callback with
+  `SmartIdCallback`, signs them in and forgets the session. The tab they
+  started in shows the result (#41).
 - The demo application signs in with a Smart-ID QR code, beside the sign-in
   by identity code. The server starts an anonymous device-link session and
   keeps its secret, and the page draws a freshly signed link every second with

@@ -123,7 +123,7 @@ All published by SK for their demo services. No real person is involved.
 |---|---|
 | Mobile-ID | `+37200000766` with identity code `60001019906` |
 | Smart-ID | identity code `50001029996` |
-| Smart-ID with a QR code | the Smart-ID demo app with a demo account, or SK's mock scan below |
+| Smart-ID without an identity code | the Smart-ID demo app with a demo account, or SK's mock scan below |
 | ID card | a physical test card and reader |
 
 Without a phone, SK's demo service can scan for you. Take a link the page has
@@ -144,20 +144,43 @@ and [the Smart-ID list](https://sk-eid.github.io/smart-id-documentation/test_acc
 
 ## What it shows
 
-**Signing in.** Three different shapes. The card is synchronous from the page's
+**Signing in.** Several different shapes. The card is synchronous from the page's
 point of view: ask the server for a challenge, have the card sign it, post the
 token back. Mobile-ID and Smart-ID push a request to a phone, so the page shows
 a verification code and polls the server until it says the session finished.
 
-Smart-ID can also sign in with a QR code, which names nobody: whoever scans it
-is who comes back. The server starts the session and keeps its secret; the page
-asks for a freshly signed link every second, because the app refuses a stale
-one, and polls as the others do. The poll asks SK for a second at a time rather
-than ten, so that `php -S`, which answers one request at a time, does not hold
-the next link back. The two Smart-ID sign-ins are kept apart and can run side by
-side. If one finishes while the other is still waiting, the other may end with
-a token error, because signing in replaces the session id, and it only needs
-starting again.
+Smart-ID can also sign in without an identity code. That session names nobody:
+whoever answers is who comes back. What the page offers depends on the device,
+as SK's guidance says. Add `?device=phone` or `?device=computer` to the address
+to override the guess.
+
+- **On a computer**, it draws a QR code for a phone to scan. The server keeps the
+  session and its secret, and the page asks for a freshly signed link every
+  second, because the app refuses a stale one. The poll asks SK for a second at
+  a time rather than ten, so that `php -S`, which answers one request at a time,
+  does not hold the next link back.
+- **On a phone or a tablet**, "Open the Smart-ID app" comes first.
+  1. The server starts the session with a callback URL, `ALLKIRI_ORIGIN` plus
+     `/smart-id/callback` and a random value.
+  2. The page jumps to the Web2App link it gets back, and also shows that link
+     in case the phone ignored the jump.
+  3. After PIN 1 the app opens the callback URL in a new tab. That page checks
+     it with `SmartIdCallback`: the random value, the digest of the session
+     secret and the user challenge verifier. It then signs the person in and
+     forgets the session, so the link works once.
+  4. The tab the person started in only watches for the result, without
+     asking SK. "Show a QR code for another device" draws a code for the same
+     session.
+
+The callback needs the page's own browser: one that did not start the sign-in,
+such as an app's built-in browser, has no session to check against, and the
+page says to start again from the default browser. It also needs an address
+the phone can reach, so try it on a server rather than on `localhost`.
+
+The sign-in by identity code and the one without are kept apart and can run
+side by side. If one finishes while the other is still waiting, the other may
+end with a token error, because signing in replaces the session id, and it only
+needs starting again.
 
 **Signing.** An upload of one or more files becomes an ASiC-E container, and
 each signature, covering all of the files, is added to the same container, so
@@ -190,6 +213,7 @@ report.
 | `app.php` | every endpoint, and the only place the library is called |
 | `public/index.php` | routing, and the method and token checks every call passes first |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |
+| `views/callback.php` | the page the Smart-ID app opens after signing in on the same phone |
 | `public/vendor/web-eid.js` | a pinned copy of web-eid.js, for the ID card |
 
 The page loads `allkiri-qr.js` and `allkiri.js` from the library itself, so what
