@@ -508,8 +508,12 @@ with `PNOEE-40404040009-MOCK-Q`:
   did nothing; the session kept running. A link is only good while its
   `elapsedSeconds` is current.
 
-That makes a device-link integration test possible. It needs to build the link
-and post it straight away, as the check above did.
+`SmartIdDemoTest` now does this nightly (#43), with a sign-in and a signature
+through a QR code and a changed authentication code. A Web2App tap is followed
+as far as SK finishing the session: the mock then opens the callback URL from
+SK's servers, which reach neither a CI runner nor a developer's machine, so a
+return through the callback was checked by hand, on a phone against the live
+test server (#41, #42).
 
 ## 2026-09-12 — Phase 4, Web eID and production trust
 

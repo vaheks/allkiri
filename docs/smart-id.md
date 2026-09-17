@@ -407,9 +407,8 @@ result, runs a certificate choice, and signs containers with SHA-256 and
 SHA-512, checking both with our validator and with SiVa. Set `ALLKIRI_ARTEFACTS`
 to keep the containers.
 
-Device-link flows are not covered there yet: completing one needs someone to
-scan a code. The link construction is covered offline instead. SK's demo service
-can stand in for the scan: post a link you built to
+Device-link flows need someone to scan the code or tap the link, and SK's demo
+service has a stand-in for that person. Post a link you built to
 `https://sid.demo.sk.ee/mock/device-link`, with one of the `MOCK` accounts from
 [SK's test account list](https://sk-eid.github.io/smart-id-documentation/test_accounts.html),
 and the session ends as that account's row says:
@@ -422,5 +421,17 @@ curl -H 'Content-Type: application/json' https://sid.demo.sk.ee/mock/device-link
 Send it within a second or two of building the link. The service answers 200
 either way, but it acts only on a fresh link with a correct authentication
 code: a link a few seconds old leaves the session running, and a wrong code
-ends it with `PROTOCOL_FAILURE`. The demo application's QR sign-in was checked
-this way.
+ends it with `PROTOCOL_FAILURE`.
+
+`SmartIdDemoTest` uses it with `PNOEE-40404040009-MOCK-Q`, and checks that:
+- a sign-in through a QR code completes;
+- a signature through a QR code is TOTAL-PASSED in our validator and in SiVa;
+- a changed authentication code ends in `PROTOCOL_FAILURE`;
+- a Web2App tap ends with SK reporting the session finished through Web2App,
+  with a user challenge, and the library refuses that answer without a callback
+  that belongs to the session.
+
+For Web2App, the mock opens the callback URL from SK's servers, which cannot
+reach a CI runner, so a successful return through the callback is checked by
+hand, on a phone against a server the phone can reach. The link construction is
+also pinned offline, byte for byte.
