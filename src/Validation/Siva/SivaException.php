@@ -21,7 +21,7 @@ final class SivaException extends \RuntimeException implements AllkiriException
     /**
      * Bot protection in front of SiVa answered with a challenge page instead of
      * a verdict. Usually passes on a later try; a server refused every time
-     * needs RIA to let it through.
+     * is a question for RIA, which runs the service.
      */
     public const REASON_CHALLENGED = 'SIVA_CHALLENGED';
 

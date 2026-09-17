@@ -115,9 +115,12 @@ Limits are counted in characters, so accented letters cost one, not two.
 allkiri does not pin. It checks the service's certificate against the
 certificate authorities your system trusts, as for any HTTPS request. SK asks
 relying parties to pin the service's key as well ([HTTPS
-pinning](https://sk-eid.github.io/smart-id-documentation/https_pinning.html)).
-If your contract requires it, give a pinned HTTP client to the Smart-ID client
-only, and build the authenticator and the signer on that client:
+pinning](https://sk-eid.github.io/smart-id-documentation/https_pinning.html)),
+or to call only from addresses registered with SK. The library leaves the pin to
+you because it has to follow every certificate change SK makes, and a pin that
+falls behind stops the service. To pin, give a pinned HTTP client to the
+Smart-ID client only, and build the authenticator and the signer on that
+client:
 
 ```php
 use Allkiri\Http\CurlHttpClient;

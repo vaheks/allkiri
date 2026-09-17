@@ -172,13 +172,14 @@ it loads them again.
 ## Anchors a list does not carry
 
 Estonian ID-cards issued from November 2025 are Thales cards under Zetes'
-PKI, which the trusted lists do not yet list. `Environment::demo()` therefore
-adds the Zetes test CAs as extra anchors. For production, add them the same way
-once you have the production certificates from `https://repository.eidpki.ee/crt/`:
+PKI. The Estonian trusted list names Zetes' `ESTEID2025` as a qualified CA
+since 30 October 2025, so production trust needs nothing added. The test list
+does not carry the Zetes test CAs, so `Environment::demo()` adds them as extra
+anchors. Any other CA a list does not carry is added the same way:
 
 ```php
 $environment = $environment->withExtraTrustAnchors([
-    TrustAnchor::manual($zetesCa, ServiceType::CaQc, 'ESTEID2025'),
+    TrustAnchor::manual($certificate, ServiceType::CaQc, 'Some CA'),
 ]);
 ```
 

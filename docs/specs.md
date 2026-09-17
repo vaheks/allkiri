@@ -114,7 +114,7 @@ digest, read as an unsigned 16-bit big-endian number, modulo 10000.
 
 | What | Where |
 |---|---|
-| SK timestamping technical information | https://github.com/SK-EID/Timestamping/wiki/Timestamping-Service-Technical-Information |
+| SK timestamping technical information | https://github.com/SK-EID/Timestamping/wiki/Service-Technical-Information |
 | Endpoints | demo `http://tsa.demo.sk.ee/tsa` (free), production `http://tsa.sk.ee` (contract) |
 
 ## Trust lists

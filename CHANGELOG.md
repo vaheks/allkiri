@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `docs/going-live.md`: which services, contracts and registrations
+  production needs for each use case, what SK's services cost, what the server
+  needs, and what to check before the first real person signs. The README
+  leads with a sign-in, a signature and a validation, and says the same in
+  short.
 - Production trust follows the pivot lists by which the Commission changes the
   certificates that sign the EU list of trusted lists. The shipped certificates
   come from Official Journal publication C/2026/1944
@@ -107,6 +112,12 @@ All notable changes to this project are documented here. The format follows
   timestamp and archive timestamps are now held to the trust the validator
   applies. An untrusted archive timestamp is reported with the new reason
   `TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED` (#47).
+- Documentation that did not match the services: production needs no OCSP
+  contract, because the responders certificates name are free; SK's Mobile-ID
+  documentation requires pinning rather than leaving it to the contract; the
+  Estonian trusted list has named Zetes' `ESTEID2025` since October 2025, so
+  production needs no extra anchor for Thales cards; and the link to SK's
+  timestamping technical information had moved.
 - The demo application no longer lets another site cancel a Smart-ID sign-in
   waiting for the app. `/smart-id/callback` is a plain link, and it forgot the
   waiting session before checking the callback, so any page the visitor opened

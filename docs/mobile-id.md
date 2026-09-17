@@ -76,11 +76,13 @@ yourself, size your client with `$configuration->httpTimeoutSeconds()`.
 
 allkiri does not pin. It checks the service's certificate against the
 certificate authorities your system trusts, as for any HTTPS request. SK's
-[Mobile-ID documentation](https://github.com/SK-EID/MID) asks relying parties to
-pin the service's certificate as well, and publishes it among [its
-certificates](https://www.skidsolutions.eu/resources/certificates/). If your
-contract requires it, give a pinned HTTP client to the Mobile-ID client only,
-and build the authenticator and the signer on that client:
+[Mobile-ID documentation](https://github.com/SK-EID/MID) says a relying party
+must pin the service's certificate as well, and SK publishes it among [its
+certificates](https://www.skidsolutions.eu/resources/certificates/). The library
+leaves the pin to you because it has to follow every certificate change SK
+makes, and a pin that falls behind stops the service. To pin, give a pinned
+HTTP client to the Mobile-ID client only, and build the authenticator and the
+signer on that client:
 
 ```php
 use Allkiri\Http\CurlHttpClient;

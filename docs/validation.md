@@ -211,8 +211,9 @@ When SiVa cannot give a verdict, `validate()` throws `SivaException`, and its
 RIA's SiVa sits behind Cloudflare since 2026, which now and then answers a
 server with a challenge page meant for a browser. allkiri recognises it by the
 `cf-mitigated: challenge` header Cloudflare sets and reports `SIVA_CHALLENGED`
-without the page. It does not retry: asking again a little later usually works,
-and a server that is refused every time needs RIA to let it through.
+without the page. It does not retry: asking again a little later usually works.
+A server that is refused every time is a question for RIA, which runs the
+service.
 
 ## Known differences from SiVa
 

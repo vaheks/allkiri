@@ -60,7 +60,7 @@ final class SivaClient
         // this header; the page itself says nothing a caller can use.
         if ($response->header('cf-mitigated') === 'challenge') {
             throw new SivaException(SivaException::REASON_CHALLENGED, \sprintf(
-                'SiVa at %s answered HTTP %d with a bot-protection challenge instead of a verdict. Try again later; if every request from this server is refused, RIA has to let it through',
+                'SiVa at %s answered HTTP %d with a bot-protection challenge instead of a verdict. Try again later; if every request from this server is refused, ask RIA, which runs the service',
                 HttpRequest::withoutIdentities($this->url),
                 $response->status,
             ));

@@ -228,7 +228,7 @@ it), then the timestamp, the certificate chain and the OCSP response.
 
 | | Demo (free) | Production |
 |---|---|---|
-| Timestamps | `http://tsa.demo.sk.ee/tsa` | `http://tsa.sk.ee`, contract with SK |
+| Timestamps | `http://tsa.demo.sk.ee/tsa` | `http://tsa.sk.ee`, contract with SK; see [going-live.md](going-live.md) |
 | Revocation | `http://demo.sk.ee/ocsp` and the AIA responders | the AIA responder each certificate names is free; `ocsp.sk.ee` needs a contract |
 
 A timestamp is used only when its authority is a timestamping service the
