@@ -133,6 +133,7 @@ final class WebEidAuthenticator
         // against the original DER, and a re-encoding is not guaranteed to be
         // the same bytes.
         $certificate = $this->toCertificate($parsed->getUnverifiedCertificate());
+        self::requireAuthenticationPurpose($certificate);
         $this->verifyTrust($certificate, $now);
 
         try {
@@ -149,7 +150,35 @@ final class WebEidAuthenticator
         return $identity;
     }
 
-    // --- trust and revocation ----------------------------------------------
+    // --- purpose, trust and revocation --------------------------------------
+
+    /**
+     * Only an authentication certificate may sign someone in.
+     *
+     * The vendor validator is meant to check this, but in 1.3.1 it reads the
+     * first key usage name phpseclib lists rather than digitalSignature, so any
+     * key usage passes, and a certificate without extended key usage counts as
+     * one for authentication. An ID card's signing certificate is exactly that:
+     * nonRepudiation and nothing else. A site that has someone sign a document
+     * with Web eID chooses the hash the card signs, and could choose the one a
+     * sign-in token for another site's challenge carries. So the purpose is
+     * checked here, whatever the vendor does: digitalSignature is required, a
+     * certificate for signatures (nonRepudiation) is refused, and an extended
+     * key usage, where there is one, must allow client authentication.
+     */
+    private static function requireAuthenticationPurpose(Certificate $certificate): void
+    {
+        $usage = $certificate->keyUsage();
+        if (!\in_array('digitalSignature', $usage, true) || \in_array('nonRepudiation', $usage, true)) {
+            throw new WebEidException(\sprintf(
+                'The card certificate is not an authentication certificate: its key usage is %s, where digitalSignature without nonRepudiation is required',
+                $usage === [] ? 'missing' : implode(', ', $usage),
+            ));
+        }
+        if ($certificate->extendedKeyUsage() !== [] && !$certificate->hasExtendedKeyUsage('id-kp-clientAuth')) {
+            throw new WebEidException('The card certificate is not an authentication certificate: its extended key usage does not include client authentication');
+        }
+    }
 
     private function verifyTrust(Certificate $certificate, \DateTimeImmutable $now): void
     {

@@ -76,11 +76,13 @@ log in with the attacker's card.
 
 ### What is checked
 
-The token, its signature, and the certificate's key usage and policies are
-checked by `web-eid/web-eid-authtoken-validation-php`, the implementation RIA
-maintains. Trust and revocation are done by allkiri with the same trust store,
-chain builder and OCSP client the rest of the library uses, so a card is judged
-exactly as a Mobile-ID or Smart-ID certificate is.
+The token, its signature, and the certificate's policies are checked by
+`web-eid/web-eid-authtoken-validation-php`, the implementation RIA maintains.
+The certificate's purpose is checked by both: that package's own check lets any
+key usage through in 1.3.1, so allkiri does not rely on it. Trust and
+revocation are done by allkiri with the same trust store, chain builder and
+OCSP client the rest of the library uses, so a card is judged exactly as a
+Mobile-ID or Smart-ID certificate is.
 
 A token is refused unless:
 
@@ -88,7 +90,11 @@ A token is refused unless:
   says when it was made, so the website's own record of when it issued the
   challenge is what counts);
 - the signature verifies over this origin and this challenge;
-- the certificate can be used for client authentication;
+- the certificate is an authentication certificate: its key usage has
+  `digitalSignature` and not `nonRepudiation`, and its extended key usage, if
+  it has one, allows client authentication. A card's signing certificate is
+  refused, because a site that has someone sign with Web eID chooses what the
+  card signs, and could have them sign a sign-in token for your site;
 - its policy is not one you disallowed;
 - it is valid now, chains to a trust anchor, and is not revoked;
 - it names a person by personal code, passport or identity card number, so an

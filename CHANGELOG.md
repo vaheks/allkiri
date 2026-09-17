@@ -80,6 +80,16 @@ All notable changes to this project are documented here. The format follows
   enveloped-signature transform, as DSS requires. The production EU list, its
   pivot lists and the Estonian list sign the whole document and verify as
   before (#44).
+- An ID card's signing certificate can no longer sign someone in through
+  Web eID. The purpose check was left to
+  `web-eid/web-eid-authtoken-validation-php`, which in 1.3.1 reads the first
+  key usage listed instead of `digitalSignature`, so any key usage passed, and
+  a certificate without extended key usage counted as one for authentication.
+  A site that has someone sign a document with Web eID chooses the hash the
+  card signs, and could have them sign, with PIN 2, a sign-in token for
+  another site. `WebEidAuthenticator` now requires `digitalSignature`, refuses
+  `nonRepudiation`, and requires client authentication in an extended key
+  usage where there is one (#45).
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
   the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
   itself. The native application read the object as an empty nonce and showed

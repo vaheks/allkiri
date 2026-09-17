@@ -365,13 +365,65 @@ final class WebEidAuthenticatorTest extends TestCase
      */
     public function testAnESealCertificateIsRefusedBecauseItNamesNoPerson(): void
     {
+        $seal = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::signerRsa(), [
+            'id-at-countryName' => 'EE',
+            'id-at-organizationName' => 'allkiri test',
+            'id-at-commonName' => 'allkiri test e-seal',
+        ]);
         $challenge = $this->challenge();
-        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, TestPki::signerRsa(), SignatureAlgorithm::RS256);
+        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, $seal, SignatureAlgorithm::RS256);
 
         $this->expectException(WebEidException::class);
         $this->expectExceptionMessage('does not name a person');
 
         $this->authenticator()->validate($token, $challenge);
+    }
+
+    // --- certificate purpose -------------------------------------------------
+
+    /**
+     * @return iterable<string, array{array<string, array{mixed, bool}|null>, string}>
+     */
+    public static function certificatesNotForAuthentication(): iterable
+    {
+        $ours = 'is not an authentication certificate';
+        // An ID card's signing certificate: nonRepudiation, no extended key usage.
+        yield 'a signing certificate' => [['id-ce-keyUsage' => [['nonRepudiation'], true]], $ours];
+        yield 'one for signing and authentication alike' => [['id-ce-keyUsage' => [['digitalSignature', 'nonRepudiation'], true]], $ours];
+        yield 'one for encryption' => [['id-ce-keyUsage' => [['keyEncipherment'], true]], $ours];
+        // These two the vendor validator does refuse, before our check.
+        yield 'one with no key usage' => [['id-ce-keyUsage' => null], 'The Web eID token was refused'];
+        yield 'one for email only' => [['id-ce-extKeyUsage' => [['id-kp-emailProtection'], false]], 'The Web eID token was refused'];
+    }
+
+    /**
+     * The vendor validator in 1.3.1 lets all of these through. A site that
+     * has someone sign a document through Web eID chooses the hash the card
+     * signs, so with a signing certificate accepted it could collect a
+     * sign-in token for another site.
+     *
+     * @param array<string, array{mixed, bool}|null> $extensions
+     */
+    #[DataProvider('certificatesNotForAuthentication')]
+    public function testACertificateNotForAuthenticationIsRefused(array $extensions, string $message): void
+    {
+        $certificate = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::cardAuth(), [
+            'id-at-countryName' => 'EE',
+            'id-at-commonName' => 'JOEORG,JAAK-KRISTJAN,38001085718',
+            'id-at-givenName' => 'JAAK-KRISTJAN',
+            'id-at-surname' => 'JOEORG',
+            'id-at-serialNumber' => 'PNOEE-38001085718',
+        ], $extensions);
+        $challenge = $this->challenge();
+        $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, $certificate);
+
+        try {
+            $this->authenticator()->validate($token, $challenge);
+            self::fail('a certificate not for authentication signed someone in');
+        } catch (WebEidException $e) {
+            self::assertStringContainsString($message, $e->getMessage());
+        }
+        self::assertSame(0, $this->http->requestCount(), 'refused before anyone is asked about it');
     }
 
     // --- certificate policies ------------------------------------------------
