@@ -21,7 +21,7 @@ exists for PHP. `allkiri` is that library.
 ## Install
 
 ```bash
-composer require vaheks/allkiri:^0.6@alpha
+composer require vaheks/allkiri:^0.7@alpha
 ```
 
 Until 1.0 every release is an alpha, and Composer installs one only when asked,

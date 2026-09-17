@@ -69,13 +69,13 @@ since the repository went public.
 
 ## Before 1.0
 
-Releases before 1.0 are alphas, tagged like `0.6.0-alpha.1`, and an application
-installs one with `composer require vaheks/allkiri:^0.6@alpha`, as the README
-says. The package goes on Packagist the day the repository becomes public:
-submit `https://github.com/vaheks/allkiri` at
-<https://packagist.org/packages/submit> and enable the GitHub hook, so every
-later tag, alpha or not, publishes itself. When an alpha moves past the range
-the README's install line names, the line moves with it.
+Releases before 1.0 are alphas, tagged like `0.7.0-alpha.1`, and an application
+installs one with `composer require vaheks/allkiri:^0.7@alpha`, as the README
+says. The package has been on
+[Packagist](https://packagist.org/packages/vaheks/allkiri) since the repository
+went public on 2026-09-17, and the GitHub hook publishes every tag, alpha or
+not. When an alpha moves past the range the README's install line names, the
+line moves with it.
 
 An alpha waits for no gates, only for the same care:
 

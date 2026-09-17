@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0-alpha.1] - 2026-09-17
+
+The release the repository went public with. It fixes what a second review
+found before the switch: a forged trusted list around a signed one, an ID
+card's signing certificate accepted for sign-in, withdrawn OCSP responders,
+and untrusted timestamp authorities. Upgrade from 0.6.0-alpha.1. Production
+trust now follows the Commission's pivot lists, Smart-ID checks the whole
+same-device callback, and `docs/going-live.md` says what production needs.
+Every means has been used against the production services through the demo
+application.
+
 ### Added
 
 - `docs/going-live.md`: which services, contracts and registrations
@@ -812,7 +823,8 @@ needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
 
-[Unreleased]: https://github.com/vaheks/allkiri/compare/0.6.0-alpha.1...HEAD
+[Unreleased]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...HEAD
+[0.7.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.6.0-alpha.1...0.7.0-alpha.1
 [0.6.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.5.0-alpha.1...0.6.0-alpha.1
 [0.5.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.4.0-alpha.1...0.5.0-alpha.1
 [0.4.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.3.0-alpha.1...0.4.0-alpha.1
