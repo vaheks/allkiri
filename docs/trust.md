@@ -112,7 +112,9 @@ $allkiri = new Allkiri($environment, cache: $psr16Cache);
 ```
 
 The cache holds the XML, not parsed anchors, and the signature is re-verified
-on every read. A poisoned cache cannot introduce a trust anchor.
+on every read. A poisoned cache cannot introduce a trust anchor. A list is
+accepted only when its one signature sits directly under the root and covers
+the whole list, so a signed list nested inside a forged one is refused.
 
 A list is written to the cache when it is fetched, not again when it is read
 from there, so the cache lifetime decides how soon a fresh copy is fetched.

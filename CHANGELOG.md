@@ -69,6 +69,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A trusted list is accepted only when its signature covers the whole list.
+  The verifier took the first signature anywhere in the document, while the
+  parser reads the root, so a list that signs its root by `Id`, as the EU test
+  list of lists does, could be nested inside a forged one and still verify.
+  The forged root then decided which lists were followed and which
+  authorities were trusted, from the network or from the cache. The signature
+  must now be the only one directly under the root, and its one content
+  reference must be `URI=""` or the root's own `Id`, with the
+  enveloped-signature transform, as DSS requires. The production EU list, its
+  pivot lists and the Estonian list sign the whole document and verify as
+  before (#44).
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
   the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
   itself. The native application read the object as an empty nonce and showed

@@ -8,9 +8,11 @@ use Allkiri\Crypto\Certificate;
 use Allkiri\Tests\Support\Cache\ArrayCache;
 use Allkiri\Tests\Support\Http\MockHttpClient;
 use Allkiri\Trust\ChainBuilder;
+use Allkiri\Trust\ListOfListsTrustStore;
 use Allkiri\Trust\ServiceStatus;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
+use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use Allkiri\Trust\TrustedList\TrustedListParser;
@@ -18,6 +20,7 @@ use Allkiri\Trust\TrustedList\TrustedListSource;
 use Allkiri\Trust\TrustedList\TrustedListVerifier;
 use Allkiri\Trust\TrustedListTrustStore;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[CoversNothing]
@@ -138,6 +141,75 @@ final class TrustedListTest extends TestCase
             self::fail('a tampered trusted list was accepted');
         } catch (TrustedListException $e) {
             self::assertSame(TrustedListException::REASON_SIGNATURE, $e->reason);
+        }
+    }
+
+    /**
+     * The test list of lists signs its root by Id (URI="#ID0001"). Nested
+     * inside a forged list, its signature still verifies; what the parser
+     * reads is the forged root, so the signature must be refused for not
+     * covering it.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function wrappedLists(): iterable
+    {
+        $genuine = (string) file_get_contents(self::FIXTURES . 'captured/test-lotl-tl-mp-test-EE.xml');
+        $body = (string) preg_replace('/^<\?xml[^>]*\?>/', '', $genuine);
+        // The genuine root's namespaces, so that inclusive canonicalisation
+        // of a signature moved under the forged root comes out the same.
+        $forged = static fn(string $inside): string => '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<TrustServiceStatusList xmlns="http://uri.etsi.org/02231/v2#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"'
+            . ' xmlns:tslx="http://uri.etsi.org/02231/v2/additionaltypes#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#">'
+            . '<SchemeInformation><TSLSequenceNumber>999</TSLSequenceNumber><SchemeTerritory>EU</SchemeTerritory>'
+            . '<PointersToOtherTSL><OtherTSLPointer><TSLLocation>https://evil.test/EE_T.xml</TSLLocation></OtherTSLPointer></PointersToOtherTSL>'
+            . '</SchemeInformation>'
+            . $inside
+            . '</TrustServiceStatusList>';
+
+        yield 'the whole signed list nested' => [$forged('<Hidden>' . $body . '</Hidden>')];
+
+        // The signature moved up to the forged root, the signed list nested
+        // without it: the enveloped transform then removes nothing from the
+        // nested list, whose digest is unchanged.
+        self::assertSame(1, preg_match('~<ds:Signature\b.*</ds:Signature>~s', $body, $match));
+        $unsigned = str_replace($match[0], '', $body);
+        yield 'the signature moved to the forged root' => [$forged($match[0] . '<Hidden>' . $unsigned . '</Hidden>')];
+    }
+
+    #[DataProvider('wrappedLists')]
+    public function testASignedListNestedInAForgedOneIsRefused(string $wrapped): void
+    {
+        $signer = Certificate::fromPem((string) file_get_contents(__DIR__ . '/../../../resources/trust/test/test-tsl-signer.pem'));
+        $genuine = (string) file_get_contents(self::FIXTURES . 'captured/test-lotl-tl-mp-test-EE.xml');
+        self::assertTrue((new TrustedListVerifier())->verify($genuine, [$signer])->equals($signer), 'the list signed by Id verifies as it is');
+
+        try {
+            (new TrustedListVerifier())->verify($wrapped, [$signer]);
+            self::fail('a forged list around a signed one was accepted');
+        } catch (TrustedListException $e) {
+            self::assertSame(TrustedListException::REASON_SIGNATURE, $e->reason);
+        }
+    }
+
+    /**
+     * The cache is not a source of trust: what it holds is verified again,
+     * and a forged list placed there is refused like one from the network.
+     */
+    public function testAForgedListInTheCacheAddsNoAnchors(): void
+    {
+        $signer = Certificate::fromPem((string) file_get_contents(__DIR__ . '/../../../resources/trust/test/test-tsl-signer.pem'));
+        $source = new ListOfListsSource('https://lotl.allkiri.test/lotl.xml', [$signer], ['EE_T']);
+        $cache = new ArrayCache();
+        foreach (self::wrappedLists() as [$wrapped]) {
+            $cache->set($source->toSource()->cacheKey(), $wrapped);
+            $store = new ListOfListsTrustStore(new TrustedListLoader(new MockHttpClient(), $cache), $source);
+            try {
+                $store->load();
+                self::fail('a forged list from the cache was used');
+            } catch (TrustedListException $e) {
+                self::assertSame(TrustedListException::REASON_SIGNATURE, $e->reason);
+            }
         }
     }
 
