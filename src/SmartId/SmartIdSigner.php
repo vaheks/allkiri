@@ -156,16 +156,19 @@ final class SmartIdSigner
     /**
      * Ask once whether the person has signed. Null means they have not yet.
      *
+     * @param SmartIdCallback|null $callback what the app brought back to your callback URL;
+     *                                       required for a Web2App or App2App answer
+     *
      * @throws SmartIdSessionException when they refused, or could not be reached
      */
-    public function poll(AsicContainer $container, SmartIdSigningSession $signing): ?SigningResult
+    public function poll(AsicContainer $container, SmartIdSigningSession $signing, ?SmartIdCallback $callback = null): ?SigningResult
     {
         $status = $this->client->sessionStatus($signing->session->sessionId);
         if ($status->isRunning()) {
             return null;
         }
 
-        return $this->complete($container, $signing, $status);
+        return $this->complete($container, $signing, $status, $callback);
     }
 
     /**
@@ -179,10 +182,24 @@ final class SmartIdSigner
 
     /**
      * Put the value the app produced into the prepared signature.
+     *
+     * @param SmartIdCallback|null $callback what the app brought back to your callback URL;
+     *                                       required for a Web2App or App2App answer
      */
-    public function complete(AsicContainer $container, SmartIdSigningSession $signing, SmartIdSessionStatus $status): SigningResult
+    public function complete(AsicContainer $container, SmartIdSigningSession $signing, SmartIdSessionStatus $status, ?SmartIdCallback $callback = null): SigningResult
     {
         $status->requireOk();
+
+        // A same-device answer counts only with the callback that shows Smart-ID
+        // sent this browser back for this session, as SK's callback rules say.
+        if ($callback !== null) {
+            $signing->session->verifyCallback($callback);
+        } elseif ($status->flowType === FlowType::Web2App || $status->flowType === FlowType::App2App) {
+            throw new SmartIdException(\sprintf(
+                'Smart-ID answered through %s, which needs the callback the app opened; pass it to poll()',
+                $status->flowType->value,
+            ));
+        }
 
         if ($status->signatureProtocol !== SmartIdClient::PROTOCOL_RAW_DIGEST) {
             throw new SmartIdException(\sprintf(

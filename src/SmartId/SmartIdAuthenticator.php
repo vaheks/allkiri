@@ -123,19 +123,19 @@ final class SmartIdAuthenticator
     /**
      * Ask once whether the person is done. Null means they are not yet.
      *
-     * @param string|null $userChallengeVerifier the value a Web2App or App2App
-     *                                          callback returned; required for those flows
+     * @param SmartIdCallback|null $callback what the app brought back to your callback URL;
+     *                                       required for a Web2App or App2App answer
      *
      * @throws SmartIdSessionException when they refused, or could not be reached
      */
-    public function poll(SmartIdSession $session, ?string $userChallengeVerifier = null): ?AuthenticatedIdentity
+    public function poll(SmartIdSession $session, ?SmartIdCallback $callback = null): ?AuthenticatedIdentity
     {
         $status = $this->client->sessionStatus($session->sessionId);
         if ($status->isRunning()) {
             return null;
         }
 
-        return $this->complete($session, $status, $userChallengeVerifier);
+        return $this->complete($session, $status, $callback);
     }
 
     /**
@@ -150,8 +150,11 @@ final class SmartIdAuthenticator
 
     /**
      * Check a finished session and return who it proves was there.
+     *
+     * @param SmartIdCallback|null $callback what the app brought back to your callback URL;
+     *                                       required for a Web2App or App2App answer
      */
-    public function complete(SmartIdSession $session, SmartIdSessionStatus $status, ?string $userChallengeVerifier = null): AuthenticatedIdentity
+    public function complete(SmartIdSession $session, SmartIdSessionStatus $status, ?SmartIdCallback $callback = null): AuthenticatedIdentity
     {
         if ($session->type !== SmartIdSession::TYPE_AUTHENTICATION) {
             throw new SmartIdException('This session is a signing session, not an authentication');
@@ -187,7 +190,7 @@ final class SmartIdAuthenticator
             throw new SmartIdException('The Smart-ID signature uses parameters this library will not accept: ' . $complaint);
         }
 
-        $this->verifyUserChallenge($status, $userChallengeVerifier);
+        $this->verifyCallback($session, $status, $callback);
 
         $payload = AcspV2Payload::forSession($configuration, $session, $status, $this->brokeredRelyingPartyName);
         $signature = $status->signatureValue ?? '';
@@ -210,24 +213,28 @@ final class SmartIdAuthenticator
     // --- checks -------------------------------------------------------------
 
     /**
-     * A Web2App or App2App callback returns a verifier whose digest must equal
-     * the user challenge the service reported. It is what ties the browser that
-     * came back to the app that answered, so for those flows it is required:
-     * without it, an answer shows only that somebody approved the session, not
-     * that they are the person in this browser.
+     * A Web2App or App2App answer counts only together with the callback the
+     * app opened. The callback shows that Smart-ID sent the person back for
+     * this session, and its verifier, whose digest must equal the user
+     * challenge the service reported, ties the browser that came back to the
+     * app that answered. Without them, an answer shows only that somebody
+     * approved the session, not that they are the person in this browser.
      */
-    private function verifyUserChallenge(SmartIdSessionStatus $status, ?string $userChallengeVerifier): void
+    private function verifyCallback(SmartIdSession $session, SmartIdSessionStatus $status, ?SmartIdCallback $callback): void
     {
-        if ($userChallengeVerifier === null) {
+        if ($callback === null) {
             if ($status->flowType === FlowType::Web2App || $status->flowType === FlowType::App2App) {
                 throw new SmartIdException(\sprintf(
-                    'Smart-ID answered through %s, which needs the userChallengeVerifier its callback returned; pass it to poll()',
+                    'Smart-ID answered through %s, which needs the callback the app opened; pass it to poll()',
                     $status->flowType->value,
                 ));
             }
 
             return;
         }
+        $session->verifyCallback($callback);
+        $userChallengeVerifier = $callback->userChallengeVerifier()
+            ?? throw new SmartIdException('The callback carries no userChallengeVerifier, which an authentication needs');
         if ($status->userChallenge === null) {
             throw new SmartIdException('A user challenge verifier was supplied but Smart-ID reported no user challenge');
         }

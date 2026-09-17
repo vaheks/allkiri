@@ -11,6 +11,14 @@ All notable changes to this project are documented here. The format follows
 - The demo application puts several files in one container: the upload field
   takes any number of files and they are signed together. A second file of
   the same name is refused (#33).
+- `SmartIdCallback`, which carries what the Smart-ID app brings back to a
+  callback URL, and `SmartIdSession::verifyCallback()`. The authenticator and the
+  signer now check everything in a Web2App or App2App callback that SK's rules
+  require and the library can know: the parameters of the session's callback
+  URL, its random value included, came back unchanged, `sessionSecretDigest` is
+  the SHA-256 of the session secret, and for an authentication the user
+  challenge verifier matches. `SmartIdCallback::initialUrl()` adds the random
+  value to a callback URL (#40).
 - The demo application signs in with a Smart-ID QR code, beside the sign-in
   by identity code. The server starts an anonymous device-link session and
   keeps its secret, and the page draws a freshly signed link every second with
@@ -30,6 +38,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- `SmartIdAuthenticator::poll()` and `complete()` take a `SmartIdCallback`
+  where they took the user challenge verifier as a string, so a same-device
+  answer cannot be accepted on the verifier alone.
+  `SmartIdSigner::poll()` and `complete()` take one too, and refuse a Web2App
+  or App2App signature without it (#40).
 - `SivaException`'s constructor takes the reason first:
   `new SivaException($reason, $message, $previous)` (#34).
 - The demo page's "Sign a file" section has a block for each means, as "Sign

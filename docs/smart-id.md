@@ -206,24 +206,81 @@ $link = $session->deviceLink($configuration->scheme, $configuration->relyingPart
 echo $link->url($session->sessionSecret, $session->elapsedSeconds());
 ```
 
-For Web2App and App2App, build the link once with
-`DeviceLink::TYPE_WEB2APP` or `DeviceLink::TYPE_APP2APP` and no elapsed seconds,
-and send the person to it.
-
 > **The session secret must never reach the browser.** It is the key to the
 > authentication code on every link for that session; anyone holding it can mint
 > links the app will accept. Send the finished link, never the secret. The
 > serialised session contains it, so keep that server-side too.
 
-If you gave an `initialCallbackUrl`, the session keeps it: the app signs it, and
-the authentication code of every Web2App and App2App link built from the session
-covers it. A QR link carries none. The app returns a `userChallengeVerifier`
-through the callback. Pass it to `poll()`, where a Web2App or App2App answer is
-refused without it, and the library checks it against the session:
+### On the same phone
+
+A Web2App link opens the Smart-ID app on the phone the page is on, and the app
+sends the person back to a callback URL of yours when they are done. SK
+recommends it as the first option on a phone or a tablet, with the QR code as
+the second, and the QR code alone on a computer. One session serves both, as
+long as it is started with the callback URL:
 
 ```php
-$identity = $authenticator->poll($session, $_GET['userChallengeVerifier']);
+use Allkiri\SmartId\DeviceLink;
+use Allkiri\SmartId\SmartIdCallback;
+
+// Adds a random value, so that no two sessions share a callback URL.
+$callbackUrl = SmartIdCallback::initialUrl('https://example.org/smart-id/callback');
+$session = $authenticator->startAnonymous($interactions, initialCallbackUrl: $callbackUrl);
+$_SESSION['sid'] = json_encode($session);
+
+$link = $session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64(), DeviceLink::TYPE_WEB2APP);
+$web2App = $link->url($session->sessionSecret);   // built once, no elapsed seconds
 ```
+
+Send the person to `$web2App`. For an app of your own, use
+`DeviceLink::TYPE_APP2APP` with a callback URL your app handles. The session
+keeps the callback URL: the app signs it, and the authentication code of every
+Web2App and App2App link built from the session covers it. A QR link carries
+none. If the app is missing or the browser will not hand the link over, SK's
+fallback page explains what to do.
+
+When the person has entered their PIN, the app opens the callback URL in a new
+tab, with `sessionSecretDigest` and, for an authentication,
+`userChallengeVerifier` added. Hand the whole query to `poll()`:
+
+```php
+// The session this browser started, found through its own cookie. The
+// session cookie must be SameSite=Lax, or it does not come along.
+$session = SmartIdSession::fromJson($_SESSION['sid']);
+unset($_SESSION['sid']);   // a callback is accepted once
+
+$identity = $authenticator->poll($session, SmartIdCallback::fromQuery($_GET));
+```
+
+The library checks what [SK's callback
+rules](https://sk-eid.github.io/smart-id-documentation/rp-api/callback_urls.html)
+ask for before it believes the answer:
+- every parameter of the session's callback URL, the random value included,
+  came back unchanged;
+- `sessionSecretDigest` is the SHA-256 of this session's secret;
+- `userChallengeVerifier` hashes to the user challenge the service reported;
+- the answer itself holds up, as below.
+
+A Web2App or App2App answer without a callback is refused.
+`SmartIdSigner::poll()` and `complete()` take the callback in the same way for a
+signature started with `startDeviceLink()` and a callback URL.
+
+Two checks stay with you:
+- **The browser.** The session must be the one this browser started, which is
+  why it comes from `$_SESSION` rather than from anything in the URL.
+- **Once only.** Forget the session when its callback arrives, so the same
+  callback is never accepted twice.
+
+If the app opens the callback in a browser other than the one the person
+started in, which happens from an app's built-in browser, from a non-default
+browser on iOS and in private mode, that browser has no session. Ask the person
+to start again from their default browser.
+
+SK may report the session finished before the callback arrives. If the page the
+person started on keeps polling as well, for the QR code beside the link, a
+same-device answer can reach that poll first, and without a callback it is
+refused there. So ask the client for the status and leave an answer whose
+`$status->flowType` is `Web2App` or `App2App` to the callback.
 
 ### What is actually checked
 

@@ -15,6 +15,7 @@ use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\InteractionType;
 use Allkiri\SmartId\SemanticsIdentifier;
 use Allkiri\SmartId\SmartIdAuthenticator;
+use Allkiri\SmartId\SmartIdCallback;
 use Allkiri\SmartId\SmartIdClient;
 use Allkiri\SmartId\SmartIdEndResult;
 use Allkiri\SmartId\SmartIdException;
@@ -40,6 +41,9 @@ final class SmartIdAuthenticatorTest extends TestCase
 {
     /** The identity in the test PKI's personal RSA certificate. */
     private const IDENTITY_CODE = '40504040001';
+
+    /** Where a same-device flow returns, with the random value SK's rules ask for. */
+    private const CALLBACK_URL = 'https://rp.example.test/back?value=RrKjjT4aggzu27YBddX1bQ';
 
     private FrozenClock $clock;
 
@@ -106,6 +110,19 @@ final class SmartIdAuthenticatorTest extends TestCase
     private static function policies(CertificateLevel $level): array
     {
         return ['id-ce-certificatePolicies' => [array_map(static fn(string $oid): array => ['policyIdentifier' => $oid], $level->authenticationPolicies()), false]];
+    }
+
+    /**
+     * What the app would open: the session's callback URL with the secret's
+     * digest and, for the mock, the verifier its user challenge is made from.
+     */
+    private static function callbackFor(SmartIdSession $session): SmartIdCallback
+    {
+        return SmartIdCallback::fromUrl(
+            (string) $session->initialCallbackUrl
+            . '&sessionSecretDigest=' . DeviceLink::base64Url(hash('sha256', (string) base64_decode((string) $session->sessionSecret, true), true))
+            . '&userChallengeVerifier=' . rawurlencode('user-challenge-' . $session->challenge),
+        );
     }
 
     private function authenticator(?ChainBuilder $chainBuilder = null): SmartIdAuthenticator
@@ -229,16 +246,13 @@ final class SmartIdAuthenticatorTest extends TestCase
         self::assertStringContainsString('authCode=', $url);
     }
 
-    public function testADeviceLinkAuthenticationVerifiesWithTheUserChallenge(): void
+    public function testADeviceLinkAuthenticationVerifiesWithTheCallback(): void
     {
         $this->service->flowType = FlowType::Web2App;
         $authenticator = $this->authenticator($this->trustedChainBuilder());
-        $session = $authenticator->startDeviceLink(self::identity(), self::interactions());
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
 
-        // The mock derives the user challenge from this verifier, the way an
-        // app and a callback URL would.
-        $verifier = 'user-challenge-' . $session->challenge;
-        $identity = $authenticator->poll($session, $verifier);
+        $identity = $authenticator->poll($session, self::callbackFor($session));
 
         self::assertNotNull($identity);
         self::assertSame(self::IDENTITY_CODE, $identity->identityCode);
@@ -253,25 +267,96 @@ final class SmartIdAuthenticatorTest extends TestCase
     {
         $this->service->flowType = FlowType::Web2App;
         $authenticator = $this->authenticator();
-        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: 'https://rp.example.test/back?value=RrKjjT4a');
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
 
         $restored = SmartIdSession::fromJson(json_encode($session, JSON_THROW_ON_ERROR));
-        $identity = $authenticator->poll($restored, 'user-challenge-' . $restored->challenge);
+        $identity = $authenticator->poll($restored, self::callbackFor($restored));
 
-        self::assertSame('https://rp.example.test/back?value=RrKjjT4a', $restored->initialCallbackUrl);
+        self::assertSame(self::CALLBACK_URL, $restored->initialCallbackUrl);
         self::assertNotNull($identity);
         self::assertSame(self::IDENTITY_CODE, $identity->identityCode);
     }
 
-    public function testASameDeviceAnswerWithoutTheCallbacksVerifierIsRefused(): void
+    public function testASameDeviceAnswerWithoutTheCallbackIsRefused(): void
     {
         $this->service->flowType = FlowType::App2App;
         $authenticator = $this->authenticator();
-        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: 'https://rp.example.test/back');
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
 
-        $this->expectExceptionMessage('Smart-ID answered through App2App, which needs the userChallengeVerifier its callback returned');
+        $this->expectExceptionMessage('Smart-ID answered through App2App, which needs the callback the app opened');
 
         $authenticator->poll($session);
+    }
+
+    /**
+     * SK's callback rules, one at a time: each of these is a callback that
+     * must not sign anyone in.
+     *
+     * @return iterable<string, array{array<string, string>, list<string>, string}> parameters to change, parameters to leave out, and the complaint
+     */
+    public static function refusedCallbacks(): iterable
+    {
+        yield 'another session\'s value' => [['value' => 'somebody-elses'], [], 'does not carry this session\'s "value" parameter'];
+        yield 'no value at all' => [[], ['value'], 'does not carry this session\'s "value" parameter'];
+        yield 'no session secret digest' => [[], ['sessionSecretDigest'], 'carries no sessionSecretDigest'];
+        yield 'the digest of another secret' => [
+            ['sessionSecretDigest' => DeviceLink::base64Url(hash('sha256', 'another secret', true))],
+            [],
+            'sessionSecretDigest does not match',
+        ];
+        yield 'the digest of the secret\'s base64 text rather than its bytes' => [
+            ['sessionSecretDigest' => DeviceLink::base64Url(hash('sha256', base64_encode(str_repeat("\x2a", 32)), true))],
+            [],
+            'sessionSecretDigest does not match',
+        ];
+        yield 'no user challenge verifier' => [[], ['userChallengeVerifier'], 'carries no userChallengeVerifier'];
+        yield 'another session\'s verifier' => [['userChallengeVerifier' => 'user-challenge-from-somewhere-else'], [], 'verifier from the callback does not match'];
+    }
+
+    /**
+     * @param array<string, string> $changed
+     * @param list<string>          $left
+     */
+    #[DataProvider('refusedCallbacks')]
+    public function testACallbackThatDoesNotBelongToTheSessionIsRefused(array $changed, array $left, string $message): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
+        $parameters = array_diff_key($changed + self::callbackFor($session)->parameters, array_flip($left));
+
+        $this->expectException(SmartIdException::class);
+        $this->expectExceptionMessage($message);
+
+        $authenticator->poll($session, new SmartIdCallback($parameters));
+    }
+
+    /**
+     * The digest is taken over the secret's bytes, as SK's clients take it.
+     * Pinned against a value computed with OpenSSL, not with this library.
+     */
+    public function testTheSessionSecretDigestIsTheOneSmartIdSends(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startDeviceLink(self::identity(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
+        self::assertSame(base64_encode(str_repeat("\x2a", 32)), $session->sessionSecret, 'the mock\'s secret');
+
+        $callback = self::callbackFor($session)->parameters;
+        $callback['sessionSecretDigest'] = 'VE5izugDNwnjieWydVND0ND6jEhQIVz7YzFxfoDRrqM';
+
+        self::assertNotNull($authenticator->poll($session, new SmartIdCallback($callback)));
+    }
+
+    public function testACallbackForASessionStartedWithoutOneIsRefused(): void
+    {
+        $this->service->flowType = FlowType::Qr;
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startAnonymous(self::interactions());
+
+        $this->expectExceptionMessage('was not started with a callback URL');
+
+        $authenticator->poll($session, new SmartIdCallback(['sessionSecretDigest' => 'x', 'userChallengeVerifier' => 'y']));
     }
 
     public function testACallbackUrlThatWouldShiftTheSignedFieldsIsRefusedBeforeSmartIdIsAsked(): void
@@ -284,17 +369,6 @@ final class SmartIdAuthenticatorTest extends TestCase
         }
 
         self::assertSame([], $this->service->received, 'nothing was sent to Smart-ID');
-    }
-
-    public function testAUserChallengeVerifierFromAnotherSessionIsRefused(): void
-    {
-        $this->service->flowType = FlowType::Web2App;
-        $authenticator = $this->authenticator();
-        $session = $authenticator->startDeviceLink(self::identity(), self::interactions());
-
-        $this->expectExceptionMessageMatches('/verifier from the callback does not match/');
-
-        $authenticator->poll($session, 'user-challenge-from-somewhere-else');
     }
 
     public function testTheVerificationCodeChoiceIsNotOfferedOnADeviceLink(): void
@@ -830,7 +904,7 @@ final class SmartIdAuthenticatorTest extends TestCase
         self::assertSame($session->sessionToken, $restored->sessionToken);
 
         // And it still verifies, which is the point of keeping it.
-        self::assertNotNull($authenticator->poll($restored, 'user-challenge-' . $restored->challenge));
+        self::assertNotNull($authenticator->poll($restored));
     }
 
     public function testADeviceLinkBuiltFromARestoredSessionIsIdentical(): void

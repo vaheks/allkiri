@@ -151,6 +151,46 @@ final readonly class SmartIdSession implements \JsonSerializable
     }
 
     /**
+     * Check that a callback belongs to this session, as SK's callback URL
+     * rules require before an answer is believed.
+     *
+     * Every parameter of the callback URL the session was started with, the
+     * random value included, has to come back unchanged, and the digest the app
+     * added has to be the SHA-256 of this session's secret. The authenticator's
+     * and the signer's `complete()` call this themselves when given a callback.
+     *
+     * It cannot tell whether the session is the one this browser started: find
+     * it through the browser's own session, and forget it once used.
+     *
+     * @throws SmartIdException when the callback belongs to another session, or to none
+     */
+    public function verifyCallback(SmartIdCallback $callback): void
+    {
+        if ($this->initialCallbackUrl === null || $this->sessionSecret === null) {
+            throw new SmartIdException('This session was not started with a callback URL, so no callback can belong to it');
+        }
+
+        foreach (SmartIdCallback::fromUrl($this->initialCallbackUrl)->parameters as $name => $expected) {
+            $returned = $callback->parameters[$name] ?? null;
+            if ($returned === null || !hash_equals($expected, $returned)) {
+                throw new SmartIdException(\sprintf('The callback does not carry this session\'s "%s" parameter; it belongs to another session', $name));
+            }
+        }
+
+        $digest = $callback->sessionSecretDigest();
+        if ($digest === null) {
+            throw new SmartIdException('The callback carries no sessionSecretDigest, so nothing shows it came from Smart-ID');
+        }
+        $secret = base64_decode($this->sessionSecret, true);
+        if ($secret === false || $secret === '') {
+            throw new SmartIdException('The stored session secret is not base64');
+        }
+        if (!hash_equals(DeviceLink::base64Url(hash('sha256', $secret, true)), $digest)) {
+            throw new SmartIdException('The callback\'s sessionSecretDigest does not match this session\'s secret');
+        }
+    }
+
+    /**
      * Seconds since the session started, for a QR link.
      */
     public function elapsedSeconds(?\DateTimeImmutable $now = null): int

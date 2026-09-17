@@ -13,11 +13,13 @@ use Allkiri\Signing\SessionMismatchException;
 use Allkiri\Signing\SignatureLevel;
 use Allkiri\Signing\SigningOptions;
 use Allkiri\SmartId\CertificateLevel;
+use Allkiri\SmartId\DeviceLink;
 use Allkiri\SmartId\DocumentNumber;
 use Allkiri\SmartId\FlowType;
 use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SmartIdApiException;
+use Allkiri\SmartId\SmartIdCallback;
 use Allkiri\SmartId\SmartIdClient;
 use Allkiri\SmartId\SmartIdEndResult;
 use Allkiri\SmartId\SmartIdException;
@@ -48,6 +50,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class SmartIdSignerTest extends TestCase
 {
+    /** Where a same-device signature returns, with the random value SK's rules ask for. */
+    private const CALLBACK_URL = 'https://rp.example.test/signed?value=RrKjjT4aggzu27YBddX1bQ';
+
     private SigningFixture $fixture;
 
     private MockSmartIdService $service;
@@ -86,6 +91,18 @@ final class SmartIdSignerTest extends TestCase
     private static function interactions(): Interactions
     {
         return Interactions::of(Interaction::confirmationMessage('Please sign the lease'));
+    }
+
+    /**
+     * What the app would open after signing: the callback URL with the digest
+     * of the session secret. A signing callback carries no verifier.
+     */
+    private static function callbackFor(SmartIdSigningSession $signing): SmartIdCallback
+    {
+        return SmartIdCallback::fromUrl(
+            (string) $signing->session->initialCallbackUrl
+            . '&sessionSecretDigest=' . DeviceLink::base64Url(hash('sha256', (string) base64_decode((string) $signing->session->sessionSecret, true), true)),
+        );
     }
 
     // --- certificates -------------------------------------------------------
@@ -262,6 +279,47 @@ final class SmartIdSignerTest extends TestCase
         self::assertSame($callback, explode('|', $web2App->payload('unprotected'))[6], 'the authentication code covers the callback');
         $qr = $restored->session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64());
         self::assertSame('', explode('|', $qr->payload('unprotected'))[6], 'a QR link carries none');
+    }
+
+    public function testAWeb2AppSignatureIsFinishedWithTheCallback(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $container = self::container();
+        $signing = $this->signer->startDeviceLink($container, self::documentNumber(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
+        $this->service->expectToSign($signing->dataToBeSigned->signedInfoCanonical);
+
+        $result = $this->signer->poll($container, $signing, self::callbackFor($signing));
+
+        self::assertNotNull($result);
+        self::assertSame(Indication::TotalPassed, $this->validate((new AsicWriter())->write($result->container)));
+    }
+
+    public function testAWeb2AppSignatureWithoutTheCallbackIsRefused(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $container = self::container();
+        $signing = $this->signer->startDeviceLink($container, self::documentNumber(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
+        $this->service->expectToSign($signing->dataToBeSigned->signedInfoCanonical);
+
+        $this->expectException(SmartIdException::class);
+        $this->expectExceptionMessage('Smart-ID answered through Web2App, which needs the callback the app opened');
+
+        $this->signer->poll($container, $signing);
+    }
+
+    public function testAWeb2AppSignatureWithAnotherSessionsCallbackIsRefused(): void
+    {
+        $this->service->flowType = FlowType::Web2App;
+        $container = self::container();
+        $signing = $this->signer->startDeviceLink($container, self::documentNumber(), self::interactions(), initialCallbackUrl: self::CALLBACK_URL);
+        $this->service->expectToSign($signing->dataToBeSigned->signedInfoCanonical);
+        $callback = self::callbackFor($signing)->parameters;
+        $callback['value'] = 'somebody-elses';
+
+        $this->expectException(SmartIdException::class);
+        $this->expectExceptionMessage('does not carry this session\'s "value" parameter');
+
+        $this->signer->poll($container, $signing, new SmartIdCallback($callback));
     }
 
     public function testASignatureCanBeAppendedToAnAlreadySignedContainer(): void
