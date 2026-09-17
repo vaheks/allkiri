@@ -18,6 +18,11 @@ A service that was `granted` when a signature was made stays trustworthy for
 that signature even after its status changes, which is why the status history
 is kept rather than just the current value.
 
+The same holds for an OCSP responder the list names: its answer counts if the
+service stood when the answer was produced. A responder whose service had been
+withdrawn by then is judged like one no list names, and must have been
+delegated by the certificate's own CA.
+
 ## What production trusts
 
 `Environment::production()` takes its trust from the European list of trusted

@@ -90,6 +90,13 @@ All notable changes to this project are documented here. The format follows
   another site. `WebEidAuthenticator` now requires `digitalSignature`, refuses
   `nonRepudiation`, and requires client authentication in an extended key
   usage where there is one (#45).
+- An OCSP responder a trusted list names is trusted only while the list says
+  its service stands. Every listed responder used to count for any
+  certificate, whatever its status history, so one withdrawn years before
+  could still vouch for a revoked certificate when signing and when
+  validating. Its answer now counts only if the service was in good standing
+  when the answer was produced; otherwise the responder has to be one the
+  certificate's CA delegated to (#46).
 - Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
   the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
   itself. The native application read the object as an empty nonce and showed

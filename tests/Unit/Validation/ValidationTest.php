@@ -42,6 +42,7 @@ use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Tests\Support\Xades\SignatureWrapping;
 use Allkiri\Trust\CompositeTrustStore;
 use Allkiri\Trust\InMemoryTrustStore;
+use Allkiri\Trust\ServiceStatus;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
 use Allkiri\Trust\TrustedList\TrustedListException;
@@ -817,6 +818,51 @@ final class ValidationTest extends TestCase
         self::assertSame(SubIndication::TryLater, $refused->subIndication, 'as when no responder is trusted at all');
         self::assertSame([FindingCodes::TRUSTED_LIST_EXPIRED], array_map(static fn($f): string => $f->code, $refused->errors()));
         self::assertStringContainsString('so the OCSP responder is not trusted', $refused->errors()[0]->message);
+    }
+
+    /**
+     * A responder the signer's CA did not issue is trusted only for what a
+     * list says of it, and that includes its status. One whose service was
+     * withdrawn before it answered vouches for nothing; one withdrawn only
+     * later still does for what it said before.
+     *
+     * @return iterable<string, array{string, Indication}>
+     */
+    public static function listedResponderWithdrawals(): iterable
+    {
+        yield 'withdrawn before it answered' => ['2026-02-01T00:00:00Z', Indication::Indeterminate];
+        yield 'withdrawn after it answered' => ['2026-03-02T00:00:00Z', Indication::TotalPassed];
+    }
+
+    #[DataProvider('listedResponderWithdrawals')]
+    public function testAListedResponderCountsOnlyWhileItsServiceStands(string $withdrawn, Indication $expected): void
+    {
+        $fixture = new SigningFixture();
+        $keyPair = TestPki::signerEc256();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair($keyPair));
+        $responder = TestCertificates::issue(TestKey::ec('secp256r1', 'listed-responder'), ['id-at-commonName' => 'Listed OCSP responder'], [], TestIssuer::of(TestPki::tsa(), TestKey::fixture('tsa')));
+        $answer = (new MockOcspResponder($fixture->clock, $responder))->handle(HttpRequest::post(
+            MockOcspResponder::URL,
+            'application/ocsp-request',
+            OcspRequest::build(CertId::for($keyPair->certificate, TestPki::ca()->certificate))->der,
+        ))->body;
+        $bytes = self::withEncapsulated($result, 'EncapsulatedOCSPValue', $answer);
+        $store = new CompositeTrustStore(
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc),
+            InMemoryTrustStore::fromCertificates([TestPki::tsa()->certificate], ServiceType::TsaQtst),
+            new InMemoryTrustStore([new TrustAnchor($responder->certificate, ServiceType::OcspQc, 'Listed OCSP responder', [
+                ['status' => ServiceStatus::Granted, 'since' => new \DateTimeImmutable('2020-01-01T00:00:00Z')],
+                ['status' => ServiceStatus::Withdrawn, 'since' => new \DateTimeImmutable($withdrawn)],
+            ], 'EE_T')]),
+        );
+
+        $signature = self::validator($fixture)->validate($bytes, 'a.asice', new ValidationOptions(new \DateTimeImmutable('2026-03-05T00:00:00Z'), $store))->signatures[0];
+
+        self::assertSame($expected, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+        if ($expected === Indication::Indeterminate) {
+            self::assertTrue($signature->has(FindingCodes::REVOCATION_INVALID));
+            self::assertStringContainsString('responder certificate lacks the OCSPSigning extended key usage', $signature->errors()[0]->message, 'judged as a responder no list names');
+        }
     }
 
     /**

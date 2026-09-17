@@ -32,7 +32,13 @@ use Allkiri\Tests\Support\Pki\TestSignatures;
 use Allkiri\Tests\Support\SigningFixture;
 use Allkiri\Tests\Support\Trust\SwitchableTrustStore;
 use Allkiri\Trust\ChainBuildingException;
+use Allkiri\Trust\CompositeTrustStore;
+use Allkiri\Trust\InMemoryTrustStore;
+use Allkiri\Trust\ServiceStatus;
+use Allkiri\Trust\ServiceType;
+use Allkiri\Trust\TrustAnchor;
 use Allkiri\Trust\TrustedList\TrustedListException;
+use Allkiri\Trust\TrustStore;
 use Allkiri\Xades\Model\XadesSignatureParser;
 use Allkiri\Xades\SignatureBuilder;
 use Allkiri\Xades\SignatureDocument;
@@ -507,6 +513,45 @@ final class SigningServiceTest extends TestCase
             self::assertInstanceOf(TrustedListException::class, $e->getPrevious());
         }
         self::assertSame(0, $fixture->tsa->requests, 'no timestamp was bought');
+    }
+
+    /**
+     * A responder the signer's CA did not issue answers for its certificates
+     * only because a list names it, and only while the list says its service
+     * stands.
+     */
+    public function testAListedResponderWhoseServiceWasWithdrawnVouchesForNothing(): void
+    {
+        $responder = TestCertificates::issue(TestKey::ec('secp256r1', 'listed-responder'), ['id-at-commonName' => 'Listed OCSP responder'], [], TestIssuer::of(TestPki::tsa(), TestKey::fixture('tsa')));
+        $fixture = new SigningFixture(ocspResponder: $responder);
+        $result = $fixture->signingServiceTrusting(self::listing($responder, null))->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        self::assertSame(SignatureLevel::LT, $result->level, 'while it stands, its answer is used');
+
+        try {
+            $fixture->signingServiceTrusting(self::listing($responder, '2025-06-01T00:00:00Z'))
+                ->signWith(self::container(), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+            self::fail('a withdrawn responder vouched for the signer');
+        } catch (SigningException $e) {
+            self::assertStringContainsString('responder certificate lacks the OCSPSigning extended key usage', $e->getMessage(), 'judged as a responder no list names');
+        }
+    }
+
+    /**
+     * The test CA and TSA, and this responder as a listed OCSP service,
+     * granted since 2020 and withdrawn at the given time, if any.
+     */
+    private static function listing(KeyPair $responder, ?string $withdrawn): TrustStore
+    {
+        $history = [['status' => ServiceStatus::Granted, 'since' => new \DateTimeImmutable('2020-01-01T00:00:00Z')]];
+        if ($withdrawn !== null) {
+            $history[] = ['status' => ServiceStatus::Withdrawn, 'since' => new \DateTimeImmutable($withdrawn)];
+        }
+
+        return new CompositeTrustStore(
+            InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc),
+            InMemoryTrustStore::fromCertificates([TestPki::tsa()->certificate], ServiceType::TsaQtst),
+            new InMemoryTrustStore([new TrustAnchor($responder->certificate, ServiceType::OcspQc, 'Listed OCSP responder', $history, 'EE_T')]),
+        );
     }
 
     public function testTrustedListsThatCannotBeLoadedAreASigningFailureWhenPreparing(): void

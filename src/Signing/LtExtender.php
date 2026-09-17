@@ -67,10 +67,18 @@ final class LtExtender
         } catch (TrustedListException $e) {
             throw self::listsUnavailable($e);
         }
-        $trustedResponders = array_map(static fn($anchor): Certificate => $anchor->certificate, $ocspAnchors);
+        // A listed responder is trusted to answer only while its service is in
+        // good standing. The answer is produced right after the timestamp, so
+        // the timestamp's time is when that is judged.
+        $trustedResponders = [];
+        foreach ($ocspAnchors as $anchor) {
+            if ($anchor->isTrustworthyAt($timestamp->genTime())) {
+                $trustedResponders[] = $anchor->certificate;
+            }
+        }
 
         try {
-            $ocsp = $this->ocspClient->fetch($signer, $issuer, array_values($trustedResponders));
+            $ocsp = $this->ocspClient->fetch($signer, $issuer, $trustedResponders);
         } catch (OcspException $e) {
             throw new SigningException('Could not obtain a valid OCSP response for the signature: ' . $e->getMessage(), 0, $e);
         }

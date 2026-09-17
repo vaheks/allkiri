@@ -614,14 +614,14 @@ final class SignatureValidator
 
     /**
      * Every embedded answer that verifies, with the store's listed responders
-     * trusted to give one.
+     * trusted to give one while their service was in good standing.
      *
      * @return array{list<OcspVerificationResult>, ?string, ?string} the verified answers, the last problem with one that did not verify, and the weak algorithm of one that otherwise did
      */
     private function verifiedResponses(XadesSignature $signature, Certificate $signer, Certificate $issuer, \DateTimeImmutable $at, TrustStore $store): array
     {
-        $trustedResponders = array_map(static fn(TrustAnchor $anchor): Certificate => $anchor->certificate, $store->anchors(ServiceType::ocspTypes()));
-        $options = (new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints()))->withTrustedResponders(array_values($trustedResponders));
+        $listed = $store->anchors(ServiceType::ocspTypes());
+        $options = new OcspVerificationOptions(NonceMode::Ignore, [], $this->policy->clockSkewSeconds, null, $this->policy->algorithmConstraints());
 
         $verified = [];
         $lastProblem = null;
@@ -634,9 +634,15 @@ final class SignatureValidator
                 continue;
             }
             $producedAt = $response->basic()?->producedAt() ?? $at;
+            $trustedResponders = [];
+            foreach ($listed as $anchor) {
+                if ($anchor->isTrustworthyAt($producedAt)) {
+                    $trustedResponders[] = $anchor->certificate;
+                }
+            }
 
             try {
-                $verified[] = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options);
+                $verified[] = $this->ocspVerifier->verify($response, $signer, $issuer, null, $producedAt, $options->withTrustedResponders($trustedResponders));
             } catch (OcspException $e) {
                 if ($e->reason === \Allkiri\Crypto\Ocsp\OcspVerificationException::REASON_ALGORITHM_NOT_ACCEPTED) {
                     $weakness = $e->getMessage();
