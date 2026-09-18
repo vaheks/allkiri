@@ -8,6 +8,7 @@ use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Http\HttpResponse;
 use Allkiri\Http\TransportException;
 use Allkiri\SmartId\CertificateLevel;
+use Allkiri\SmartId\DeviceLinkSessionResponse;
 use Allkiri\SmartId\DocumentNumber;
 use Allkiri\SmartId\Interaction;
 use Allkiri\SmartId\Interactions;
@@ -115,6 +116,38 @@ final class SmartIdClientTest extends TestCase
         self::assertNotSame('', $response->sessionSecret);
         self::assertSame('https://smart-id.test/dl', $response->deviceLinkBase);
         self::assertStringEndsWith('/authentication/device-link/anonymous', $this->service->received[0]['path']);
+    }
+
+    /**
+     * Every link the session mints starts with this address, and an application
+     * puts the finished link in a QR code, an anchor and location.href. A base
+     * that is not an https address is not a link to the Smart-ID app.
+     *
+     * @param string $base what the service returned as the device link address
+     */
+    #[DataProvider('unusableDeviceLinkBases')]
+    public function testADeviceLinkAddressThatIsNotHttpsIsRefused(string $base): void
+    {
+        $this->expectException(SmartIdApiException::class);
+        $this->expectExceptionMessage('The device link address Smart-ID returned must be an https:// URL');
+
+        DeviceLinkSessionResponse::fromArray([
+            'sessionID' => 'a-session',
+            'sessionToken' => 'a-token',
+            'sessionSecret' => 'a-secret',
+            'deviceLinkBase' => $base,
+        ]);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unusableDeviceLinkBases(): iterable
+    {
+        yield 'script' => ['javascript:fetch("/api/archive",{method:"POST"})'];
+        yield 'data' => ['data:text/html,<script>alert(1)</script>'];
+        yield 'plain http' => ['http://smart-id.test/dl'];
+        yield 'no scheme at all' => ['smart-id.test/dl'];
     }
 
     public function testACallbackUrlIsSentWhenGiven(): void
