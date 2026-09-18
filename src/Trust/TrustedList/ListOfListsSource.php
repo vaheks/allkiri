@@ -32,6 +32,16 @@ final readonly class ListOfListsSource
     public const PIVOT_CACHE_TTL_SECONDS = 30 * 86400;
 
     /**
+     * How many pivot lists are followed at most.
+     *
+     * The Commission has published a handful since the scheme began, and each
+     * one is fetched before anything has verified the list that names them. A
+     * document claiming far more than could exist is not a list of lists having
+     * a long history; it is something trying to make this server fetch.
+     */
+    public const MAX_PIVOTS = 32;
+
+    /**
      * @param list<Certificate> $allowedSigners     the certificates the Official Journal publishes
      * @param list<string>      $territories        two-letter codes to follow, in order
      * @param string|null       $officialJournalUrl the publication $allowedSigners come from, as the list of
@@ -82,14 +92,38 @@ final readonly class ListOfListsSource
      */
     public function pivotSource(string $url, array $signers): TrustedListSource
     {
-        if (!HttpRequest::isHttpUrl($url)) {
+        // The addresses come out of a list that has not been verified yet, so
+        // they say where to go before anything has said the list is genuine.
+        // A pivot lives beside the list of lists it belongs to; anywhere else
+        // is not a pivot list, and asking for it would be this server making a
+        // request that a document it does not yet trust chose.
+        if (!self::isBesideTheList($url, $this->url)) {
             throw new TrustedListException(
                 TrustedListException::REASON_TRANSPORT,
-                \sprintf('The list of trusted lists names a pivot list at "%s", which is not an http(s) URL, so it cannot be fetched', HttpRequest::withoutIdentities($url)),
+                \sprintf(
+                    'The list of trusted lists names a pivot list at "%s", which is not an https address on %s, where its own pivots live',
+                    HttpRequest::withoutIdentities($url),
+                    (string) parse_url($this->url, PHP_URL_HOST),
+                ),
             );
         }
 
         return new TrustedListSource($url, $signers, null, 'pivot list ' . basename((string) parse_url($url, PHP_URL_PATH)), self::PIVOT_CACHE_TTL_SECONDS);
+    }
+
+    /**
+     * Whether a pivot address is https and on the same host as the list of
+     * lists itself.
+     */
+    private static function isBesideTheList(string $url, string $listUrl): bool
+    {
+        $parts = parse_url($url);
+        if (!\is_array($parts) || strtolower($parts['scheme'] ?? '') !== 'https') {
+            return false;
+        }
+        $host = strtolower($parts['host'] ?? '');
+
+        return $host !== '' && $host === strtolower((string) parse_url($listUrl, PHP_URL_HOST));
     }
 
     /**

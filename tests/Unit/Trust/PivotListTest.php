@@ -18,6 +18,7 @@ use Allkiri\Trust\TrustedList\ListOfListsSource;
 use Allkiri\Trust\TrustedList\TrustedListException;
 use Allkiri\Trust\TrustedList\TrustedListLoader;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -176,6 +177,55 @@ final class PivotListTest extends TestCase
         $this->assertLoads($this->store());
 
         self::assertStringContainsString('Skipped the pivot list ' . self::PIVOT_1 . ': Trusted list ' . self::PIVOT_1 . ' answered HTTP 404', $this->logger->transcript());
+    }
+
+    /**
+     * The addresses are read out of a list that nothing has verified yet, so
+     * they are followed only where a pivot list of that list can be: over
+     * https, on the same host. Anywhere else and this server would be making a
+     * request chosen by a document it does not trust.
+     *
+     * @param string $where an address the unverified list might name
+     */
+    #[DataProvider('addressesThatAreNotPivots')]
+    public function testAPivotAddressAwayFromTheListIsNotFetched(string $where, string $why): void
+    {
+        $this->publish(self::LOTL, self::a(), [self::a()], [$where, self::JOURNAL]);
+
+        $this->assertLoads($this->store());
+
+        self::assertSame(0, $this->http->requestCount($where), $why);
+        self::assertStringContainsString('which is not an https address on lotl.allkiri.test', $this->logger->transcript());
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function addressesThatAreNotPivots(): iterable
+    {
+        yield 'another host' => ['https://elsewhere.allkiri.test/eu-lotl-pivot-1.xml', 'a host the list of lists does not live on is not asked'];
+        yield 'the private network' => ['http://127.0.0.1:80/eu-lotl-pivot-1.xml', 'an address on this machine is not asked'];
+        yield 'a metadata service' => ['http://169.254.169.254/latest/meta-data/eu-lotl-pivot.xml', 'a link-local address is not asked'];
+        yield 'plain http on the right host' => ['http://lotl.allkiri.test/eu-lotl-pivot-1.xml', 'the right host over plain http is not asked'];
+    }
+
+    /**
+     * Each pivot is fetched on the word of a list nothing has verified yet, so
+     * a document naming more of them than could exist is an attempt to make
+     * this server fetch, not a long history.
+     */
+    public function testAListNamingImplausiblyManyPivotsIsFollowedNowhere(): void
+    {
+        $many = [];
+        for ($i = 1; $i <= ListOfListsSource::MAX_PIVOTS + 1; ++$i) {
+            $many[] = \sprintf('https://lotl.allkiri.test/eu-lotl-pivot-%d.xml', $i);
+        }
+        $this->publish(self::LOTL, self::a(), [self::a()], [...$many, self::JOURNAL]);
+
+        $this->assertLoads($this->store());
+
+        self::assertSame(0, $this->http->requestCount($many[0]), 'no pivot is fetched');
+        self::assertStringContainsString('more than the ' . ListOfListsSource::MAX_PIVOTS . ' that could plausibly exist', $this->logger->transcript());
     }
 
     /**

@@ -146,6 +146,18 @@ final class ListOfListsTrustStore implements TrustStore
                 'journal' => $journal,
             ]);
         }
+        // Each one is fetched on the word of a list nothing has verified yet.
+        // More than could exist is not a history; it is an attempt to make this
+        // server fetch. Trust then stays with the certificates that shipped,
+        // which is where it started.
+        if (\count($pivots) > ListOfListsSource::MAX_PIVOTS) {
+            $this->logger?->warning('The list of trusted lists names {count} pivot lists, more than the {limit} that could plausibly exist; none is followed, and the shipped certificates stand.', [
+                'count' => \count($pivots),
+                'limit' => ListOfListsSource::MAX_PIVOTS,
+            ]);
+
+            return $signers;
+        }
 
         $location = null;
         foreach (array_reverse($pivots) as $url) {
