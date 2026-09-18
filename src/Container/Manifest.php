@@ -112,8 +112,28 @@ final readonly class Manifest
         return $duplicates;
     }
 
+    /**
+     * A value as an XML attribute.
+     *
+     * Refuses what cannot be written rather than writing something else.
+     * `htmlspecialchars` with explicit flags returns the empty string for input
+     * that is not valid UTF-8, so a data file whose name is not UTF-8 used to
+     * become `full-path=""`: the manifest went into the container, the
+     * signature covered it, and reading it back said the file was not listed.
+     * A name that cannot be represented is a reason to stop, not to guess.
+     *
+     * ENT_SUBSTITUTE stands behind the check, so no path here can return the
+     * empty string for a value that is not empty.
+     */
     private static function escape(string $value): string
     {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
+        if (!mb_check_encoding($value, 'UTF-8')) {
+            throw new ContainerException(\sprintf(
+                'The manifest cannot hold "%s": it is not valid UTF-8, and the manifest is a UTF-8 document',
+                addcslashes($value, "\0..\37\\\""),
+            ));
+        }
+
+        return htmlspecialchars($value, ENT_QUOTES | ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

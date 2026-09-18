@@ -7,6 +7,7 @@ namespace Allkiri\Tests\Unit\Container;
 use Allkiri\Container\AsicContainer;
 use Allkiri\Container\AsicReader;
 use Allkiri\Container\AsicWriter;
+use Allkiri\Container\ContainerException;
 use Allkiri\Container\DataFile;
 use Allkiri\Container\InvalidContainerException;
 use Allkiri\Container\Manifest;
@@ -233,14 +234,60 @@ final class AsicContainerTest extends TestCase
         self::assertSame(MimeTypes::DEFAULT, MimeTypes::guess('no-extension'));
         self::assertSame(MimeTypes::DEFAULT, MimeTypes::guess('archive.unknown'));
 
-        foreach (['', 'META-INF/signatures0.xml', 'mimetype', '/absolute.txt', '../escape.txt', 'a/../../b.txt', 'back\\slash.txt'] as $name) {
+        $refused = [
+            '',
+            'META-INF/signatures0.xml',
+            'mimetype',
+            '/absolute.txt',
+            '../escape.txt',
+            'a/../../b.txt',
+            'back\\slash.txt',
+            // A control character makes a name that reads as another one.
+            "trailing-newline.txt\n",
+            "carriage\r.txt",
+            "tab\there.txt",
+            "delete\x7F.txt",
+        ];
+        foreach ($refused as $name) {
             try {
                 new DataFile($name, 'x');
-                self::fail(\sprintf('"%s" was accepted as a data file name', $name));
+                self::fail(\sprintf('"%s" was accepted as a data file name', addcslashes($name, "\0..\37")));
             } catch (InvalidArgumentException) {
             }
         }
         self::assertSame('sub/dir/file.txt', (new DataFile('sub/dir/file.txt', 'x'))->name, 'subdirectories are allowed');
+    }
+
+    /**
+     * PHP's $ matches before a trailing newline, so a pattern anchored with it
+     * reads "META-INF/signatures.xml\n" as a signature file. libdigidocpp and
+     * digidoc4j do not, and a container one validator reads as signed and
+     * another as unsigned is exactly what the reader refuses elsewhere.
+     */
+    public function testAnEntryNamedLikeASignatureFileWithATrailingNewlineIsRefused(): void
+    {
+        try {
+            new SignatureFile("META-INF/signatures.xml\n", '<x/>');
+            self::fail('a signature file name with a trailing newline was accepted');
+        } catch (InvalidArgumentException) {
+        }
+
+        self::assertNull((new SignatureFile('META-INF/signatures.xml', '<x/>'))->index());
+        self::assertSame(7, (new SignatureFile('META-INF/signatures7.xml', '<x/>'))->index());
+    }
+
+    /**
+     * A name that is not UTF-8 used to be escaped into the empty string, so the
+     * manifest said nothing about the file while the signature covered it.
+     */
+    public function testAManifestRefusesANameItCannotRepresent(): void
+    {
+        $manifest = new Manifest([['fullPath' => "caf\xE9.txt", 'mediaType' => 'text/plain']]);
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('not valid UTF-8');
+
+        $manifest->toXml();
     }
 
     public function testContainerInvariants(): void
