@@ -36,7 +36,7 @@
         "ext-mbstring": "*",
         "ext-openssl": "*",
         "ext-zlib": "*",
-        "phpseclib/phpseclib": "^3.0.54",
+        "phpseclib/phpseclib": "^3.0.57",
         "psr/clock": "^1.0",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
