@@ -27,3 +27,12 @@ dependency. Report those to their maintainers.
 
 Until 1.0 only the `main` branch is supported. After 1.0 the latest minor
 release is supported.
+
+Every alpha before `0.7.0-alpha.1` carries five known flaws in how trust,
+signing certificates, revocation responders and timestamp authorities are
+checked. They are listed under Security in the changelog entry for
+`0.7.0-alpha.1`. None of them will be fixed on an older tag, because none of
+those tags is supported: upgrade instead.
+
+Tags are not removed once published, so an old one stays installable. Take the
+newest release rather than pinning to an exact alpha.

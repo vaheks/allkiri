@@ -6,6 +6,51 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The dependency floors moved past published advisories in the code paths this
+  library feeds untrusted bytes to: `phpseclib/phpseclib` to `^3.0.54`
+  (CVE-2026-55599, outbound requests while validating a certificate),
+  `guzzlehttp/psr7` to `^2.12.3` (CVE-2026-59882, host confusion in a URI,
+  which is what the Web eID origin is), and
+  `web-eid/web-eid-authtoken-validation-php` to `^1.3.1`. No lock file is
+  committed, so these constraints are what a consumer resolves against.
+- The Composer archive no longer carries `examples/`. The demo is a web
+  application with a front controller, read from a clone rather than installed,
+  and `docs/browser.md` and `docs/frameworks.md` now say to copy or alias the
+  two browser helpers rather than serving `vendor/` itself.
+
+### Fixed
+
+- Signing in with an ID card no longer makes this server fetch an address the
+  certificate names. The vendor validator checks trust with phpseclib, which
+  offers to fetch the issuer named in a certificate's authority information
+  access extension when it cannot find one; that certificate is whatever the
+  browser sent, and the fetch happened before it was refused for not being
+  trusted. Anyone able to reach a sign-in endpoint could therefore have the
+  server request an address of their choosing, on the private network or
+  otherwise. Certificate fetching is switched off for the process.
+- A container entry named `META-INF/signatures.xml` with a trailing newline is
+  no longer read as a signature file. PHP's `$` matches before a trailing
+  newline, so allkiri saw a signature where libdigidocpp and digidoc4j see an
+  unexpected entry. A control character anywhere in a data file name is refused
+  outright, and the seventeen patterns that validate a value are anchored with
+  `\z`.
+- A data file whose name is not valid UTF-8 is refused rather than written into
+  the manifest as `full-path=""`, which the signature then covered and reading
+  the container back reported as a file missing from the manifest.
+- Only the date format a document may state is read from `SigningTime` and from
+  a trusted list's times. `new DateTimeImmutable()` also reads `now`,
+  `tomorrow` and the rest of PHP's relative formats, so a document could have
+  set the clock it was being judged against. A day that is not a day, which PHP
+  carries forward, is refused too.
+- A pivot list is followed only over https on the host the list of trusted
+  lists itself lives on, and no more of them than could plausibly exist. Their
+  addresses are read before anything has verified the list that names them.
+- The device link address Smart-ID returns is checked to be https. Every link a
+  device-link session mints starts with it, and an application puts the
+  finished link in a QR code, an anchor and `location.href`.
+
 ## [0.7.0-alpha.1] - 2026-09-17
 
 The release the repository went public with. It fixes what a second review
@@ -87,6 +132,33 @@ application.
 
 ### Fixed
 
+- Documentation that did not match the services: production needs no OCSP
+  contract, because the responders certificates name are free; SK's Mobile-ID
+  documentation requires pinning rather than leaving it to the contract; the
+  Estonian trusted list has named Zetes' `ESTEID2025` since October 2025, so
+  production needs no extra anchor for Thales cards; and the link to SK's
+  timestamping technical information had moved.
+- Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
+  the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
+  itself. The native application read the object as an empty nonce and showed
+  "Operation failed" before asking for PIN 1. `docs/web-eid.md` showed the same
+  call. Signing with the card was not affected (#32).
+- The demo application could sign with Smart-ID only if you typed in a document
+  number. The document number names one Smart-ID account, and hardly anyone
+  knows their own, so in live mode a real person could not sign with Smart-ID.
+  Signing now takes an identity code in a field of its own. It first asks the
+  phone which account will sign, with `SmartIdSigner::chooseCertificate()`, then
+  asks that account for the signature. Nothing from signing in is used, so
+  someone signed in with Mobile-ID or an ID card signs with Smart-ID the same
+  way. The document-number field is gone (#31).
+
+### Security
+
+Five flaws a second review found before the repository was made public.
+Every one of them is fixed in this release and present in `0.6.0-alpha.1`
+and every alpha before it, none of which is supported. Upgrade rather than
+patching an older tag.
+
 - A trusted list is accepted only when its signature covers the whole list.
   The verifier took the first signature anywhere in the document, while the
   parser reads the root, so a list that signs its root by `Id`, as the EU test
@@ -123,31 +195,12 @@ application.
   timestamp and archive timestamps are now held to the trust the validator
   applies. An untrusted archive timestamp is reported with the new reason
   `TimestampVerificationException::REASON_AUTHORITY_NOT_TRUSTED` (#47).
-- Documentation that did not match the services: production needs no OCSP
-  contract, because the responders certificates name are free; SK's Mobile-ID
-  documentation requires pinning rather than leaving it to the contract; the
-  Estonian trusted list has named Zetes' `ESTEID2025` since October 2025, so
-  production needs no extra anchor for Thales cards; and the link to SK's
-  timestamping technical information had moved.
 - The demo application no longer lets another site cancel a Smart-ID sign-in
   waiting for the app. `/smart-id/callback` is a plain link, and it forgot the
   waiting session before checking the callback, so any page the visitor opened
   could send them there and the tab they started in showed an error. A
   callback that is not the session's own is now refused without touching it
   (#48).
-- Signing in with an ID card never worked. `allkiri.cardLogin()` gave web-eid.js
-  the challenge as `{challengeNonce: …}`, where `authenticate()` takes the nonce
-  itself. The native application read the object as an empty nonce and showed
-  "Operation failed" before asking for PIN 1. `docs/web-eid.md` showed the same
-  call. Signing with the card was not affected (#32).
-- The demo application could sign with Smart-ID only if you typed in a document
-  number. The document number names one Smart-ID account, and hardly anyone
-  knows their own, so in live mode a real person could not sign with Smart-ID.
-  Signing now takes an identity code in a field of its own. It first asks the
-  phone which account will sign, with `SmartIdSigner::chooseCertificate()`, then
-  asks that account for the signature. Nothing from signing in is used, so
-  someone signed in with Mobile-ID or an ID card signs with Smart-ID the same
-  way. The document-number field is gone (#31).
 
 ## [0.6.0-alpha.1] - 2026-09-15
 
