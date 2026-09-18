@@ -64,7 +64,7 @@ final readonly class ListOfListsSource
         }
         foreach ($territories as $territory) {
             // ISO 3166-1 alpha-2, or a test list's own code such as "EE_T".
-            if (preg_match('/^[A-Z]{2}(_[A-Z0-9]+)?$/', $territory) !== 1) {
+            if (preg_match('/^[A-Z]{2}(_[A-Z0-9]+)?\z/', $territory) !== 1) {
                 throw new InvalidArgumentException(\sprintf(
                     '"%s" is not a territory code such as "EE", or a test list code such as "EE_T"',
                     $territory,

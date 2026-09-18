@@ -49,7 +49,7 @@ final readonly class MobileIdConfiguration
         // The relying-party identifier, phone numbers and identity codes go to
         // this URL.
         HttpRequest::requireHttps($url, 'The Mobile-ID service URL');
-        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $relyingPartyUuid) !== 1) {
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/', $relyingPartyUuid) !== 1) {
             throw new InvalidArgumentException('The relying party identifier must be a lower-case UUID in 8-4-4-4-12 form');
         }
         if ($relyingPartyName === '') {

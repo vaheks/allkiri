@@ -87,7 +87,7 @@ final class Oids
      */
     public static function dotted(string $nameOrOid): string
     {
-        if (preg_match('/^\d+(\.\d+)+$/', $nameOrOid) === 1) {
+        if (preg_match('/^\d+(\.\d+)+\z/', $nameOrOid) === 1) {
             return $nameOrOid;
         }
         self::register();

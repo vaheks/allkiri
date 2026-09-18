@@ -20,10 +20,10 @@ final readonly class MobileIdIdentity
         public string $phoneNumber,
         public string $nationalIdentityNumber,
     ) {
-        if (preg_match('/^\+[1-9]\d{6,14}$/', $phoneNumber) !== 1) {
+        if (preg_match('/^\+[1-9]\d{6,14}\z/', $phoneNumber) !== 1) {
             throw new InvalidArgumentException(\sprintf('"%s" is not a phone number in international form, for example "+37200000766"', $phoneNumber));
         }
-        if (preg_match('/^\d{11}$/', $nationalIdentityNumber) !== 1) {
+        if (preg_match('/^\d{11}\z/', $nationalIdentityNumber) !== 1) {
             throw new InvalidArgumentException(\sprintf('"%s" is not an eleven-digit national identity number', $nationalIdentityNumber));
         }
     }
