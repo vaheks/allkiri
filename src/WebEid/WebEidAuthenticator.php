@@ -310,6 +310,8 @@ final class WebEidAuthenticator
      */
     private function validator(): AuthTokenValidator
     {
+        self::refuseCertificateUrlFetching();
+
         $builder = (new AuthTokenValidatorBuilder($this->logger))
             ->withSiteOrigin(new Uri($this->configuration->origin->value))
             ->withTrustedCertificateAuthorities(...$this->trustedAuthorities())
@@ -320,6 +322,36 @@ final class WebEidAuthenticator
         }
 
         return $builder->build();
+    }
+
+    /**
+     * Stop phpseclib fetching the issuer a certificate names.
+     *
+     * The vendor validator checks trust with phpseclib's `validateSignature()`.
+     * When the certificate does not chain to a CA it was given, phpseclib reads
+     * the caIssuers address out of the certificate's authority information
+     * access extension and fetches it, to look for the missing issuer there.
+     *
+     * The certificate is the token's `unverifiedCertificate`, which is whatever
+     * the browser sent, and the fetch happens before it is refused for not being
+     * trusted. Anyone who can reach a sign-in endpoint could therefore make the
+     * server request a URL of their choosing: an address on the private network,
+     * a cloud metadata service, a port that is not meant to be reachable. The
+     * answer never comes back to them, but the request is made, and how long it
+     * takes tells them what is there.
+     *
+     * Nothing in allkiri needs it. A chain is built from the trust store and the
+     * certificates the caller supplies, never from an address in a certificate.
+     *
+     * The switch is global to phpseclib and there is no way to read it back, so
+     * it is not restored afterwards. An application that wants phpseclib to
+     * fetch certificates elsewhere has to call
+     * {@see \phpseclib3\File\X509::enableURLFetch()} again itself, and should
+     * consider what that means for its own untrusted input.
+     */
+    private static function refuseCertificateUrlFetching(): void
+    {
+        X509::disableURLFetch();
     }
 
     /**
