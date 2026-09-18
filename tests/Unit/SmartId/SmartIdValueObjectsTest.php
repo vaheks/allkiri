@@ -463,4 +463,38 @@ final class SmartIdValueObjectsTest extends TestCase
         self::assertTrue(SmartIdEndResult::UserRefused->isWorthRetrying());
         self::assertTrue(SmartIdEndResult::Timeout->isWorthRetrying());
     }
+
+    // --- a newline on the end -------------------------------------------------
+
+    /**
+     * PHP's $ matches before a trailing newline as well as at the end of the
+     * subject, so a value validated with it can carry one and still pass. These
+     * become identifiers, go into URLs and are written to logs, so the anchors
+     * are \z and a trailing newline is simply not the value.
+     *
+     * @param \Closure(string): mixed $build
+     */
+    #[DataProvider('valuesThatMustNotEndInANewline')]
+    public function testAValueWithATrailingNewlineIsRefused(\Closure $build, string $valid): void
+    {
+        self::assertNotNull($build($valid), 'the value without a newline is accepted');
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $build($valid . "\n");
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(string): mixed, string}>
+     */
+    public static function valuesThatMustNotEndInANewline(): iterable
+    {
+        yield 'a semantics identifier' => [static fn(string $v) => SemanticsIdentifier::parse($v), 'PNOEE-38001085718'];
+        yield 'an identity number' => [static fn(string $v) => SemanticsIdentifier::estonian($v), '38001085718'];
+        yield 'a document number' => [static fn(string $v) => new DocumentNumber($v), 'PNOEE-38001085718-MOCK-Q'];
+        yield 'a relying party uuid' => [
+            static fn(string $v) => SmartIdConfiguration::production($v, 'allkiri'),
+            '00000000-0000-4000-8000-000000000001',
+        ];
+    }
 }

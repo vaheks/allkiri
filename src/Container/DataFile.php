@@ -40,6 +40,12 @@ final readonly class DataFile
         return match (true) {
             $name === '' => 'is empty',
             str_contains($name, "\0") => 'contains a null byte',
+            // A name is compared, matched and written into a manifest as text.
+            // A control character in one is never meant: it makes a name that
+            // looks like another, and "META-INF/signatures.xml\n" in particular
+            // is a name whose newline PHP's $ would let through a pattern
+            // anchored for the signature files.
+            preg_match('/[\x00-\x1F\x7F]/', $name) === 1 => 'contains a control character',
             str_contains($name, '\\') => 'contains a backslash, which Windows reads as a directory separator',
             str_starts_with($name, '/') => 'is an absolute path',
             preg_match('#(^|/)\.\.(/|$)#', $name) === 1 => 'climbs out of its folder with ".."',

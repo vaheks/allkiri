@@ -62,7 +62,7 @@ final readonly class DeviceLink
         if ($deviceLinkBase === '' || $sessionToken === '') {
             throw new InvalidArgumentException('A device link needs the base URL and session token the service returned');
         }
-        if (preg_match('/^[a-z]{3}$/', $language) !== 1) {
+        if (preg_match('/^[a-z]{3}\z/', $language) !== 1) {
             throw new InvalidArgumentException('The language must be a three-letter lower-case code such as "est"');
         }
     }

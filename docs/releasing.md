@@ -58,8 +58,16 @@ gh workflow run integration.yml
 
 # 5. Tag it. Tags carry no "v", like the ones before.
 git commit -am "release: 1.0.0" && git push
-git tag -a 1.0.0 -m "1.0.0" && git push origin 1.0.0
+git tag -s 1.0.0 -m "1.0.0" && git push origin 1.0.0
 ```
+
+Sign the tag. Packagist resolves a version to whatever the tag points at, so
+the tag is what stands between this repository and everyone's `composer
+install`. `git tag -s` needs a signing key GitHub knows about; with an SSH key,
+`git config --global gpg.format ssh` and `git config --global user.signingkey
+~/.ssh/id_ed25519.pub`, and the same public key added to GitHub under Settings,
+SSH and GPG keys, as a **signing** key rather than an authentication one.
+GitHub then shows the tag as Verified.
 
 Nothing in the code is bumped. The User-Agent sent to SK, RIA and Zetes reads
 the version from Composer, which takes it from the tag an application installs.
@@ -84,6 +92,32 @@ An alpha waits for no gates, only for the same care:
 3. `git tag -a <version> -m "…"` with a title line, what the release brings and
    what is still alpha, like the tags before it. Then push the tag.
 4. If the version left the README's install range, the install line follows.
+
+## When something is found
+
+The repository is public, so filing an issue is publishing. Anything that could
+be used against an application running this library goes in a **draft security
+advisory** instead (Security, Advisories, New draft), which comes with a private
+fork to fix it in. Publish the advisory with the release that carries the fix,
+and put the entry under `### Security` in the changelog, naming the versions it
+affects. Hardening with no way to exploit it is an ordinary issue.
+
+Reports from outside arrive the same way; `SECURITY.md` is what tells people so.
+
+## The nightly integration run
+
+`integration.yml` is the watch on the outside world: it notices when the
+Commission rotates the certificates that sign the European list of trusted
+lists, and when a demo service changes under us. Two things to know about it.
+
+It is scheduled, and **GitHub disables a scheduled workflow after 60 days with
+no activity in the repository**, without much of a notice. A quiet period is
+exactly when nobody is watching, so check that it still runs after one.
+
+It has no failure handling of its own: a failed run is an email to whoever last
+touched the cron, and nothing else. If that stops being enough, give it a step
+that opens an issue — but keep the response bodies out of it, since they carry
+identity codes from the demo accounts.
 
 ## Versioning
 

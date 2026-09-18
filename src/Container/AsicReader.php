@@ -71,7 +71,7 @@ final class AsicReader
                 $manifest = Manifest::parse($entry->content());
                 continue;
             }
-            if (preg_match('#^META-INF/signatures\d*\.xml$#', $name) === 1) {
+            if (self::isSignatureFileName($name)) {
                 $signatureFiles[] = new SignatureFile($name, $entry->content());
                 continue;
             }
@@ -126,6 +126,20 @@ final class AsicReader
         }
 
         return $this->read($bytes);
+    }
+
+    /**
+     * Whether an entry is one of the container's signature files.
+     *
+     * Anchored with \z rather than $, because PHP's $ also matches before a
+     * trailing newline. "META-INF/signatures.xml\n" is a name libdigidocpp and
+     * digidoc4j treat as an unexpected META-INF entry rather than a signature,
+     * and a container that one validator reads as signed and another as not is
+     * the thing this reader exists to refuse.
+     */
+    private static function isSignatureFileName(string $name): bool
+    {
+        return preg_match('#^META-INF/signatures\d*\.xml\z#', $name) === 1;
     }
 
     /**

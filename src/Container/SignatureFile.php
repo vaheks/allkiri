@@ -18,7 +18,10 @@ final readonly class SignatureFile
         public string $name,
         public string $xml,
     ) {
-        if (preg_match('#^META-INF/signatures\d*\.xml$#', $name) !== 1) {
+        // \z, not $: PHP's $ also matches before a trailing newline, and
+        // "META-INF/signatures.xml\n" is a name another reader would not treat
+        // as a signature file. See AsicReader::isSignatureFileName().
+        if (preg_match('#^META-INF/signatures\d*\.xml\z#', $name) !== 1) {
             throw new InvalidArgumentException(\sprintf('"%s" is not a valid ASiC-E signature file name', $name));
         }
     }
@@ -28,7 +31,7 @@ final readonly class SignatureFile
      */
     public function index(): ?int
     {
-        if (preg_match('#^META-INF/signatures(\d+)\.xml$#', $this->name, $match) === 1) {
+        if (preg_match('#^META-INF/signatures(\d+)\.xml\z#', $this->name, $match) === 1) {
             return (int) $match[1];
         }
 

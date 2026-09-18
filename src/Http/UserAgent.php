@@ -55,7 +55,7 @@ final class UserAgent
         }
         $version = $prettyVersion;
         $isBranch = str_starts_with($version, 'dev-') || str_ends_with($version, '-dev');
-        if ($isBranch && $reference !== null && preg_match('/^[0-9a-f]{40}$/', $reference) === 1) {
+        if ($isBranch && $reference !== null && preg_match('/^[0-9a-f]{40}\z/', $reference) === 1) {
             $version .= '+' . substr($reference, 0, 7);
         }
 

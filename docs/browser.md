@@ -7,9 +7,15 @@ Two files in `assets/`, no dependencies and no build step:
 | `allkiri.js` | drives the Web eID extension, shows verification codes, polls your server |
 | `allkiri-qr.js` | a QR encoder, because Smart-ID device links need one every second |
 
-Copy them into your public directory, or serve them straight from
-`vendor/vaheks/allkiri/assets/`. They are plain scripts that define
-`window.allkiri` and `window.allkiriQr`, and they also work as CommonJS modules.
+Copy them into your public directory, or point an alias at
+`vendor/vaheks/allkiri/assets/` so that those two files, and nothing else under
+`vendor/`, are reachable. They are plain scripts that define `window.allkiri`
+and `window.allkiriQr`, and they also work as CommonJS modules.
+
+Whichever you choose, `vendor/` itself must not be inside your public
+directory. Nothing this library ships is dangerous there, but everything every
+other package ships is served too, and that is how a dependency's own example
+or test script becomes a page on your site.
 
 ```html
 <script src="/allkiri-qr.js"></script>

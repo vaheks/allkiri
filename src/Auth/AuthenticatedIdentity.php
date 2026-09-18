@@ -33,7 +33,7 @@ final readonly class AuthenticatedIdentity implements \JsonSerializable
         if ($identityCode === '') {
             throw new InvalidArgumentException('An authenticated identity needs an identity code');
         }
-        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+        if (preg_match('/^[A-Z]{2}\z/', $country) !== 1) {
             throw new InvalidArgumentException(\sprintf('An authenticated identity needs a two-letter country, not "%s"', $country));
         }
     }
@@ -68,7 +68,7 @@ final readonly class AuthenticatedIdentity implements \JsonSerializable
 
         // PNOEE-…, PASEE-…, IDCEE-… (ETSI EN 319 412-1), or NTREE-… and the
         // like for organisations.
-        if (preg_match('/^([A-Z]{3})([A-Z]{2})-(.+)$/', $serialNumber, $matches) === 1) {
+        if (preg_match('/^([A-Z]{3})([A-Z]{2})-(.+)\z/', $serialNumber, $matches) === 1) {
             $type = IdentifierType::tryFrom($matches[1])
                 ?? throw new UnidentifiableCertificateException(\sprintf('The certificate identifies "%s", which is not a person', $serialNumber));
             $country = $matches[2];
@@ -82,7 +82,7 @@ final readonly class AuthenticatedIdentity implements \JsonSerializable
         if ($identityCode === '') {
             throw new UnidentifiableCertificateException('The certificate carries no personal identifier, so it names no person');
         }
-        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+        if (preg_match('/^[A-Z]{2}\z/', $country) !== 1) {
             throw new UnidentifiableCertificateException('The certificate does not say which country its personal identifier belongs to');
         }
 

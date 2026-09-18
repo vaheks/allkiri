@@ -19,10 +19,14 @@
 /examples/demo-app/public/vendor/web-eid.js -text
 
 # Kept out of the Packagist archive: the test suite carries megabytes of
-# containers and PKI fixtures that no consumer needs. assets/, docs/, examples/
-# and resources/ stay, because the documentation tells people to serve
-# vendor/vaheks/allkiri/assets/ directly and the trust anchors are required.
+# containers and PKI fixtures that no consumer needs, and the demo is a whole
+# web application, front controller included, that nobody installing a library
+# is meant to run. It is read from a clone, which is how every command in its
+# README is written. assets/ and resources/ stay: the browser helpers are files
+# an application serves, and the trust anchors are required at runtime. docs/
+# stays because composer.json points support.docs at it.
 /tests export-ignore
+/examples export-ignore
 /.github export-ignore
 /phpunit.xml.dist export-ignore
 /phpstan.neon.dist export-ignore

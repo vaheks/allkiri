@@ -19,7 +19,7 @@ final readonly class DocumentNumber implements \Stringable
     {
         // The middle part varies (MOCK, DEMO, DEM0, DEM2, NQ suffixes and so
         // on), so only the shape is checked, not the vocabulary.
-        if (preg_match('/^(PNO|PAS|IDC)[A-Z]{2}-[A-Za-z0-9\-]+-[A-Za-z0-9]+-[A-Za-z0-9]+$/', $value) !== 1) {
+        if (preg_match('/^(PNO|PAS|IDC)[A-Z]{2}-[A-Za-z0-9\-]+-[A-Za-z0-9]+-[A-Za-z0-9]+\z/', $value) !== 1) {
             throw new InvalidArgumentException(\sprintf('"%s" is not a Smart-ID document number such as PNOEE-40504040001-MOCK-Q', $value));
         }
     }

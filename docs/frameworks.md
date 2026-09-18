@@ -249,10 +249,11 @@ resetting them is a matter of rebuilding the one object.
 
 ## The browser side
 
-Serve `assets/allkiri.js` and `assets/allkiri-qr.js` from your public directory
-or straight from `vendor/vaheks/allkiri/assets/`. They are plain scripts with no
-build step; see [browser.md](browser.md). If you bundle, both files are also
-CommonJS modules.
+Serve `assets/allkiri.js` and `assets/allkiri-qr.js` from your public directory,
+by copying them there or with an alias that reaches those two files and nothing
+else under `vendor/`. They are plain scripts with no build step; see
+[browser.md](browser.md). If you bundle, both files are also CommonJS modules.
+`vendor/` itself does not belong in a public directory.
 
 For Laravel Vite, the simplest route is a copy step in `composer.json`:
 

@@ -72,7 +72,7 @@ final readonly class WebEidOrigin implements \Stringable
     private static function asciiHost(string $host): string
     {
         $lower = mb_strtolower($host, 'UTF-8');
-        if (preg_match('/^[a-z0-9.\-]+$/', $lower) === 1) {
+        if (preg_match('/^[a-z0-9.\-]+\z/', $lower) === 1) {
             return $lower;
         }
         if (!\function_exists('idn_to_ascii')) {

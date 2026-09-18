@@ -27,11 +27,11 @@ final readonly class SemanticsIdentifier implements \Stringable
         if (!\in_array($identityType, [self::TYPE_PERSONAL_NUMBER, self::TYPE_PASSPORT, self::TYPE_IDENTITY_CARD], true)) {
             throw new InvalidArgumentException(\sprintf('Unknown identity type "%s"; expected PNO, PAS or IDC', $identityType));
         }
-        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+        if (preg_match('/^[A-Z]{2}\z/', $country) !== 1) {
             throw new InvalidArgumentException('The country must be a two-letter upper-case ISO 3166-1 alpha-2 code');
         }
         // Latvian numbers carry a hyphen: "050405-10009".
-        if (preg_match('/^[A-Za-z0-9\-]{1,}$/', $identityNumber) !== 1) {
+        if (preg_match('/^[A-Za-z0-9\-]{1,}\z/', $identityNumber) !== 1) {
             throw new InvalidArgumentException('The identity number must not be empty and may contain only letters, digits and hyphens');
         }
     }
@@ -54,7 +54,7 @@ final readonly class SemanticsIdentifier implements \Stringable
      */
     public static function parse(string $identifier): self
     {
-        if (preg_match('/^(PNO|PAS|IDC)([A-Z]{2})-(.+)$/', $identifier, $matches) !== 1) {
+        if (preg_match('/^(PNO|PAS|IDC)([A-Z]{2})-(.+)\z/', $identifier, $matches) !== 1) {
             throw new InvalidArgumentException(\sprintf('"%s" is not a semantics identifier such as PNOEE-40504040001', $identifier));
         }
 

@@ -82,6 +82,11 @@ final readonly class HttpRequest
     {
         $parts = explode('/', $url);
         foreach ($parts as $index => $part) {
+            // These two keep $ rather than \z, unlike the patterns that validate
+            // input. $ also matches before a trailing newline, so it matches more
+            // than \z would, and matching more here means redacting more. A
+            // segment that got past these would be written to a log as it stands.
+            //
             // ETSI EN 319 412-1 semantics identifiers and SK document numbers:
             // three letters, a country, then the person.
             if (preg_match('/^([A-Z]{3}[A-Z]{2})-.+$/', $part, $matches) === 1) {

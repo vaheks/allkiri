@@ -504,4 +504,64 @@ final class WebEidAuthenticatorTest extends TestCase
 
         $this->authenticator()->validate($token, $later);
     }
+
+    // --- the issuer address a certificate names ------------------------------
+
+    /**
+     * The vendor validator checks trust with phpseclib, which offers to fetch
+     * the issuer a certificate names when it cannot find one among the
+     * authorities it was given.
+     *
+     * The certificate is the one the browser sent, so that address is whoever
+     * sent the token's to choose, and the request would go out before the
+     * certificate is refused for not being trusted. Nothing here may reach an
+     * address that came out of a certificate.
+     */
+    public function testTheIssuerAddressInACertificateIsNotFetched(): void
+    {
+        $server = stream_socket_server('tcp://127.0.0.1:0');
+        self::assertNotFalse($server, 'could not listen for the request this test must not see');
+
+        try {
+            $name = (string) stream_socket_get_name($server, false);
+            $port = (int) substr($name, (int) strrpos($name, ':') + 1);
+
+            $certificate = \Allkiri\Tests\Support\Pki\TestCertificates::issue(TestPki::cardAuth(), [
+                'id-at-countryName' => 'EE',
+                'id-at-commonName' => 'JOEORG,JAAK-KRISTJAN,38001085718',
+                'id-at-givenName' => 'JAAK-KRISTJAN',
+                'id-at-surname' => 'JOEORG',
+                'id-at-serialNumber' => 'PNOEE-38001085718',
+            ], [
+                'id-ce-extKeyUsage' => [['id-kp-clientAuth'], false],
+                'id-pe-authorityInfoAccess' => [[[
+                    'accessMethod' => 'id-ad-caIssuers',
+                    'accessLocation' => ['uniformResourceIdentifier' => 'http://127.0.0.1:' . $port . '/issuer.crt'],
+                ]], false],
+            ]);
+
+            // An authority, so the validator has one to work with, but not the
+            // one that issued this certificate: that is what sends phpseclib
+            // looking for the issuer it was not given.
+            $unrelated = InMemoryTrustStore::fromCertificates(
+                [\Allkiri\Crypto\Certificate::fromPem(\Allkiri\Resources::read('trust/test/zetes/testESTEID2025.pem'))],
+                ServiceType::CaQc,
+                'an authority that issued nothing here',
+            );
+            $challenge = $this->challenge();
+            $token = TestAuthToken::create(self::ORIGIN, $challenge->nonce, $certificate);
+
+            try {
+                $this->authenticator(null, $unrelated)->validate($token, $challenge);
+                self::fail('a certificate from an unknown authority signed someone in');
+            } catch (WebEidException) {
+                // Refused, as it must be. Whether anything was fetched first is the question.
+            }
+
+            // The fetch, if there were one, would have finished inside validate().
+            self::assertFalse(@stream_socket_accept($server, 0.5), 'the address in the certificate was fetched');
+        } finally {
+            fclose($server);
+        }
+    }
 }

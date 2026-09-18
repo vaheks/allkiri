@@ -979,7 +979,7 @@ final class App
         }
 
         $name = $_SESSION['container'] ?? null;
-        if (!\is_string($name) || preg_match('/^[0-9a-f]{32}$/', $name) !== 1) {
+        if (!\is_string($name) || preg_match('/^[0-9a-f]{32}\z/', $name) !== 1) {
             $name = bin2hex(random_bytes(16));
             $_SESSION['container'] = $name;
         }

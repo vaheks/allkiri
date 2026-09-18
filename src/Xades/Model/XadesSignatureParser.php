@@ -8,6 +8,7 @@ use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
 use Allkiri\Xades\Ns;
 use Allkiri\Xml\Xml;
+use Allkiri\Xml\XsdDateTime;
 
 /**
  * Builds the {@see XadesSignature} read model from a ds:Signature element.
@@ -60,9 +61,11 @@ final class XadesSignatureParser
         } else {
             $time = Xml::text($xpath, 'xades:SignedSignatureProperties/xades:SigningTime', $signedProperties);
             if ($time !== null) {
-                try {
-                    $signingTime = (new \DateTimeImmutable(trim($time)))->setTimezone(new \DateTimeZone('UTC'));
-                } catch (\Exception) {
+                // The stated format only. A signature saying "now" would
+                // otherwise be read as made at the moment of validation, which
+                // is a claim no document made.
+                $signingTime = XsdDateTime::tryParse($time);
+                if ($signingTime === null) {
                     $warnings[] = \sprintf('Unparseable SigningTime "%s"', trim($time));
                 }
             }

@@ -22,6 +22,10 @@ jobs:
         php: ['8.2', '8.3', '8.4']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes, and the steps below run code a pull
+          # request supplies. No reason to leave a token behind for it.
+          persist-credentials: false
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
@@ -49,11 +53,74 @@ jobs:
       - name: Unit tests
         run: composer test:unit
 
+  # The three checks above resolve the newest version every constraint allows,
+  # so nothing there exercises the oldest one it claims to support. A consumer
+  # whose own lock file holds that oldest version is running code no check here
+  # has run. This job is the one that does.
+  lowest:
+    name: Lowest dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.2'
+          extensions: curl, dom, intl, mbstring, openssl, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Install the oldest dependencies the constraints allow
+        run: composer update --no-interaction --no-progress --prefer-dist --prefer-lowest --prefer-stable
+
+      - name: What was resolved
+        run: composer show --direct
+
+      - name: Unit tests
+        run: composer test:unit
+
+  # A published advisory against something this library sends untrusted bytes
+  # to is a release, not a note. Its own job, so a new advisory says so loudly
+  # without taking the rest of the checks down with it.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          extensions: curl, dom, intl, mbstring, openssl, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Both ends of every constraint: what a consumer gets today, and the
+      # oldest release the constraint still lets them keep.
+      - name: Advisories against the resolved versions
+        run: composer audit
+
+      - name: Advisories against the oldest the constraints allow
+        run: |
+          composer update --no-interaction --no-progress --prefer-dist --prefer-lowest --prefer-stable
+          composer audit
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes, and the steps below run code a pull
+          # request supplies. No reason to leave a token behind for it.
+          persist-credentials: false
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
@@ -94,6 +161,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes, and the steps below run code a pull
+          # request supplies. No reason to leave a token behind for it.
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -123,5 +194,5 @@ jobs:
       # passes every structural check and scans as nothing.
       - name: QR round trip through an independent decoder
         run: |
-          npm install --no-save --no-audit --no-fund jsqr
+          npm install --no-save --no-audit --no-fund --ignore-scripts jsqr@1.4.0
           node tests/js/qr-roundtrip.mjs
