@@ -45,20 +45,48 @@ Produce the containers with the integration suite or a short script, then:
 |---|---|---|---|
 | 1 | An LT container allkiri signed with an RSA key opens in DigiDoc4 without warnings | | |
 | 2 | The same with an ECDSA P-256 key | | |
-| 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | | |
-| 4 | The same with RSA-PSS, the algorithm Smart-ID requires | | |
-| 5 | DigiDoc4 shows the signer's name and the signing time as expected | | |
+| 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | 2026-09-18 | Valid — the card signature of item 14 |
+| 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
+| 5 | DigiDoc4 shows the signer's name and the signing time as expected | 2026-09-18 | As expected |
 | 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | | |
 | 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | |
 | 8 | The same with a Smart-ID demo account | | |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
-| 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | | |
-| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | | |
-| 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | | |
+| 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — with live Mobile-ID, not test |
+| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — with live Smart-ID, not demo. See below |
+| 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card, not test |
 | 13 | The same on a Thales card issued since November 2025 | | |
-| 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | | |
-| 15 | The same in Chrome, Firefox and Safari | | |
+| 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | 2026-09-18 | Valid in DigiDoc4 and in allkiri, with a live card. SiVa not checked |
+| 15 | The same in Chrome, Firefox and Safari | 2026-09-18 | Chrome only |
 | 16 | An **XAdES-LTA** container allkiri archived opens in DigiDoc4 and shows the signature as valid | | |
+
+### The round of 2026-09-18
+
+Done against the **production** services through the demo application at its
+live deployment, by the author and by several other testers, rather than
+against the test environment these rows are written for. So the rows above are
+answered by something stronger in one respect and weaker in another: the
+certificates, the trusted list and the timestamp service were the real ones,
+and DigiDoc4 was the released client rather than the beta, but the test
+material the rows name was not used, and nothing was repeated in the test
+environment afterwards.
+
+| | |
+|---|---|
+| DigiDoc4 | 4.11.1.5434, released build |
+| Browser | Chrome |
+| Card | issued September 2025, so IDEMIA — Thales cards begin in November 2025 |
+
+**Item 11 is answered, and it is the answer we wanted.** DigiDoc4 4.11.1.5434
+accepts an RSA-PSS signature allkiri produced: the
+`…#sha256-rsa-MGF1` signature method some builds were reported to reject is
+shown as valid. Whether older builds still refuse it is not established here,
+and a relying party supporting them should check for itself.
+
+Still open after this round: the test-environment material these rows name
+(items 1, 2, 6, 7, 8, 9), a Thales card (13), the other browsers (15), and an
+archived LTA container (16), which the demo application can produce with its
+archive button.
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
@@ -79,11 +107,17 @@ That writes `mobile-id-60001019906.asice` (ECDSA P-256) and
 TOTAL-PASSED in SiVa, so DigiDoc4 should show them as valid signatures by
 "O'CONNEŽ-ŠUSLIK TESTNUMBER,MARY ÄNN".
 
-Item 11 is the one open cryptographic question in the project. RSA-PSS is the
-only algorithm SK still recommends for Smart-ID, and some DigiDoc4 builds have
-been reported to reject the `…#sha256-rsa-MGF1` signature method. SiVa accepts
-our PSS containers, so if DigiDoc4 does not, that is a client limitation to
-document rather than a defect to fix. Produce them with:
+Item 11 was the one open cryptographic question in the project, and as of
+2026-09-18 it has an answer. RSA-PSS is the only algorithm SK still recommends
+for Smart-ID, and some DigiDoc4 builds had been reported to reject the
+`…#sha256-rsa-MGF1` signature method. **DigiDoc4 4.11.1.5434 does not reject
+it**: a PSS signature allkiri made shows as valid. SiVa accepts them too.
+
+That settles the build that matters today and says nothing about older ones, so
+a relying party that has to support one should check rather than assume; a build
+that does refuse is a client limitation to document rather than a defect to fix
+here. The 2026-09-18 round covered SHA-256 only, which is what the library
+chooses by default. Produce them with:
 
 ```bash
 ALLKIRI_INTEGRATION=1 ALLKIRI_ARTEFACTS=/some/directory \
