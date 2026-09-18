@@ -52,9 +52,9 @@ Produce the containers with the integration suite or a short script, then:
 | 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | |
 | 8 | The same with a Smart-ID demo account | | |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
-| 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — with live Mobile-ID, not test |
-| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — with live Smart-ID, not demo. See below |
-| 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card, not test |
+| 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — in the beta with test Mobile-ID, and in 4.11.1.5434 with live |
+| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — in the beta with demo Smart-ID, and in 4.11.1.5434 with live. See below |
+| 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card; no test card is available |
 | 13 | The same on a Thales card issued since November 2025 | | |
 | 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | 2026-09-18 | Valid in DigiDoc4 and in allkiri, with a live card. SiVa not checked |
 | 15 | The same in Chrome, Firefox and Safari | 2026-09-18 | Chrome only |
@@ -62,31 +62,46 @@ Produce the containers with the integration suite or a short script, then:
 
 ### The round of 2026-09-18
 
-Done against the **production** services through the demo application at its
-live deployment, by the author and by several other testers, rather than
-against the test environment these rows are written for. So the rows above are
-answered by something stronger in one respect and weaker in another: the
-certificates, the trusted list and the timestamp service were the real ones,
-and DigiDoc4 was the released client rather than the beta, but the test
-material the rows name was not used, and nothing was repeated in the test
-environment afterwards.
+Two rounds through the demo application, by the author and by several other
+testers. Everything was in Chrome.
+
+**The test environment first.** Test Mobile-ID and demo Smart-ID signed
+containers, and those containers opened in the **DigiDoc4 beta** build, the one
+that reads the test trusted list, and showed as valid. That is items 10 and 11
+as they are written.
+
+**Then production**, at the demo application's live deployment: the real
+certificates, the real trusted list and the paid timestamp service, with
+containers opened in the **released DigiDoc4 4.11.1.5434**. Every means was
+exercised, the ID card included, and every signature showed as valid. That is
+stronger than the rows ask for in the material it used, and it is not what the
+rows say, so it is written down as itself.
 
 | | |
 |---|---|
-| DigiDoc4 | 4.11.1.5434, released build |
+| DigiDoc4 | beta for the test round; 4.11.1.5434 released for the production round |
 | Browser | Chrome |
 | Card | issued September 2025, so IDEMIA — Thales cards begin in November 2025 |
 
-**Item 11 is answered, and it is the answer we wanted.** DigiDoc4 4.11.1.5434
-accepts an RSA-PSS signature allkiri produced: the
-`…#sha256-rsa-MGF1` signature method some builds were reported to reject is
-shown as valid. Whether older builds still refuse it is not established here,
-and a relying party supporting them should check for itself.
+**Item 11 is answered, and it is the answer we wanted.** Both builds accept an
+RSA-PSS signature allkiri produced: the `…#sha256-rsa-MGF1` signature method
+some builds were reported to reject is shown as valid, in the beta against a
+demo Smart-ID signature and in 4.11.1.5434 against a live one. Whether older
+builds still refuse it is not established here, and a relying party supporting
+them should check for itself.
 
-Still open after this round: the test-environment material these rows name
-(items 1, 2, 6, 7, 8, 9), a Thales card (13), the other browsers (15), and an
-archived LTA container (16), which the demo application can produce with its
-archive button.
+**There is no test ID card here**, and one cannot be had casually, so items 12
+to 15 cannot be done in the test environment at all. The production round with
+a real card is the substitute, and it is why item 12 is answered with a live
+IDEMIA card rather than a test one. A Thales card, item 13, is untested in
+either environment.
+
+Still open after this round: items 1 and 2, which ask for particular key types
+and would be answered by recording which test Mobile-ID number was used —
+`60001019906` is ECDSA P-256 and `39901019992` is RSA; items 6 to 9, which need
+DigiDoc4 to create or add a signature rather than only read one; a Thales card
+(13); the browsers other than Chrome (15); and an archived LTA container (16),
+which the demo application can produce with its archive button.
 
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
