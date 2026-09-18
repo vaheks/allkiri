@@ -11,6 +11,7 @@ use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustAnchor;
 use Allkiri\Xml\InvalidXmlException;
 use Allkiri\Xml\Xml;
+use Allkiri\Xml\XsdDateTime;
 
 /**
  * Reads an ETSI TS 119 612 trusted list into trust anchors.
@@ -158,16 +159,16 @@ final class TrustedListParser
         return new TrustedListPointer($territory, $location, $certificates, $mimeType);
     }
 
+    /**
+     * A time a trusted list states.
+     *
+     * These decide when a service was in good standing and when the list itself
+     * falls due, so a list must not be able to say "now" and have it read as the
+     * moment of reading. {@see XsdDateTime} takes the stated format and nothing
+     * else.
+     */
     private static function time(?string $text): ?\DateTimeImmutable
     {
-        if ($text === null || trim($text) === '') {
-            return null;
-        }
-
-        try {
-            return (new \DateTimeImmutable(trim($text)))->setTimezone(new \DateTimeZone('UTC'));
-        } catch (\Exception) {
-            return null;
-        }
+        return XsdDateTime::tryParse($text);
     }
 }
