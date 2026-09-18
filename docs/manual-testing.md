@@ -44,7 +44,7 @@ Produce the containers with the integration suite or a short script, then:
 | # | Check | Last done | Result |
 |---|---|---|---|
 | 1 | An LT container allkiri signed with an RSA key opens in DigiDoc4 without warnings | | |
-| 2 | The same with an ECDSA P-256 key | | |
+| 2 | The same with an ECDSA P-256 key | 2026-09-18 | Valid — test Mobile-ID `60001019906`, whose ECC certificate is the one used |
 | 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | 2026-09-18 | Valid — the card signature of item 14 |
 | 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
 | 5 | DigiDoc4 shows the signer's name and the signing time as expected | 2026-09-18 | As expected |
@@ -96,9 +96,12 @@ a real card is the substitute, and it is why item 12 is answered with a live
 IDEMIA card rather than a test one. A Thales card, item 13, is untested in
 either environment.
 
-Still open after this round: items 1 and 2, which ask for particular key types
-and would be answered by recording which test Mobile-ID number was used —
-`60001019906` is ECDSA P-256 and `39901019992` is RSA; items 6 to 9, which need
+The test Mobile-ID number was `60001019906`, whose ECC certificate is the one
+the service uses, so that round also answers item 2. Item 1 wants RSA, which on
+Mobile-ID means the single-RSA pair the integration suite reaches with
+`+37200001566`.
+
+Still open after this round: item 1, an RSA signature; items 6 to 9, which need
 DigiDoc4 to create or add a signature rather than only read one; a Thales card
 (13); the browsers other than Chrome (15); and an archived LTA container (16),
 which the demo application can produce with its archive button.
