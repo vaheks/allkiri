@@ -77,8 +77,8 @@ since the repository went public.
 
 ## Before 1.0
 
-Releases before 1.0 are alphas, tagged like `0.7.0-alpha.1`, and an application
-installs one with `composer require vaheks/allkiri:^0.7@alpha`, as the README
+Releases before 1.0 are alphas, tagged like `0.8.0-alpha.1`, and an application
+installs one with `composer require vaheks/allkiri:^0.8@alpha`, as the README
 says. The package has been on
 [Packagist](https://packagist.org/packages/vaheks/allkiri) since the repository
 went public on 2026-09-17, and the GitHub hook publishes every tag, alpha or

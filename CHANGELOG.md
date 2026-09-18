@@ -6,11 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0-alpha.1] - 2026-09-18
+
+A security release. It closes an unauthenticated server-side request forgery in
+the ID card sign-in, reachable by anyone who can post a token to a sign-in
+endpoint, and two ways a container could be read differently by allkiri than by
+DigiDoc4 and digidoc4j. Upgrade from `0.7.0-alpha.1`; there is no configuration
+that mitigates the first one in an older version.
+
 ### Changed
 
 - The dependency floors moved past published advisories in the code paths this
-  library feeds untrusted bytes to: `phpseclib/phpseclib` to `^3.0.54`
-  (CVE-2026-55599, outbound requests while validating a certificate),
+  library feeds untrusted bytes to: `phpseclib/phpseclib` to `^3.0.57`
+  (CVE-2026-55599, outbound requests while validating a certificate, is fixed in
+  3.0.54; 3.0.54 to 3.0.56 emit "Undefined array key" from their own ASN.1
+  decoder, so the floor is the first release with neither),
   `guzzlehttp/psr7` to `^2.12.3` (CVE-2026-59882, host confusion in a URI,
   which is what the Web eID origin is), and
   `web-eid/web-eid-authtoken-validation-php` to `^1.3.1`. No lock file is
@@ -20,7 +30,7 @@ All notable changes to this project are documented here. The format follows
   and `docs/browser.md` and `docs/frameworks.md` now say to copy or alias the
   two browser helpers rather than serving `vendor/` itself.
 
-### Fixed
+### Security
 
 - Signing in with an ID card no longer makes this server fetch an address the
   certificate names. The vendor validator checks trust with phpseclib, which
@@ -876,7 +886,8 @@ needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
 
-[Unreleased]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...HEAD
+[Unreleased]: https://github.com/vaheks/allkiri/compare/0.8.0-alpha.1...HEAD
+[0.8.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...0.8.0-alpha.1
 [0.7.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.6.0-alpha.1...0.7.0-alpha.1
 [0.6.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.5.0-alpha.1...0.6.0-alpha.1
 [0.5.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.4.0-alpha.1...0.5.0-alpha.1
