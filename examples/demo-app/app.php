@@ -38,7 +38,6 @@ use Allkiri\MobileId\MobileIdSigningSession;
 use Allkiri\SmartId\CertificateLevel;
 use Allkiri\SmartId\DeviceLink;
 use Allkiri\SmartId\FlowType;
-use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SemanticsIdentifier;
 use Allkiri\SmartId\SmartIdCallback;
 use Allkiri\SmartId\SmartIdConfiguration;
@@ -129,7 +128,7 @@ final class App
      */
     public function mobileIdLoginStart(array $request): array
     {
-        $authenticator = $this->allkiri->mobileIdAuthenticator($this->config->mobileId);
+        $authenticator = $this->allkiri->mobileIdAuthenticator($this->config->authenticationText()->forMobileId($this->config->mobileId));
         $session = $authenticator->start(new MobileIdIdentity(
             self::string($request, 'phoneNumber'),
             self::string($request, 'identityCode'),
@@ -166,7 +165,7 @@ final class App
                 if (!$status->isOk()) {
                     throw new MobileIdSessionException($status->result ?? MobileIdResult::Timeout);
                 }
-                $identity = $this->allkiri->mobileIdAuthenticator($this->config->mobileId)->complete(MobileIdSession::fromJson($stored), $status);
+                $identity = $this->allkiri->mobileIdAuthenticator($this->config->authenticationText()->forMobileId($this->config->mobileId))->complete(MobileIdSession::fromJson($stored), $status);
 
                 return ['done' => true] + $this->signedIn($identity);
             },
@@ -183,9 +182,7 @@ final class App
         $authenticator = $this->allkiri->smartIdAuthenticator($this->config->smartId);
         $session = $authenticator->startNotification(
             SemanticsIdentifier::estonian(self::string($request, 'identityCode')),
-            // A relying party's name can be long, so the PIN dialogue gets a
-            // short text of its own rather than a cut one.
-            self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
+            $this->config->authenticationText()->interactions(),
         );
         $_SESSION['smart-id'] = json_encode($session, JSON_THROW_ON_ERROR);
         $this->forgetFinished('smart-id');
@@ -226,7 +223,7 @@ final class App
         $callbackUrl = SmartIdCallback::initialUrl($this->config->webEid->origin . '/smart-id/callback');
 
         $session = $this->allkiri->smartIdAuthenticator($this->config->smartId)->startAnonymous(
-            self::interactions('Log in to ' . $this->config->serviceName(), 'Log in'),
+            $this->config->authenticationText()->interactions(),
             initialCallbackUrl: $callbackUrl,
         );
         // The session secret is in here, and it stays on the server: whoever
@@ -265,11 +262,11 @@ final class App
         // so no other call from this browser waits behind this one.
         session_write_close();
         if (!\is_string($stored)) {
-            throw new \RuntimeException('No QR sign-in is in progress');
+            throw new \RuntimeException('No QR authentication is in progress');
         }
         $session = SmartIdSession::fromJson($stored);
         if ($session->sessionSecret === null) {
-            throw new \RuntimeException('The stored QR sign-in has no session secret');
+            throw new \RuntimeException('The stored QR authentication has no session secret');
         }
 
         $link = $session->deviceLink($this->config->smartId->scheme, $this->config->smartId->relyingPartyNameBase64());
@@ -287,7 +284,7 @@ final class App
         // hold those back for as long as SK holds a status request open, and the
         // code on the screen would go stale. So this asks SK for one second at a
         // time, the least it takes.
-        return $this->smartIdSignInPoll('smart-id-qr', 'No QR sign-in is in progress', 1_000);
+        return $this->smartIdSignInPoll('smart-id-qr', 'No QR authentication is in progress', 1_000);
     }
 
     /**
@@ -341,7 +338,7 @@ final class App
             return $answer;
         }
         if (!\is_string($_SESSION['smart-id-qr'] ?? null)) {
-            throw new \RuntimeException('No Smart-ID sign-in is in progress');
+            throw new \RuntimeException('No Smart-ID authentication is in progress');
         }
 
         return ['done' => false];
@@ -364,7 +361,7 @@ final class App
         $stored = $_SESSION['smart-id-qr'] ?? null;
         if (!\is_string($stored)) {
             throw new \RuntimeException(
-                'No Smart-ID sign-in is waiting in this browser. If the Smart-ID app opened a different browser than the one you started in, '
+                'No Smart-ID authentication is waiting in this browser. If the Smart-ID app opened a different browser than the one you started in, '
                 . 'which happens from an app\'s built-in browser, from a browser that is not your default one, and in private mode, '
                 . 'start again from your default browser.',
             );
@@ -470,7 +467,7 @@ final class App
      */
     public function mobileIdSignStart(array $request): array
     {
-        $signer = $this->allkiri->mobileIdSigner($this->config->mobileId);
+        $signer = $this->allkiri->mobileIdSigner($this->config->signingText()->forMobileId($this->config->mobileId));
         $signing = $signer->start($this->container(), new MobileIdIdentity(
             self::string($request, 'phoneNumber'),
             self::string($request, 'identityCode'),
@@ -502,7 +499,7 @@ final class App
                 return $status->isRunning() ? null : $status;
             },
             function (string $stored, MobileIdSessionStatus $status): array {
-                $signer = $this->allkiri->mobileIdSigner($this->config->mobileId);
+                $signer = $this->allkiri->mobileIdSigner($this->config->signingText()->forMobileId($this->config->mobileId));
                 $result = $signer->complete($this->container(), MobileIdSigningSession::fromJson($stored), $status);
                 $this->storeContainer($result->container);
                 $this->auditSigned('mobile-id', $result);
@@ -578,7 +575,7 @@ final class App
                 $signing = $signer->startNotification(
                     $this->container(),
                     $chosen->documentNumber,
-                    self::interactions('Sign the uploaded file'),
+                    $this->config->signingText()->interactions(),
                 );
                 $_SESSION['signing-smart-id'] = json_encode($signing, JSON_THROW_ON_ERROR);
                 $this->audit('signing started', [
@@ -725,14 +722,6 @@ final class App
     }
 
     // --- configuration ------------------------------------------------------
-
-    private static function interactions(string $text, ?string $pinText = null): Interactions
-    {
-        // The strongest dialogue first: the app shows three codes and only one
-        // matches the page. Nothing is cut to fit the PIN dialogue's 60
-        // characters, so a longer text needs a shorter one of its own.
-        return Interactions::forText($text, $pinText);
-    }
 
     /**
      * QSCD, because that is what a qualified signature requires.

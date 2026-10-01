@@ -6,8 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The README says what the phone shows with Mobile-ID and Smart-ID, and how to
+  build that sentence per request so it names the document or the person.
+
 ### Changed
 
+- The demo application calls its first step "Authenticate" rather than "Sign
+  in", so it no longer reads like the second, "Sign a file".
+- The demo's phone texts are two settings, `ALLKIRI_AUTH_TEXT` and
+  `ALLKIRI_SIGN_TEXT`, each shown by Mobile-ID and Smart-ID alike and in either
+  mode, and checked against both services' limits at start-up. Mobile-ID now
+  shows a sentence for authenticating and another for signing.
+  `ALLKIRI_MID_DISPLAY_TEXT` is gone; the demo refuses to start while it is set.
 - Validating at a past moment no longer takes a signature timestamp made after
   that moment as proof the signature existed then; it is `TIMESTAMP_INVALID`.
 - A signing time the signer claims later than the signature timestamp is a
@@ -24,18 +36,15 @@ All notable changes to this project are documented here. The format follows
   not follow redirects, and how with Symfony's, which follows twenty by default.
   A redirect it follows is invisible to allkiri, so an HTTPS-only service URL
   would be only as HTTPS as wherever it pointed.
-
 - Mobile-ID and Smart-ID sign-in refuse a certificate that is not for
   authentication, `digitalSignature` without `nonRepudiation`, as Web eID
   already did. Every authentication certificate SK's demo services issued on
   2026-10-01 is shaped so, and the signing ones carry `nonRepudiation`.
   `Certificate::isForAuthentication()` says which a certificate is.
-
 - `SmartIdSigner::certificate()`, and so `startNotification()` and
   `startDeviceLink()`, refuse a certificate of a lower level than was
   requested, as `completeCertificateChoice()` already did. The service is asked
   for the level and was trusted to keep to it.
-
 - A Web eID challenge lasts no longer than the configured lifetime from when it
   was issued, whatever deadline the stored challenge gives, and one that says it
   was issued in the future is refused. The challenge comes back from wherever
@@ -43,20 +52,17 @@ All notable changes to this project are documented here. The format follows
 - `DataToBeSigned` and `docs/signing.md` no longer suggest it can be kept
   anywhere because it holds nothing secret: it decides what is signed and at
   what level, and must stay on the server.
-
 - Exception messages no longer carry identity codes or document numbers. A
   Smart-ID or Mobile-ID answer from another account or person names both by
   type and country only, `PNOEE-[redacted]`, and a malformed phone number or
   identity code is no longer repeated in the message refusing it. The demo
   writes those messages to its log and an application may well do the same.
-
 - Smart-ID's RP API 3.2 answers 404 where it answered 471, with the reason in an
   RFC 9457 body. A 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND` is
   `SmartIdApiException::REASON_NO_SUITABLE_ACCOUNT` again, rather than
   `REASON_ACCOUNT_NOT_FOUND`. The exception carries the body's codes in
   `problemCodes`, its message gives the body's title, detail and errors rather
   than its raw JSON, and requests accept `application/problem+json` (#51).
-
 - A trusted list older, by its sequence number, than one the same address has
   already served is refused with `TrustedListException::REASON_ROLLED_BACK`.
   It is genuinely signed, but may still grant a service withdrawn since. The
