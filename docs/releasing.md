@@ -175,6 +175,12 @@ existing one means is major.
   and timestamp requests, the trusted-list parser and verifier, the Smart-ID
   payload and status parser, and the members of covered classes that take or
   return them. `tests/Unit/PublicApiTest.php` lists the classes;
+- any member that takes or returns a phpseclib type, such as
+  `Certificate::publicKey()`. Each is marked `@internal`, and
+  `PublicApiTest` fails if a supported one appears. allkiri 1.x runs on
+  phpseclib 3 for as long as `web-eid/web-eid-authtoken-validation-php`
+  requires it, and keeping phpseclib out of the covered API is what leaves it
+  free to move to phpseclib 4 in a minor release after that;
 - an optional constructor parameter that takes an internal class. Those exist
   so that tests can swap a collaborator, and come after every covered
   parameter;

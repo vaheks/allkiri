@@ -13,6 +13,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- No supported member takes or returns a phpseclib type any more, so 1.x is not
+  tied to phpseclib 3. `PublicKeyVerifier` and `EcdsaSignature` are
+  `@internal`, as are `Certificate::publicKey()`, `PrivateKey::publicKey()`,
+  `SignatureAlgorithm::forKey()`, `KeyType::of()` and
+  `AlgorithmConstraints::violation()`. `TstInfo::$nonce` is a decimal string,
+  as its serial number already was, rather than a phpseclib `BigInteger`.
+  `SmartIdAuthenticator`'s optional `$verifier` moved after
+  `$brokeredRelyingPartyName`.
 - The demo application calls its first step "Authenticate" rather than "Sign
   in", so it no longer reads like the second, "Sign a file".
 - The demo's phone texts are two settings, `ALLKIRI_AUTH_TEXT` and

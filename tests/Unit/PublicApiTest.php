@@ -27,9 +27,11 @@ final class PublicApiTest extends TestCase
         'Allkiri\Clock\PollingLoop',
         'Allkiri\Container\Zip\*',
         'Allkiri\Crypto\Asn1\*',
+        'Allkiri\Crypto\EcdsaSignature',
         'Allkiri\Crypto\Ocsp\OcspRequest',
         'Allkiri\Crypto\Ocsp\OcspResponseVerifier',
         'Allkiri\Crypto\Phpseclib',
+        'Allkiri\Crypto\PublicKeyVerifier',
         'Allkiri\Crypto\Tsp\PkiStatus',
         'Allkiri\Crypto\Tsp\TimestampRequest',
         'Allkiri\Crypto\Tsp\TimestampResponse',
@@ -97,7 +99,7 @@ final class PublicApiTest extends TestCase
                 $firstCollaborator = null;
                 foreach ($method->getParameters() as $parameter) {
                     $where = \sprintf('%s::%s() $%s', $class, $method->getName(), $parameter->getName());
-                    $leaks = array_values(array_intersect(self::typesOf($parameter->getType(), self::docType($doc, '@param', $parameter->getName()), $scope), $internal));
+                    $leaks = self::leaks(self::typesOf($parameter->getType(), self::docType($doc, '@param', $parameter->getName()), $scope), $internal);
                     if ($leaks !== [] && $method->isConstructor() && $parameter->isOptional()) {
                         $firstCollaborator ??= $parameter->getName();
                     } elseif ($leaks !== []) {
@@ -106,7 +108,7 @@ final class PublicApiTest extends TestCase
                         $exposed[] = \sprintf('%s comes after the internal $%s', $where, $firstCollaborator);
                     }
                 }
-                $leaks = array_values(array_intersect(self::typesOf($method->getReturnType(), self::docType($doc, '@return', null), $scope), $internal));
+                $leaks = self::leaks(self::typesOf($method->getReturnType(), self::docType($doc, '@return', null), $scope), $internal);
                 if ($leaks !== []) {
                     $exposed[] = \sprintf('%s::%s() returns %s', $class, $method->getName(), implode('|', $leaks));
                 }
@@ -119,7 +121,7 @@ final class PublicApiTest extends TestCase
                 $doc = $property->isPromoted()
                     ? self::docType((string) $reflection->getConstructor()?->getDocComment(), '@param', $property->getName())
                     : self::docType((string) $property->getDocComment(), '@var', null);
-                $leaks = array_values(array_intersect(self::typesOf($property->getType(), $doc, $scope), $internal));
+                $leaks = self::leaks(self::typesOf($property->getType(), $doc, $scope), $internal);
                 if ($leaks !== []) {
                     $exposed[] = \sprintf('%s::$%s is %s', $class, $property->getName(), implode('|', $leaks));
                 }
@@ -200,6 +202,22 @@ final class PublicApiTest extends TestCase
         }
 
         return false;
+    }
+
+    /**
+     * The types among these that a supported member must not expose: the
+     * library's own machinery, and anything from phpseclib. The second would tie
+     * every 1.x release to phpseclib 3, which web-eid already pins, but whose
+     * next major allkiri should be free to move to without one of its own.
+     *
+     * @param list<string> $types
+     * @param list<string> $internal
+     *
+     * @return list<string>
+     */
+    private static function leaks(array $types, array $internal): array
+    {
+        return array_values(array_filter($types, static fn(string $type): bool => \in_array($type, $internal, true) || str_starts_with($type, 'phpseclib3\\')));
     }
 
     private static function marked(string|false $docComment): bool
