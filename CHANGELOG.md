@@ -22,6 +22,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- CI runs PHP 8.5 beside 8.2 to 8.4, and a deprecation that the library's own
+  code raises fails the tests. `CurlHttpClient` no longer calls `curl_close()`,
+  which PHP 8.5 deprecates and which has done nothing since 8.0.
+- The Composer archive no longer carries `.env.example`, which configures the
+  demo and the test suites rather than the library.
 - The constructors of what the library builds and returns are `@internal`:
   `ValidationReport`, `SignatureReport`, `SignatureInfo`, `SigningResult`,
   `DataToBeSigned`, `SmartIdSession`, `SmartIdSessionStatus`, `DeviceLink`,

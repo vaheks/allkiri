@@ -23,7 +23,8 @@ npm install --no-save jsqr && node tests/js/qr-roundtrip.mjs
 
 ## Conventions
 
-- PHP 8.2 is the floor; CI also runs 8.3 and 8.4. Use `declare(strict_types=1)`.
+- PHP 8.2 is the floor; CI also runs 8.3, 8.4 and 8.5. A deprecation raised in
+  `src` fails the tests. Use `declare(strict_types=1)`.
 - Coding standard: PER-CS 2.0 via php-cs-fixer, see `.php-cs-fixer.dist.php`.
 - Static analysis: PHPStan level max with strict rules. No baseline; fix or
   narrow types instead.
