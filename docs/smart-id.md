@@ -393,7 +393,11 @@ Two statuses are worth naming, because they look like failures and are not:
 - **403** also means an `ADVANCED` request with a relying-party identifier that
   has no access to Smart-ID Basic accounts.
 - **404** when starting a session means the person has no account of that kind;
-  when polling, it means the session has been forgotten.
+  when polling, it means the session has been forgotten. Since RP API 3.2 it
+  also replaces 471: a person who has Smart-ID accounts, but none of the
+  requested kind, is a 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND`, and the
+  exception's reason is `REASON_NO_SUITABLE_ACCOUNT` either way. Every such code
+  the body gives is in the exception's `problemCodes`.
 
 ## Testing
 

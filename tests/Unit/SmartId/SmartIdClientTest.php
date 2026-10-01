@@ -290,6 +290,53 @@ final class SmartIdClientTest extends TestCase
         }
     }
 
+    /**
+     * RP API 3.2 answers 404 where it answered 471, in RFC 9457 form, and says
+     * which in the body's errors; its `type` is always about:blank. The first
+     * body is SK's own example, from the API's OpenAPI specification; the
+     * second is what sid.demo.sk.ee answered for an unknown document number on
+     * 2026-10-01.
+     *
+     * @return iterable<string, array{string, string, list<string>, non-empty-string}>
+     */
+    public static function problemAnswers(): iterable
+    {
+        yield 'no suitable account' => [
+            '{"type":"about:blank","title":"Not Found","status":404,"detail":"Not Found","instance":"/task-id/tdgx2dj9cfumh8","errors":[{"code":"NO_SUITABLE_ACCOUNT_FOUND","detail":"No suitable account of requested type found, but user has some other accounts"}]}',
+            SmartIdApiException::REASON_NO_SUITABLE_ACCOUNT,
+            ['NO_SUITABLE_ACCOUNT_FOUND'],
+            '(Not Found; NO_SUITABLE_ACCOUNT_FOUND: No suitable account of requested type found, but user has some other accounts)',
+        ];
+        yield 'no account' => [
+            '{"detail":"Not Found","instance":"/task-id/HDvTbDg6x7UGEx5wif6C","status":404,"title":"Not Found","type":"about:blank"}',
+            SmartIdApiException::REASON_ACCOUNT_NOT_FOUND,
+            [],
+            '(Not Found)',
+        ];
+    }
+
+    /**
+     * @param list<string>     $codes
+     * @param non-empty-string $described
+     */
+    #[DataProvider('problemAnswers')]
+    public function testAProblemAnswerIsReadForWhatItSays(string $body, string $reason, array $codes, string $described): void
+    {
+        $http = (new MockHttpClient())->respond(MockSmartIdService::URL, 404, 'application/json', $body);
+        $client = new SmartIdClient($this->service->configuration(), $http);
+
+        try {
+            $client->certificateByDocumentNumber(new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER));
+            self::fail('Expected a SmartIdApiException');
+        } catch (SmartIdApiException $exception) {
+            self::assertSame($reason, $exception->reason);
+            self::assertSame($codes, $exception->problemCodes);
+            self::assertStringEndsWith($described, $exception->getMessage());
+            self::assertStringNotContainsString('task-id', $exception->getMessage());
+        }
+        self::assertSame('application/json, application/problem+json', $http->requests()[0]->headers['Accept'] ?? null);
+    }
+
     public function testAnAccountWithNoUsableCertificateIsNotNamedInTheMessage(): void
     {
         $http = new MockHttpClient();

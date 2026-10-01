@@ -27,11 +27,15 @@ final class SmartIdApiException extends SmartIdException
     public const REASON_SESSION_NOT_FOUND = 'SID_SESSION_NOT_FOUND';
     public const REASON_MALFORMED_RESPONSE = 'SID_MALFORMED_RESPONSE';
 
+    /**
+     * @param list<string> $problemCodes the `code` of each entry in an RFC 9457 answer's `errors`, such as NO_SUITABLE_ACCOUNT_FOUND
+     */
     public function __construct(
         public readonly string $reason,
         string $message,
         public readonly ?int $status = null,
         ?\Throwable $previous = null,
+        public readonly array $problemCodes = [],
     ) {
         parent::__construct($message, 0, $previous);
     }
@@ -42,7 +46,30 @@ final class SmartIdApiException extends SmartIdException
      */
     public static function forStatus(int $status, string $url, string $body, bool $isSessionRequest = false): self
     {
-        [$reason, $explanation] = match ($status) {
+        $problem = self::problem($body);
+        $codes = $problem['codes'] ?? [];
+        [$reason, $explanation] = match (true) {
+            // RP API 3.2 answers 404 where it answered 471, and says which in the
+            // body's errors. 472 has no successor in SK's specification.
+            $status === 404 && \in_array('NO_SUITABLE_ACCOUNT_FOUND', $codes, true) => [self::REASON_NO_SUITABLE_ACCOUNT, 'the person has Smart-ID accounts but none of the requested kind'],
+            default => self::forPlainStatus($status, $isSessionRequest),
+        };
+
+        return new self(
+            $reason,
+            \sprintf('Smart-ID at %s answered HTTP %d: %s%s', \Allkiri\Http\HttpRequest::withoutIdentities($url), $status, $explanation, $problem === null ? self::detail($body) : self::describe($problem)),
+            $status,
+            null,
+            $codes,
+        );
+    }
+
+    /**
+     * @return array{string, string} the reason and its explanation
+     */
+    private static function forPlainStatus(int $status, bool $isSessionRequest): array
+    {
+        return match ($status) {
             400 => [self::REASON_BAD_REQUEST, 'the request was rejected as malformed'],
             401 => [self::REASON_UNAUTHORISED, 'the relying party identifier or name was not accepted'],
             403 => [self::REASON_UNAUTHORISED, 'the relying party is not allowed to make this request, which is also what an ADVANCED request with the wrong identifier looks like'],
@@ -56,8 +83,51 @@ final class SmartIdApiException extends SmartIdException
             580 => [self::REASON_MAINTENANCE, 'the system is under maintenance'],
             default => [$status >= 500 ? self::REASON_SERVER_ERROR : self::REASON_BAD_REQUEST, 'the service answered unexpectedly'],
         };
+    }
 
-        return new self($reason, \sprintf('Smart-ID at %s answered HTTP %d: %s%s', \Allkiri\Http\HttpRequest::withoutIdentities($url), $status, $explanation, self::detail($body)), $status);
+    /**
+     * An RFC 9457 answer, as RP API 3.2 gives: its title and detail, and the
+     * code and detail of each of its errors. Its `type` is always about:blank,
+     * so it says nothing, and its `instance` only names SK's own task.
+     *
+     * @return array{text: list<string>, codes: list<string>}|null null when the body is not one
+     */
+    private static function problem(string $body): ?array
+    {
+        $decoded = json_decode($body, true);
+        if (!\is_array($decoded) || (!\is_string($decoded['title'] ?? null) && !\is_string($decoded['detail'] ?? null))) {
+            return null;
+        }
+        $text = [];
+        foreach (['title', 'detail'] as $member) {
+            if (\is_string($decoded[$member] ?? null) && !\in_array($decoded[$member], $text, true)) {
+                $text[] = $decoded[$member];
+            }
+        }
+        $codes = [];
+        foreach (\is_array($decoded['errors'] ?? null) ? $decoded['errors'] : [] as $error) {
+            if (!\is_array($error)) {
+                continue;
+            }
+            $code = \is_string($error['code'] ?? null) ? $error['code'] : null;
+            $detail = \is_string($error['detail'] ?? null) ? $error['detail'] : null;
+            if ($code !== null) {
+                $codes[] = $code;
+            }
+            if ($code !== null || $detail !== null) {
+                $text[] = implode(': ', array_filter([$code, $detail], static fn(?string $part): bool => $part !== null));
+            }
+        }
+
+        return ['text' => $text, 'codes' => $codes];
+    }
+
+    /**
+     * @param array{text: list<string>, codes: list<string>} $problem
+     */
+    private static function describe(array $problem): string
+    {
+        return self::detail(implode('; ', $problem['text']));
     }
 
     private static function detail(string $body): string

@@ -20,6 +20,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Smart-ID's RP API 3.2 answers 404 where it answered 471, with the reason in an
+  RFC 9457 body. A 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND` is
+  `SmartIdApiException::REASON_NO_SUITABLE_ACCOUNT` again, rather than
+  `REASON_ACCOUNT_NOT_FOUND`. The exception carries the body's codes in
+  `problemCodes`, its message gives the body's title, detail and errors rather
+  than its raw JSON, and requests accept `application/problem+json` (#51).
+
 - A trusted list older, by its sequence number, than one the same address has
   already served is refused with `TrustedListException::REASON_ROLLED_BACK`.
   It is genuinely signed, but may still grant a service withdrawn since. The
