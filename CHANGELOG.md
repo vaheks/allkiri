@@ -13,6 +13,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The constructors of what the library builds and returns are `@internal`:
+  `ValidationReport`, `SignatureReport`, `SignatureInfo`, `SigningResult`,
+  `DataToBeSigned`, `SmartIdSession`, `SmartIdSessionStatus`, `DeviceLink`,
+  `MobileIdSessionStatus`, `OcspVerificationResult`, `SingleResponse`,
+  `TimestampVerificationResult`, `SivaReport` and `SivaSignature`. Their
+  properties stay covered, so a minor release may add one.
 - No supported member takes or returns a phpseclib type any more, so 1.x is not
   tied to phpseclib 3. `PublicKeyVerifier` and `EcdsaSignature` are
   `@internal`, as are `Certificate::publicKey()`, `PrivateKey::publicKey()`,

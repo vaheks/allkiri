@@ -13,6 +13,8 @@ final readonly class SigningResult
 {
     /**
      * @param list<string> $warnings things worth telling the user about a signature that was still created
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public AsicContainer $container,

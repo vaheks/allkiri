@@ -15,6 +15,8 @@ final readonly class OcspVerificationResult
 {
     /**
      * @param list<string> $warnings
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public OcspResponse $response,

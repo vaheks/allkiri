@@ -12,6 +12,8 @@ final readonly class SivaSignature
     /**
      * @param list<string> $errors
      * @param list<string> $warnings
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $id,

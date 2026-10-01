@@ -181,6 +181,12 @@ existing one means is major.
   phpseclib 3 for as long as `web-eid/web-eid-authtoken-validation-php`
   requires it, and keeping phpseclib out of the covered API is what leaves it
   free to move to phpseclib 4 in a minor release after that;
+- the constructors of what the library builds and hands back: the reports,
+  the signing result, the parsed session statuses, the sessions and the
+  prepared signature, the OCSP and timestamp results and the SiVa ones. Their
+  properties are covered and may gain more in a minor release, which is why
+  their constructors' parameters are not. A stored session or prepared
+  signature comes back through `fromJson()`, which is covered;
 - an optional constructor parameter that takes an internal class. Those exist
   so that tests can swap a collaborator, and come after every covered
   parameter;

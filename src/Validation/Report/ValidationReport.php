@@ -12,6 +12,8 @@ final readonly class ValidationReport implements \JsonSerializable
     /**
      * @param list<SignatureReport> $signatures
      * @param list<Finding>         $containerFindings problems with the container rather than a signature
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $filename,

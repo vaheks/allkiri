@@ -12,6 +12,9 @@ use Allkiri\Crypto\Asn1\Node;
  */
 final readonly class SingleResponse
 {
+    /**
+     * @internal the library builds these, so the parameters may change in a minor release
+     */
     public function __construct(
         public CertId $certId,
         public CertStatus $status,

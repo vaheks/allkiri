@@ -15,6 +15,8 @@ final readonly class SignatureReport implements \JsonSerializable
     /**
      * @param list<Finding>        $findings all of them, in the order they were made
      * @param list<SignatureScope> $scopes
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $id,
