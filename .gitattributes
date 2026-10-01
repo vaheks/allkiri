@@ -35,3 +35,4 @@
 /.gitignore export-ignore
 /.editorconfig export-ignore
 /CONTRIBUTING.md export-ignore
+/.env.example export-ignore
