@@ -100,6 +100,31 @@ foreach ($report->signatures as $signature) {
 }
 ```
 
+### What the phone shows
+
+With Mobile-ID and Smart-ID, the person's phone shows the verification code your
+page shows, and a sentence from you saying what they are agreeing to. Build it
+per request, so it names the document or the person:
+
+```php
+use Allkiri\MobileId\DisplayTextFormat;
+
+$text = "Allkirjasta: {$player->name} mängijalitsents";
+
+// Smart-ID takes it with each request. The second text is for the PIN screen.
+$signing = $signer->startNotification($container, $documentNumber, Interactions::forText($text, 'Allkirjasta litsents'));
+
+// Mobile-ID takes it in its configuration, so give each request its own.
+$mobileIdSigner = $allkiri->mobileIdSigner($configuration->withDisplayText($text, DisplayTextFormat::forText($text)));
+```
+
+Smart-ID shows up to 200 characters, and 60 on its PIN screen. Mobile-ID shows
+100, or 50 when the text has a letter its basic character set lacks, such as
+`õ`, `š` or `ž`; `DisplayTextFormat::forText()` picks the right one. Nothing is
+cut to fit: a text that is too long is refused with an exception, so a person
+never reads half a sentence. [docs/smart-id.md](docs/smart-id.md#interactions)
+and [docs/mobile-id.md](docs/mobile-id.md#display-text) have the details.
+
 ## Going live
 
 allkiri is free. Some of the services behind it are not:

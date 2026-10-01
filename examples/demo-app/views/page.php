@@ -60,12 +60,12 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
 </p>
 <?php } ?>
 
-<h2>1. Sign in</h2>
+<h2>1. Authenticate</h2>
 
 <section>
   <strong>ID card</strong>
   <p class="note">Needs the Web eID extension, its native application, and an HTTPS origin.</p>
-  <button id="card-login">Sign in with an ID card</button>
+  <button id="card-login">Authenticate with an ID card</button>
   <div class="status" id="card-login-status"></div>
 </section>
 
@@ -75,7 +75,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <input type="text" id="mid-phone" value="<?= $prefill('+37200000766') ?>">
   <label for="mid-code">Identity code</label>
   <input type="text" id="mid-code" value="<?= $prefill('60001019906') ?>">
-  <button id="mid-login">Sign in with Mobile-ID</button>
+  <button id="mid-login">Authenticate with Mobile-ID</button>
   <div class="code" id="mid-login-code"></div>
   <div class="status" id="mid-login-status"></div>
 </section>
@@ -84,7 +84,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <strong>Smart-ID</strong>
   <label for="sid-code">Identity code</label>
   <input type="text" id="sid-code" value="<?= $prefill('50001029996') ?>">
-  <button id="sid-login">Sign in with Smart-ID</button>
+  <button id="sid-login">Authenticate with Smart-ID</button>
   <div class="code" id="sid-login-code"></div>
   <div class="status" id="sid-login-status"></div>
 </section>
@@ -94,7 +94,7 @@ $prefill = static fn(string $value): string => $live ? '' : $value;
   <strong>Smart-ID without an identity code</strong>
   <p class="note" data-device="computer">Shows a QR code to scan with the Smart-ID app on your phone<?= $demoApp ?>. The code changes every second.</p>
   <p class="note" data-device="phone" hidden>Opens the Smart-ID app on this phone<?= $demoApp ?>, which brings you back in a new tab.</p>
-  <button id="sid-device-login">Sign in with Smart-ID</button>
+  <button id="sid-device-login">Authenticate with Smart-ID</button>
   <button id="sid-qr-stop" hidden>Stop</button>
   <p id="sid-app-again" hidden><a id="sid-app-link" href="#">Open the Smart-ID app</a> if it did not open by itself.</p>
   <p id="sid-switch" hidden><a id="sid-switch-link" href="#"></a></p>
@@ -208,7 +208,7 @@ Each signature covers all the files and is added to the same container. Signing 
   $('card-login').onclick = function () {
     say('card-login-status', 'Insert the card and follow the prompts…');
     allkiri.cardLogin({ challengeUrl: '/api/card/challenge', loginUrl: '/api/card/login' })
-      .then(function (user) { say('card-login-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'); })
+      .then(function (user) { say('card-login-status', 'Authenticated as ' + user.name + ' (' + user.identity + ')'); })
       .catch(cardFailed('card-login-status'));
   };
 
@@ -223,7 +223,7 @@ Each signature covers all the files and is added to the same container. Signing 
         allkiri.showVerificationCode($('mid-login-code'), code);
         say('mid-login-status', 'Check this code matches the one on the phone, then enter PIN 1.');
       }
-    }).then(function (user) { say('mid-login-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'); })
+    }).then(function (user) { say('mid-login-status', 'Authenticated as ' + user.name + ' (' + user.identity + ')'); })
       .catch(failed('mid-login-status'));
   };
 
@@ -238,7 +238,7 @@ Each signature covers all the files and is added to the same container. Signing 
         allkiri.showVerificationCode($('sid-login-code'), code);
         say('sid-login-status', 'Pick this code in the Smart-ID app.');
       }
-    }).then(function (user) { say('sid-login-status', 'Signed in as ' + user.name + ' (' + user.identity + ')'); })
+    }).then(function (user) { say('sid-login-status', 'Authenticated as ' + user.name + ' (' + user.identity + ')'); })
       .catch(failed('sid-login-status'));
   };
 
@@ -327,7 +327,7 @@ Each signature covers all the files and is added to the same container. Signing 
   function signedIn(current, elsewhere) {
     return function (user) {
       if (!current() || !user) { return; }
-      deviceEnd('Signed in as ' + user.name + ' (' + user.identity + ')'
+      deviceEnd('Authenticated as ' + user.name + ' (' + user.identity + ')'
         + (elsewhere ? ', in the tab the Smart-ID app opened.' : ''));
     };
   }

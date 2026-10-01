@@ -175,13 +175,13 @@ final class DemoAppTest extends TestCase
         $link = self::request('POST', '/api/smart-id/login/qr/link', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
 
         self::assertSame(400, $link['status'], $link['body']);
-        self::assertStringContainsString('No QR sign-in is in progress', $link['body']);
+        self::assertStringContainsString('No QR authentication is in progress', $link['body']);
         self::assertSame(403, self::request('POST', '/api/smart-id/login/qr/link', ['Cookie' => $page['cookie']])['status'], 'no token');
         self::assertSame(405, self::request('GET', '/api/smart-id/login/qr/link')['status']);
 
         $poll = self::request('POST', '/api/smart-id/login/qr/poll', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
         self::assertSame(400, $poll['status'], $poll['body']);
-        self::assertStringContainsString('No QR sign-in is in progress', $poll['body']);
+        self::assertStringContainsString('No QR authentication is in progress', $poll['body']);
     }
 
     /**
@@ -198,8 +198,8 @@ final class DemoAppTest extends TestCase
 
         self::assertSame(400, $callback['status'], $callback['body']);
         self::assertSame(['text/html; charset=utf-8'], $callback['headers']['content-type'] ?? []);
-        self::assertStringContainsString('Not signed in', $callback['body']);
-        self::assertStringContainsString('No Smart-ID sign-in is waiting in this browser', $callback['body']);
+        self::assertStringContainsString('Not authenticated', $callback['body']);
+        self::assertStringContainsString('No Smart-ID authentication is waiting in this browser', $callback['body']);
         self::assertStringContainsString('start again from your default browser', $callback['body']);
         // The URL carries what proves a sign-in; the page passes it nowhere.
         self::assertSame(['no-referrer'], $callback['headers']['referrer-policy'] ?? []);
@@ -208,7 +208,7 @@ final class DemoAppTest extends TestCase
 
         $state = self::request('POST', '/api/smart-id/login/qr/state', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
         self::assertSame(400, $state['status'], $state['body']);
-        self::assertStringContainsString('No Smart-ID sign-in is in progress', $state['body']);
+        self::assertStringContainsString('No Smart-ID authentication is in progress', $state['body']);
     }
 
     /**
@@ -238,8 +238,8 @@ final class DemoAppTest extends TestCase
         $forged = self::request('GET', '/smart-id/callback?value=RrKjjT4aggzu27YBddX1bQ&sessionSecretDigest=U4CKK13H1XFiyBofev9asqrzIrY5_Gszi_nL_zDKkBc&userChallengeVerifier=XtPfaGa8JnGtYrJjboooUf0KfY9sMEHrWFpSQrsUv9c', ['Cookie' => $page['cookie']]);
 
         self::assertSame(400, $forged['status'], $forged['body']);
-        self::assertStringContainsString('Not signed in', $forged['body']);
-        self::assertStringNotContainsString('No Smart-ID sign-in is waiting', $forged['body'], 'it was waiting, and was checked against');
+        self::assertStringContainsString('Not authenticated', $forged['body']);
+        self::assertStringNotContainsString('No Smart-ID authentication is waiting', $forged['body'], 'it was waiting, and was checked against');
         $state = self::request('POST', '/api/smart-id/login/qr/state', ['Cookie' => $page['cookie'], 'X-CSRF-Token' => $page['token']]);
         self::assertSame(200, $state['status'], $state['body']);
         self::assertSame(['done' => false], json_decode($state['body'], true), 'the tab it started in keeps waiting');

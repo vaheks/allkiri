@@ -87,6 +87,22 @@ demo mode refuses your real ones, because the failure worth preventing is a
 signature made against the wrong services that looks exactly like one made
 against the right ones.
 
+What the phone shows beside the verification code is one sentence for
+authenticating and one for signing, the same for Mobile-ID and Smart-ID, in
+either mode. Set them in `.env` to try your own wording:
+
+```ini
+ALLKIRI_AUTH_TEXT=Logi sisse ERISesse
+ALLKIRI_SIGN_TEXT=Allkirjasta dokument
+```
+
+Left empty, they are "Log in to" and your relying-party name, and "Sign the
+uploaded file". Each has to fit Smart-ID's PIN dialogue, 60 characters, and
+Mobile-ID, 100 characters or 50 with "õ", "š" or "ž" in it, and the demo refuses
+to start with a text that does not. An application names the document or the
+person instead, per request; the README's
+[What the phone shows](../../README.md#what-the-phone-shows) says how.
+
 Live mode marks the session cookie `Secure`, so serve it over HTTPS. Over plain
 HTTP the browser never sends that cookie back, and every call after the page is
 refused.
@@ -149,8 +165,9 @@ point of view: ask the server for a challenge, have the card sign it, post the
 token back. Mobile-ID and Smart-ID push a request to a phone, so the page shows
 a verification code and polls the server until it says the session finished.
 
-Smart-ID can also sign in without an identity code, with one "Sign in with
-Smart-ID" button. That session names nobody: whoever answers is who comes back.
+Smart-ID can also authenticate without an identity code, with one
+"Authenticate with Smart-ID" button. That session names nobody: whoever answers
+is who comes back.
 The server starts it with a callback URL, `ALLKIRI_ORIGIN` plus
 `/smart-id/callback` and a random value, so that it can be finished either of two
 ways, as SK wants one session to serve both. What the button shows first
@@ -166,39 +183,40 @@ depends on the device, as SK's guidance says. Add `?device=phone` or
      that link in case the phone ignored the jump.
   2. After PIN 1 the app opens the callback URL in a new tab. That page checks
      it with `SmartIdCallback`: the random value, the digest of the session
-     secret and the user challenge verifier. It then signs the person in and
-     forgets the session, so the link works once.
+     secret and the user challenge verifier. It then authenticates the person
+     and forgets the session, so the link works once.
   3. The tab the person started in only watches for the result, without
      asking SK.
 
 Under the button, a link offers the other way for the same session: "Use
 Smart-ID on another device (QR code)" on a phone, "On this phone? Open the
 Smart-ID app" on a computer. A wrong guess about the device is one tap from
-right. The audit line of each sign-in says which flow finished it.
+right. The audit line of each authentication says which flow finished it.
 
-The callback needs the page's own browser: one that did not start the sign-in,
-such as an app's built-in browser, has no session to check against, and the
-page says to start again from the default browser. It also needs an address
+The callback needs the page's own browser: one that did not start the
+authentication, such as an app's built-in browser, has no session to check
+against, and the page says to start again from the default browser. It also needs an address
 the phone can reach, so try it on a server rather than on `localhost`.
 
-The sign-in by identity code and the one without are kept apart and can run
-side by side. If one finishes while the other is still waiting, the other may
-end with a token error, because signing in replaces the session id, and it only
-needs starting again.
+The authentication by identity code and the one without are kept apart and can
+run side by side. If one finishes while the other is still waiting, the other
+may end with a token error, because authenticating replaces the session id, and
+it only needs starting again.
 
 **Signing.** An upload of one or more files becomes an ASiC-E container, and
 each signature, covering all of the files, is added to the same container, so
 you can sign with several means and watch them accumulate. Uploading again
 starts a new container: a file cannot join one that is already signed, because
-each signature covers exactly the files that were there. Each means has a block of its own, as in signing in, and uses
-nothing from signing in: anyone signed in any way can sign with any means.
+each signature covers exactly the files that were there. Each means has a
+block of its own, as in authenticating, and uses nothing from authenticating:
+anyone authenticated any way can sign with any means.
 Signing with the card is four steps alternating between browser and server,
 because the card's certificate has to be known before the digest exists.
 Smart-ID has the same need in another form: it gives out a certificate only for
 one account, not a person. So signing with Smart-ID takes an identity code, asks
 the phone which account will sign, and only then asks for the signature: two
-prompts. An application that signs right after a Smart-ID sign-in can skip the
-first prompt, because the sign-in names the account; see
+prompts. An application that signs right after a Smart-ID authentication can
+skip the first prompt, because the authentication names the account; see
 [docs/smart-id.md](../../docs/smart-id.md#signing).
 
 **Archiving.** One button, which lays an archive timestamp over everything
@@ -217,7 +235,7 @@ report.
 | `app.php` | every endpoint, and the only place the library is called |
 | `public/index.php` | routing, and the method and token checks every call passes first |
 | `views/page.php` | the page, using `assets/allkiri.js` from the library |
-| `views/callback.php` | the page the Smart-ID app opens after signing in on the same phone |
+| `views/callback.php` | the page the Smart-ID app opens after authenticating on the same phone |
 | `public/vendor/web-eid.js` | a pinned copy of web-eid.js, for the ID card |
 
 The page loads `allkiri-qr.js` and `allkiri.js` from the library itself, so what
