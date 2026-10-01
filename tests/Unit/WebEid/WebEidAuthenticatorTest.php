@@ -292,6 +292,37 @@ final class WebEidAuthenticatorTest extends TestCase
         }
     }
 
+    /**
+     * The challenge comes back from wherever the application kept it. One whose
+     * stored deadline was moved, or which claims to have been issued later
+     * than now, does not get to decide how long it lasts.
+     */
+    public function testAStoredChallengeCannotStretchItsOwnLifetime(): void
+    {
+        $issued = $this->challenge();
+        $stretched = WebEidChallenge::fromArray(['expiresAt' => $issued->issuedAt->modify('+1 year')->format(DATE_ATOM)] + $issued->jsonSerialize());
+        $token = TestAuthToken::create(self::ORIGIN, $stretched->nonce);
+        $this->clock->advance('PT10M');
+
+        try {
+            $this->authenticator()->validate($token, $stretched);
+            self::fail('a challenge outlived the configured lifetime because its stored deadline said so');
+        } catch (WebEidException $exception) {
+            self::assertStringContainsString('expired', $exception->getMessage());
+        }
+
+        $later = WebEidChallenge::fromArray([
+            'issuedAt' => $this->clock->now()->modify('+1 day')->format(DATE_ATOM),
+            'expiresAt' => $this->clock->now()->modify('+1 day +5 minutes')->format(DATE_ATOM),
+        ] + $issued->jsonSerialize());
+        try {
+            $this->authenticator()->validate(TestAuthToken::create(self::ORIGIN, $later->nonce), $later);
+            self::fail('a challenge issued tomorrow was accepted');
+        } catch (WebEidException $exception) {
+            self::assertStringContainsString('issued in the future', $exception->getMessage());
+        }
+    }
+
     // --- malformed tokens ---------------------------------------------------
 
     /**

@@ -67,6 +67,9 @@ final class WebEidAuthenticator
     /** 32 bytes of entropy, which base64 renders as the 44 characters the specification requires. */
     private const CHALLENGE_BYTES = 32;
 
+    /** How far ahead of this server's clock another server's may be when it issues a challenge. */
+    private const ISSUED_AHEAD_SECONDS = 60;
+
     public function __construct(
         private readonly WebEidConfiguration $configuration,
         private readonly TrustStore $trustStore,
@@ -104,12 +107,22 @@ final class WebEidAuthenticator
         $now = $this->now();
         // Freshness is the website's own business: the token has no timestamp,
         // and the specification says to judge it by when the challenge was
-        // issued rather than by anything the card claims.
-        if ($challenge->isExpiredAt($now)) {
+        // issued rather than by anything the card claims. The challenge comes
+        // back from wherever the application kept it, so its own deadline is
+        // not taken on trust: it lasts no longer than this configuration lets
+        // a challenge last, and one issued in the future was not issued here.
+        $deadline = $challenge->issuedAt->add(new \DateInterval('PT' . $this->configuration->challengeTtlSeconds . 'S'));
+        if ($challenge->expiresAt < $deadline) {
+            $deadline = $challenge->expiresAt;
+        }
+        if ($now > $deadline) {
             throw new WebEidException(\sprintf(
                 'The Web eID challenge expired at %s; ask for a new one',
-                $challenge->expiresAt->format(DATE_ATOM),
+                $deadline->format(DATE_ATOM),
             ));
+        }
+        if ($challenge->issuedAt > $now->add(new \DateInterval('PT' . self::ISSUED_AHEAD_SECONDS . 'S'))) {
+            throw new WebEidException('The Web eID challenge says it was issued in the future; ask for a new one');
         }
 
         self::refuseDeeplyNestedCertificate($authToken);

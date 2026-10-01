@@ -88,7 +88,9 @@ A token is refused unless:
 
 - the challenge has not expired (five minutes by default; nothing in the token
   says when it was made, so the website's own record of when it issued the
-  challenge is what counts);
+  challenge is what counts). The deadline is worked out from when it was issued
+  and the configured lifetime, not taken from the stored challenge, and one
+  that says it was issued in the future is refused;
 - the signature verifies over this origin and this challenge;
 - the certificate is an authentication certificate: its key usage has
   `digitalSignature` and not `nonRepudiation`, and its extended key usage, if

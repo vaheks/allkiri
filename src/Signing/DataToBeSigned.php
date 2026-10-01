@@ -17,7 +17,11 @@ use Allkiri\StoredData;
  * back to {@see SigningService::finalize()} with the value it received.
  *
  * It is JSON-serialisable on purpose: a session store, a database column and
- * a queue message all work, and nothing here is secret.
+ * a queue message all work. Nothing here is secret, but it decides what is
+ * signed and how far the signature is taken: someone who could change it
+ * could set the level to B, which needs no trusted certificate, and finish it
+ * with a certificate and signature of their own. Keep it on the server, never
+ * in a cookie, a hidden field or anything else the browser sends back.
  */
 final readonly class DataToBeSigned implements \JsonSerializable
 {

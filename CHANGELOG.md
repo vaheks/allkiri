@@ -20,6 +20,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A Web eID challenge lasts no longer than the configured lifetime from when it
+  was issued, whatever deadline the stored challenge gives, and one that says it
+  was issued in the future is refused. The challenge comes back from wherever
+  the application kept it.
+- `DataToBeSigned` and `docs/signing.md` no longer suggest it can be kept
+  anywhere because it holds nothing secret: it decides what is signed and at
+  what level, and must stay on the server.
+
 - Exception messages no longer carry identity codes or document numbers. A
   Smart-ID or Mobile-ID answer from another account or person names both by
   type and country only, `PNOEE-[redacted]`, and a malformed phone number or
