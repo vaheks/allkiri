@@ -38,6 +38,25 @@ final class XsdDateTimeTest extends TestCase
     }
 
     /**
+     * xsd:dateTime may leave the zone out. Such a time used to be read in the
+     * server's own date.timezone, so the same document stated a different
+     * moment on a server in Tallinn and on one in UTC. It is read as UTC.
+     */
+    public function testATimeWithoutAZoneIsUtcWhateverTheServerSays(): void
+    {
+        $zone = date_default_timezone_get();
+        date_default_timezone_set('Europe/Tallinn');
+        try {
+            $parsed = XsdDateTime::tryParse('2026-09-17T10:30:00');
+        } finally {
+            date_default_timezone_set($zone);
+        }
+
+        self::assertNotNull($parsed);
+        self::assertSame('2026-09-17T10:30:00Z', $parsed->format('Y-m-d\TH:i:s\Z'));
+    }
+
+    /**
      * The point of the class. PHP's constructor reads these as times, and a
      * document that could say one of them would be setting the clock rather
      * than stating when something happened.

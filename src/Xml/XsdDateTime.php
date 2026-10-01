@@ -24,7 +24,7 @@ final class XsdDateTime
 {
     /**
      * xsd:dateTime — YYYY-MM-DDThh:mm:ss, with optional fractional seconds and
-     * an optional zone offset. Anchored with \z: a trailing newline is not part
+     * an optional zone offset, UTC when there is none. Anchored with \z: a trailing newline is not part
      * of a date.
      */
     private const PATTERN = '/^(?<date>-?\d{4,}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?\z/';
@@ -45,8 +45,10 @@ final class XsdDateTime
         }
 
         try {
-            // The shape is settled, so nothing here is a relative format.
-            $parsed = new \DateTimeImmutable($text);
+            // The shape is settled, so nothing here is a relative format. A time
+            // without a zone is UTC rather than whatever the server's
+            // date.timezone is, so a document states one moment everywhere.
+            $parsed = new \DateTimeImmutable($text, new \DateTimeZone('UTC'));
         } catch (\Exception) {
             return null;
         }
