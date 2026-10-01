@@ -1,0 +1,1619 @@
+final class Allkiri\Allkiri
+    function __construct(Allkiri\Config\Environment $environment, ?Allkiri\Http\HttpClient $http = NULL, Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), ?Psr\SimpleCache\CacheInterface $cache = NULL, Allkiri\Validation\ValidationPolicy $policy = new Allkiri\Validation\ValidationPolicy(), Allkiri\Crypto\NonceGenerator $nonces = new Allkiri\Crypto\RandomNonceGenerator(), ?Psr\Log\LoggerInterface $logger = NULL, Allkiri\Container\AsicReader $reader = new Allkiri\Container\AsicReader(), int $preparedSignatureTtlSeconds = Allkiri\Signing\SigningService::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS)
+    function chainBuilder(): Allkiri\Trust\ChainBuilder
+    function environment(): Allkiri\Config\Environment
+    function httpClient(): Allkiri\Http\HttpClient
+    function mobileIdAuthenticator(Allkiri\MobileId\MobileIdConfiguration $configuration): Allkiri\MobileId\MobileIdAuthenticator
+    function mobileIdClient(Allkiri\MobileId\MobileIdConfiguration $configuration): Allkiri\MobileId\MobileIdClient
+    function mobileIdSigner(Allkiri\MobileId\MobileIdConfiguration $configuration): Allkiri\MobileId\MobileIdSigner
+    function ocspClient(): Allkiri\Crypto\Ocsp\OcspClient
+    function reader(): Allkiri\Container\AsicReader
+    function signingService(): Allkiri\Signing\SigningService
+    function smartIdAuthenticator(Allkiri\SmartId\SmartIdConfiguration $configuration): Allkiri\SmartId\SmartIdAuthenticator
+    function smartIdClient(Allkiri\SmartId\SmartIdConfiguration $configuration): Allkiri\SmartId\SmartIdClient
+    function smartIdSigner(Allkiri\SmartId\SmartIdConfiguration $configuration): Allkiri\SmartId\SmartIdSigner
+    function trustStore(): Allkiri\Trust\TrustStore
+    function tspClient(): Allkiri\Crypto\Tsp\TspClient
+    function validator(): Allkiri\Validation\ContainerValidator
+    function webEidAuthenticator(Allkiri\WebEid\WebEidConfiguration $configuration): Allkiri\WebEid\WebEidAuthenticator
+    function webEidSigner(): Allkiri\WebEid\WebEidSigner
+    function writer(): Allkiri\Container\AsicWriter
+
+final readonly class Allkiri\Auth\AuthenticatedIdentity implements JsonSerializable
+    const VERSION = 2
+    property readonly string $identityCode
+    property readonly string $givenName
+    property readonly string $surname
+    property readonly string $country
+    property readonly Allkiri\Crypto\Certificate $certificate
+    property readonly Allkiri\Auth\IdentifierType $identifierType
+    function __construct(string $identityCode, string $givenName, string $surname, string $country, Allkiri\Crypto\Certificate $certificate, Allkiri\Auth\IdentifierType $identifierType)
+    static function fromCertificate(Allkiri\Crypto\Certificate $certificate): self
+    function fullName(): string
+    function jsonSerialize(): array
+    function semanticsIdentifier(): string
+
+enum Allkiri\Auth\IdentifierType implements BackedEnum, UnitEnum
+    case PersonalNumber = 'PNO'
+    case Passport = 'PAS'
+    case IdentityCard = 'IDC'
+
+final class Allkiri\Auth\UnidentifiableCertificateException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+interface Allkiri\Clock\Sleeper
+    function sleep(float $seconds): void
+
+final class Allkiri\Clock\SystemClock implements Psr\Clock\ClockInterface
+    function now(): DateTimeImmutable
+
+final class Allkiri\Clock\SystemSleeper implements Allkiri\Clock\Sleeper
+    function sleep(float $seconds): void
+
+final class Allkiri\Config\ArrayCache implements Psr\SimpleCache\CacheInterface
+    function clear(): bool
+    function delete(string $key): bool
+    function deleteMultiple(iterable $keys): bool
+    function get(string $key, mixed $default = NULL): mixed
+    function getMultiple(iterable $keys, mixed $default = NULL): iterable
+    function has(string $key): bool
+    function set(string $key, mixed $value, DateInterval|int|null $ttl = NULL): bool
+    function setMultiple(iterable $values, DateInterval|int|null $ttl = NULL): bool
+
+final readonly class Allkiri\Config\Environment
+    const EU_OFFICIAL_JOURNAL_URL = 'https://eur-lex.europa.eu/eli/C/2026/1944/oj'
+    property readonly string $name
+    property readonly string $tsaUrl
+    property readonly ?string $ocspDefaultUrl
+    property readonly array $ocspUrlOverrides
+    property readonly Allkiri\Crypto\Ocsp\NonceMode $ocspNonceMode
+    property readonly array $trustedListSources
+    property readonly array $extraTrustAnchors
+    property readonly int $httpTimeoutSeconds
+    property readonly Allkiri\Crypto\HashAlgorithm $timestampDigestAlgorithm
+    property readonly ?string $sivaUrl
+    property readonly ?Allkiri\Trust\TrustedList\ListOfListsSource $listOfLists
+    function __construct(string $name, string $tsaUrl, ?string $ocspDefaultUrl, array $ocspUrlOverrides = [], Allkiri\Crypto\Ocsp\NonceMode $ocspNonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required, array $trustedListSources = [], array $extraTrustAnchors = [], int $httpTimeoutSeconds = 30, Allkiri\Crypto\HashAlgorithm $timestampDigestAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, ?string $sivaUrl = NULL, ?Allkiri\Trust\TrustedList\ListOfListsSource $listOfLists = NULL)
+    function certIdHashOid(): string
+    static function demo(): self
+    static function euListOfLists(array $territories = ['EE']): Allkiri\Trust\TrustedList\ListOfListsSource
+    static function production(): self
+    function withExtraTrustAnchors(array $anchors): self
+    function withHttpTimeout(int $seconds): self
+    function withListOfLists(?Allkiri\Trust\TrustedList\ListOfListsSource $source): self
+    function withOcspDefaultUrl(?string $url): self
+    function withOcspNonceMode(Allkiri\Crypto\Ocsp\NonceMode $mode): self
+    function withOcspUrlOverrides(array $overrides): self
+    function withSivaUrl(?string $url): self
+    function withTrustedListSources(array $sources): self
+    function withTsaUrl(string $url): self
+
+final readonly class Allkiri\Container\AsicContainer
+    const MIME_TYPE = 'application/vnd.etsi.asic-e+zip'
+    property readonly array $dataFiles
+    property readonly array $signatureFiles
+    property readonly Allkiri\Container\Manifest $manifest
+    property readonly array $structuralFindings
+    static function create(Allkiri\Container\DataFile ...$dataFiles): self
+    function dataFile(string $name): ?Allkiri\Container\DataFile
+    function fatalFindings(): array
+    function fingerprint(): string
+    function isNew(): bool
+    function nextSignatureFileName(): string
+    function signatureFile(string $name): ?Allkiri\Container\SignatureFile
+    function withReplacedSignatureFile(Allkiri\Container\SignatureFile $file): self
+    function withSignatureFile(Allkiri\Container\SignatureFile $file): self
+
+final class Allkiri\Container\AsicReader
+    const MIMETYPE_ENTRY = 'mimetype'
+    const MANIFEST_ENTRY = 'META-INF/manifest.xml'
+    function __construct(int $compressionRatioThresholdBytes = Allkiri\Container\Zip\InflationLimit::DEFAULT_THRESHOLD_BYTES, int $maxCompressionRatio = Allkiri\Container\Zip\InflationLimit::DEFAULT_MAX_RATIO)
+    function read(string $bytes): Allkiri\Container\AsicContainer
+    function readFile(string $path): Allkiri\Container\AsicContainer
+
+final class Allkiri\Container\AsicWriter
+    function write(Allkiri\Container\AsicContainer $container): string
+    function writeFile(Allkiri\Container\AsicContainer $container, string $path): void
+
+class Allkiri\Container\ContainerException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Container\DataFile
+    property readonly string $name
+    property readonly string $content
+    property readonly string $mimeType
+    function __construct(string $name, string $content, string $mimeType = 'application/octet-stream')
+    function digest(Allkiri\Crypto\HashAlgorithm $algorithm = Allkiri\Crypto\HashAlgorithm::SHA256): string
+    static function fromPath(string $path, ?string $name = NULL, ?string $mimeType = NULL): self
+    static function fromString(string $name, string $content, ?string $mimeType = NULL): self
+    function size(): int
+
+class Allkiri\Container\InvalidContainerException extends Allkiri\Container\ContainerException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Container\Manifest
+    const NS_MANIFEST = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0'
+    property readonly array $entries
+    function __construct(array $entries)
+    function duplicatePaths(): array
+    static function forDataFiles(array $dataFiles): self
+    function mediaTypeOf(string $fullPath): ?string
+    static function parse(string $xml): self
+    function paths(): array
+    function toXml(): string
+
+final class Allkiri\Container\MimeTypes
+    const DEFAULT = 'application/octet-stream'
+    static function guess(string $filename): string
+
+final readonly class Allkiri\Container\SignatureFile
+    const NS_ASIC = 'http://uri.etsi.org/02918/v1.2.1#'
+    property readonly string $name
+    property readonly string $xml
+    function __construct(string $name, string $xml)
+    function index(): ?int
+
+final readonly class Allkiri\Container\StructuralFinding
+    const MIMETYPE_MISSING = 'MIMETYPE_MISSING'
+    const MIMETYPE_NOT_FIRST = 'MIMETYPE_NOT_FIRST'
+    const MIMETYPE_COMPRESSED = 'MIMETYPE_COMPRESSED'
+    const MIMETYPE_HAS_EXTRA_FIELD = 'MIMETYPE_HAS_EXTRA_FIELD'
+    const MIMETYPE_WRONG_CONTENT = 'MIMETYPE_WRONG_CONTENT'
+    const MANIFEST_MISSING = 'MANIFEST_MISSING'
+    const MANIFEST_ENTRY_MISSING_FILE = 'MANIFEST_ENTRY_MISSING_FILE'
+    const FILE_MISSING_MANIFEST_ENTRY = 'FILE_MISSING_MANIFEST_ENTRY'
+    const MANIFEST_DUPLICATE_ENTRY = 'MANIFEST_DUPLICATE_ENTRY'
+    const NO_SIGNATURE_FILES = 'NO_SIGNATURE_FILES'
+    const NO_DATA_FILES = 'NO_DATA_FILES'
+    const UNEXPECTED_META_INF_ENTRY = 'UNEXPECTED_META_INF_ENTRY'
+    property readonly string $code
+    property readonly string $message
+    property readonly bool $fatal
+    function __construct(string $code, string $message, bool $fatal = true)
+
+final class Allkiri\Container\UnsupportedZipException extends Allkiri\Container\InvalidContainerException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Container\ZipBombException extends Allkiri\Container\InvalidContainerException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Crypto\AlgorithmConstraints
+    property readonly int $minimumRsaKeyBits
+    function __construct(int $minimumRsaKeyBits = 2048)
+
+final class Allkiri\Crypto\Asn1\Asn1Exception extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Crypto\Certificate
+    const OID_OCSP_NOCHECK = '1.3.6.1.5.5.7.48.1.5'
+    function authorityKeyIdentifier(): ?string
+    function base64(): string
+    function caIssuersUrls(): array
+    function commonName(): ?string
+    function curveName(): ?string
+    function der(): string
+    function equals(Allkiri\Crypto\Certificate $other): bool
+    function extendedKeyUsage(): array
+    function fingerprint(Allkiri\Crypto\HashAlgorithm $algorithm = Allkiri\Crypto\HashAlgorithm::SHA256): string
+    static function fromBase64(string $base64): self
+    static function fromDer(string $der): self
+    static function fromPem(string $pem): self
+    function hasExtendedKeyUsage(string $usage): bool
+    function hasExtension(string $extension): bool
+    function isCa(): bool
+    function isExtensionCritical(string $extension): bool
+    function isForAuthentication(): bool
+    function isSelfIssued(): bool
+    function isSelfSigned(): bool
+    function isSignedBy(Allkiri\Crypto\Certificate $issuer): bool
+    function isValidAt(DateTimeInterface $time): bool
+    function issuerDn(): string
+    function issuerNameDer(): string
+    function keyBits(): int
+    function keyType(): Allkiri\Crypto\KeyType
+    function keyUsage(): array
+    function notAfter(): DateTimeImmutable
+    function notBefore(): DateTimeImmutable
+    function ocspUrls(): array
+    function pathLenConstraint(): ?int
+    function pem(): string
+    function policies(): array
+    function serialNumber(): string
+    function signatureAlgorithm(): Allkiri\Crypto\SignatureAlgorithmIdentifier
+    function signatureAlgorithmOid(): string
+    function signatureValue(): string
+    function subjectAttribute(string $name): ?string
+    function subjectDn(): string
+    function subjectKeyIdentifier(): ?string
+    function subjectNameDer(): string
+    function subjectPublicKeyBytes(): string
+    function subjectPublicKeyInfoDer(): string
+    function tbsCertificateDer(): string
+
+final class Allkiri\Crypto\CertificateException extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Crypto\Cms\EssCertId
+    property readonly string $hashAlgorithmOid
+    property readonly string $certHash
+    property readonly ?string $issuerSerial
+    function __construct(string $hashAlgorithmOid, string $certHash, ?string $issuerSerial)
+    function matches(Allkiri\Crypto\Certificate $certificate): bool
+
+final class Allkiri\Crypto\Cms\SignedData
+    function certificates(): array
+    function der(): string
+    function eContent(): ?string
+    function eContentType(): string
+    static function fromDer(string $contentInfoDer): self
+    function signerInfos(): array
+
+final class Allkiri\Crypto\Cms\SignerInfo
+    function contentTypeAttribute(): ?string
+    function digestAlgorithmOid(): string
+    function findSigner(array $candidates): ?Allkiri\Crypto\Certificate
+    function hasSignedAttribute(string $oid): bool
+    function messageDigestAttribute(): ?string
+    function signature(): string
+    function signatureAlgorithm(): Allkiri\Crypto\SignatureAlgorithmIdentifier
+    function signatureAlgorithmOid(): string
+    function signedAttrsDer(): ?string
+    function signingCertificateReferences(): array
+    function signingTimeAttribute(): ?DateTimeImmutable
+
+class Allkiri\Crypto\CryptoException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+enum Allkiri\Crypto\HashAlgorithm implements BackedEnum, UnitEnum
+    case SHA256 = 'sha256'
+    case SHA384 = 'sha384'
+    case SHA512 = 'sha512'
+    function digest(string $data): string
+    function digestLength(): int
+    static function fromOid(string $oid): self
+    static function fromXmlUri(string $uri): self
+    function name(bool $dashed = false): string
+    function oid(): string
+    static function tryFromOid(string $oid): ?self
+    static function tryFromXmlUri(string $uri): ?self
+    function xmlUri(): string
+
+final readonly class Allkiri\Crypto\KeyPair
+    property readonly Allkiri\Crypto\PrivateKey $privateKey
+    property readonly Allkiri\Crypto\Certificate $certificate
+    property readonly array $chain
+    function __construct(Allkiri\Crypto\PrivateKey $privateKey, Allkiri\Crypto\Certificate $certificate, array $chain = [])
+
+enum Allkiri\Crypto\KeyType implements UnitEnum
+    case RSA
+    case EC
+
+interface Allkiri\Crypto\NonceGenerator
+    function generate(int $bytes): string
+
+final class Allkiri\Crypto\Ocsp\BasicOcspResponse
+    function certificates(): array
+    function der(): string
+    function findResponder(array $candidates): ?Allkiri\Crypto\Certificate
+    function fingerprint(): string
+    static function fromDer(string $der): self
+    function nonce(): ?string
+    function producedAt(): DateTimeImmutable
+    function responderKeyHash(): ?string
+    function responderName(): ?string
+    function responses(): array
+    function signature(): string
+    function signatureAlgorithm(): Allkiri\Crypto\SignatureAlgorithmIdentifier
+    function signatureAlgorithmOid(): string
+    function tbsResponseDataDer(): string
+
+final readonly class Allkiri\Crypto\Ocsp\CertId
+    property readonly string $hashAlgorithmOid
+    property readonly string $issuerNameHash
+    property readonly string $issuerKeyHash
+    property readonly string $serialNumber
+    function __construct(string $hashAlgorithmOid, string $issuerNameHash, string $issuerKeyHash, string $serialNumber)
+    function equals(Allkiri\Crypto\Ocsp\CertId $other): bool
+    static function for(Allkiri\Crypto\Certificate $subject, Allkiri\Crypto\Certificate $issuer, string $hashAlgorithmOid = Allkiri\Crypto\Asn1\Oids::SHA1): self
+
+enum Allkiri\Crypto\Ocsp\CertStatus implements BackedEnum, UnitEnum
+    case Good = 'good'
+    case Revoked = 'revoked'
+    case Unknown = 'unknown'
+
+final class Allkiri\Crypto\Ocsp\CertificateRevokedException extends Allkiri\Crypto\Ocsp\OcspException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_REVOKED = 'CERTIFICATE_REVOKED'
+    const REASON_UNKNOWN = 'CERTIFICATE_STATUS_UNKNOWN'
+    property readonly ?DateTimeImmutable $revokedAt
+    property readonly ?string $revocationReason
+    function __construct(string $reason, string $message, ?DateTimeImmutable $revokedAt = NULL, ?string $revocationReason = NULL)
+
+enum Allkiri\Crypto\Ocsp\NonceMode implements UnitEnum
+    case Required
+    case IfPresent
+    case Ignore
+
+final class Allkiri\Crypto\Ocsp\OcspClient
+    const NONCE_BYTES = 32
+    function __construct(Allkiri\Http\HttpClient $http, Psr\Clock\ClockInterface $clock, Allkiri\Crypto\NonceGenerator $nonces = new Allkiri\Crypto\RandomNonceGenerator(), Allkiri\Crypto\Ocsp\OcspVerificationOptions $options = new Allkiri\Crypto\Ocsp\OcspVerificationOptions(), array $urlOverrides = [], ?string $defaultUrl = NULL, string $certIdHashOid = Allkiri\Crypto\Asn1\Oids::SHA1, Allkiri\Crypto\Ocsp\OcspResponseVerifier $verifier = new Allkiri\Crypto\Ocsp\OcspResponseVerifier())
+    function fetch(Allkiri\Crypto\Certificate $subject, Allkiri\Crypto\Certificate $issuer, array $trustedResponders = []): Allkiri\Crypto\Ocsp\OcspResult
+    function responderUrl(Allkiri\Crypto\Certificate $subject, Allkiri\Crypto\Certificate $issuer): string
+
+class Allkiri\Crypto\Ocsp\OcspException extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_TRANSPORT = 'OCSP_TRANSPORT'
+    const REASON_HTTP_STATUS = 'OCSP_HTTP_STATUS'
+    const REASON_MALFORMED_RESPONSE = 'OCSP_MALFORMED_RESPONSE'
+    const REASON_NO_RESPONDER_URL = 'OCSP_NO_RESPONDER_URL'
+    property readonly string $reason
+    function __construct(string $reason, string $message, ?Throwable $previous = NULL)
+
+final class Allkiri\Crypto\Ocsp\OcspResponse
+    function basic(): ?Allkiri\Crypto\Ocsp\BasicOcspResponse
+    function der(): string
+    static function fromDer(string $der): self
+    function status(): Allkiri\Crypto\Ocsp\OcspResponseStatus
+
+enum Allkiri\Crypto\Ocsp\OcspResponseStatus implements BackedEnum, UnitEnum
+    case Successful = 'successful'
+    case MalformedRequest = 'malformedRequest'
+    case InternalError = 'internalError'
+    case TryLater = 'tryLater'
+    case SigRequired = 'sigRequired'
+    case Unauthorized = 'unauthorized'
+    function code(): int
+
+final readonly class Allkiri\Crypto\Ocsp\OcspResult
+    property readonly string $url
+    property readonly Allkiri\Crypto\Ocsp\OcspResponse $response
+    property readonly Allkiri\Crypto\Ocsp\OcspVerificationResult $verification
+    function __construct(string $url, Allkiri\Crypto\Ocsp\OcspResponse $response, Allkiri\Crypto\Ocsp\OcspVerificationResult $verification)
+    function der(): string
+
+final class Allkiri\Crypto\Ocsp\OcspVerificationException extends Allkiri\Crypto\Ocsp\OcspException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_STATUS = 'OCSP_STATUS_NOT_SUCCESSFUL'
+    const REASON_NOT_BASIC = 'OCSP_RESPONSE_TYPE_UNSUPPORTED'
+    const REASON_NO_MATCHING_RESPONSE = 'OCSP_NO_MATCHING_SINGLE_RESPONSE'
+    const REASON_RESPONDER_NOT_FOUND = 'OCSP_RESPONDER_CERTIFICATE_NOT_FOUND'
+    const REASON_BAD_SIGNATURE = 'OCSP_SIGNATURE_INVALID'
+    const REASON_UNSUPPORTED_ALGORITHM = 'OCSP_SIGNATURE_ALGORITHM_UNSUPPORTED'
+    const REASON_ALGORITHM_NOT_ACCEPTED = 'OCSP_SIGNATURE_ALGORITHM_NOT_ACCEPTED'
+    const REASON_RESPONDER_NOT_AUTHORISED = 'OCSP_RESPONDER_NOT_AUTHORISED'
+    const REASON_RESPONDER_CERTIFICATE_INVALID = 'OCSP_RESPONDER_CERTIFICATE_NOT_VALID'
+    const REASON_NONCE_MISMATCH = 'OCSP_NONCE_MISMATCH'
+    const REASON_NONCE_MISSING = 'OCSP_NONCE_MISSING'
+    const REASON_TIME = 'OCSP_TIME_OUT_OF_RANGE'
+
+final readonly class Allkiri\Crypto\Ocsp\OcspVerificationOptions
+    property readonly Allkiri\Crypto\Ocsp\NonceMode $nonceMode
+    property readonly array $trustedResponders
+    property readonly int $clockSkewSeconds
+    property readonly ?int $maxAgeSeconds
+    property readonly Allkiri\Crypto\AlgorithmConstraints $algorithmConstraints
+    function __construct(Allkiri\Crypto\Ocsp\NonceMode $nonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required, array $trustedResponders = [], int $clockSkewSeconds = 300, ?int $maxAgeSeconds = NULL, Allkiri\Crypto\AlgorithmConstraints $algorithmConstraints = new Allkiri\Crypto\AlgorithmConstraints())
+    static function forSigning(Allkiri\Crypto\Ocsp\NonceMode $nonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required): self
+    static function forValidation(): self
+    function withAlgorithmConstraints(Allkiri\Crypto\AlgorithmConstraints $constraints): self
+    function withTrustedResponders(array $trustedResponders): self
+
+final readonly class Allkiri\Crypto\Ocsp\OcspVerificationResult
+    property readonly Allkiri\Crypto\Ocsp\OcspResponse $response
+    property readonly Allkiri\Crypto\Ocsp\BasicOcspResponse $basic
+    property readonly Allkiri\Crypto\Ocsp\SingleResponse $single
+    property readonly Allkiri\Crypto\Certificate $responder
+    property readonly bool $responderIsIssuer
+    property readonly bool $responderFromTrustList
+    property readonly array $warnings
+    function producedAt(): DateTimeImmutable
+    function status(): Allkiri\Crypto\Ocsp\CertStatus
+
+final readonly class Allkiri\Crypto\Ocsp\SingleResponse
+    property readonly Allkiri\Crypto\Ocsp\CertId $certId
+    property readonly Allkiri\Crypto\Ocsp\CertStatus $status
+    property readonly DateTimeImmutable $thisUpdate
+    property readonly ?DateTimeImmutable $nextUpdate
+    property readonly ?DateTimeImmutable $revokedAt
+    property readonly ?string $revocationReason
+
+final class Allkiri\Crypto\PrivateKey
+    function defaultAlgorithm(bool $preferPss = false): Allkiri\Crypto\SignatureAlgorithm
+    static function fromPem(string $pem, ?string $password = NULL): self
+    static function fromPkcs12(string $pkcs12, string $password): Allkiri\Crypto\KeyPair
+    function keyType(): Allkiri\Crypto\KeyType
+    function sign(Allkiri\Crypto\SignatureAlgorithm $algorithm, string $data): string
+
+final readonly class Allkiri\Crypto\PssParameters
+    property readonly Allkiri\Crypto\HashAlgorithm $hash
+    property readonly int $saltLength
+    static function fromDer(string $der): self
+
+final class Allkiri\Crypto\RandomNonceGenerator implements Allkiri\Crypto\NonceGenerator
+    function generate(int $bytes): string
+
+enum Allkiri\Crypto\SignatureAlgorithm implements BackedEnum, UnitEnum
+    case RS256 = 'RS256'
+    case RS384 = 'RS384'
+    case RS512 = 'RS512'
+    case PS256 = 'PS256'
+    case PS384 = 'PS384'
+    case PS512 = 'PS512'
+    case ES256 = 'ES256'
+    case ES384 = 'ES384'
+    case ES512 = 'ES512'
+    static function fromXmlUri(string $uri): self
+    function hash(): Allkiri\Crypto\HashAlgorithm
+    function isPss(): bool
+    function keyType(): Allkiri\Crypto\KeyType
+    function oid(): ?string
+    static function tryFromXmlUri(string $uri): ?self
+    function xmlUri(): string
+
+final readonly class Allkiri\Crypto\SignatureAlgorithmIdentifier
+    property readonly string $oid
+    property readonly Allkiri\Crypto\KeyType $keyType
+    property readonly string $hashName
+    property readonly ?Allkiri\Crypto\PssParameters $pss
+    static function fromDer(string $der): self
+    static function fromOid(string $oid): self
+    function hash(): ?Allkiri\Crypto\HashAlgorithm
+    static function isKnownOid(string $oid): bool
+
+class Allkiri\Crypto\Tsp\TimestampException extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_TRANSPORT = 'TIMESTAMP_TRANSPORT'
+    const REASON_HTTP_STATUS = 'TIMESTAMP_HTTP_STATUS'
+    const REASON_MALFORMED_RESPONSE = 'TIMESTAMP_MALFORMED_RESPONSE'
+    const REASON_REJECTED = 'TIMESTAMP_REJECTED'
+    property readonly string $reason
+    function __construct(string $reason, string $message, ?Throwable $previous = NULL)
+
+final class Allkiri\Crypto\Tsp\TimestampToken
+    function der(): string
+    static function fromDer(string $der): self
+    function genTime(): DateTimeImmutable
+    function signedData(): Allkiri\Crypto\Cms\SignedData
+    function signerCertificate(array $extraCandidates = []): ?Allkiri\Crypto\Certificate
+    function signerInfo(): Allkiri\Crypto\Cms\SignerInfo
+    function tstInfo(): Allkiri\Crypto\Tsp\TstInfo
+
+final class Allkiri\Crypto\Tsp\TimestampVerificationException extends Allkiri\Crypto\Tsp\TimestampException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_STRUCTURE = 'TIMESTAMP_STRUCTURE_INVALID'
+    const REASON_CONTENT_TYPE = 'TIMESTAMP_CONTENT_TYPE_INVALID'
+    const REASON_MESSAGE_DIGEST = 'TIMESTAMP_MESSAGE_DIGEST_MISMATCH'
+    const REASON_SIGNER_NOT_FOUND = 'TIMESTAMP_SIGNER_CERTIFICATE_NOT_FOUND'
+    const REASON_BAD_SIGNATURE = 'TIMESTAMP_SIGNATURE_INVALID'
+    const REASON_UNSUPPORTED_ALGORITHM = 'TIMESTAMP_SIGNATURE_ALGORITHM_UNSUPPORTED'
+    const REASON_ALGORITHM_NOT_ACCEPTED = 'TIMESTAMP_SIGNATURE_ALGORITHM_NOT_ACCEPTED'
+    const REASON_ESS_MISMATCH = 'TIMESTAMP_SIGNING_CERTIFICATE_REFERENCE_MISMATCH'
+    const REASON_TSA_KEY_USAGE = 'TIMESTAMP_TSA_KEY_USAGE_INVALID'
+    const REASON_IMPRINT = 'TIMESTAMP_MESSAGE_IMPRINT_MISMATCH'
+    const REASON_NONCE = 'TIMESTAMP_NONCE_MISMATCH'
+    const REASON_AUTHORITY_NOT_TRUSTED = 'TIMESTAMP_AUTHORITY_NOT_TRUSTED'
+
+final readonly class Allkiri\Crypto\Tsp\TimestampVerificationResult
+    property readonly Allkiri\Crypto\Tsp\TimestampToken $token
+    property readonly Allkiri\Crypto\Certificate $tsaCertificate
+    function genTime(): DateTimeImmutable
+
+final class Allkiri\Crypto\Tsp\TspClient
+    function __construct(Allkiri\Http\HttpClient $http, string $url, Allkiri\Crypto\NonceGenerator $nonces = new Allkiri\Crypto\RandomNonceGenerator(), Allkiri\Crypto\HashAlgorithm $hashAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, ?string $policyOid = NULL, Allkiri\Crypto\AlgorithmConstraints $algorithmConstraints = new Allkiri\Crypto\AlgorithmConstraints(), Allkiri\Crypto\Tsp\TimestampTokenVerifier $verifier = new Allkiri\Crypto\Tsp\TimestampTokenVerifier())
+    function timestamp(string $data): Allkiri\Crypto\Tsp\TimestampVerificationResult
+    function timestampDigest(string $digest): Allkiri\Crypto\Tsp\TimestampVerificationResult
+    function url(): string
+
+final readonly class Allkiri\Crypto\Tsp\TstInfo
+    property readonly string $policyOid
+    property readonly string $hashAlgorithmOid
+    property readonly string $messageImprint
+    property readonly string $serialNumber
+    property readonly DateTimeImmutable $genTime
+    property readonly ?string $nonce
+    property readonly ?int $accuracySeconds
+    property readonly string $der
+    static function fromDer(string $der): self
+
+final class Allkiri\Crypto\UnsupportedAlgorithmException extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+interface Allkiri\Exception\AllkiriException implements Stringable, Throwable
+
+final class Allkiri\Exception\InvalidArgumentException extends InvalidArgumentException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Exception\SessionDataException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Http\CurlHttpClient implements Allkiri\Http\HttpClient
+    function __construct(int $timeoutSeconds = 30, ?string $userAgent = NULL, array $pinnedPublicKeys = [], ?string $caBundlePath = NULL, ?int $connectTimeoutSeconds = NULL, int $maxResponseBytes = Allkiri\Http\HttpClient::DEFAULT_MAX_RESPONSE_BYTES)
+    static function pinnedPublicKeyOption(array $pins): string
+    function send(Allkiri\Http\HttpRequest $request): Allkiri\Http\HttpResponse
+
+interface Allkiri\Http\HttpClient
+    const DEFAULT_MAX_RESPONSE_BYTES = 16777216
+    function send(Allkiri\Http\HttpRequest $request): Allkiri\Http\HttpResponse
+
+class Allkiri\Http\HttpException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Http\HttpRequest
+    const REDACTED = '[redacted]'
+    property readonly string $method
+    property readonly string $url
+    property readonly array $headers
+    property readonly string $body
+    static function get(string $url, array $headers = []): self
+    function header(string $name): ?string
+    static function isHttpUrl(string $url): bool
+    static function post(string $url, string $contentType, string $body, array $headers = []): self
+    function redactedUrl(): string
+    static function requireHttps(string $url, string $what): void
+    static function withoutIdentities(string $url): string
+
+final readonly class Allkiri\Http\HttpResponse
+    property readonly array $headers
+    property readonly int $status
+    property readonly string $body
+    function __construct(int $status, array $headers, string $body)
+    function contentType(): ?string
+    function header(string $name): ?string
+    function isSuccess(): bool
+
+final class Allkiri\Http\LoggingHttpClient implements Allkiri\Http\HttpClient
+    const REDACTED = '[redacted]'
+    function __construct(Allkiri\Http\HttpClient $inner, Psr\Log\LoggerInterface $logger, bool $personalData = false, int $maxBodyBytes = 2048, string $level = Psr\Log\LogLevel::INFO)
+    static function redact(string $body): string
+    function send(Allkiri\Http\HttpRequest $request): Allkiri\Http\HttpResponse
+
+final class Allkiri\Http\Psr18HttpClient implements Allkiri\Http\HttpClient
+    function __construct(Psr\Http\Client\ClientInterface $client, Psr\Http\Message\RequestFactoryInterface $requestFactory, Psr\Http\Message\StreamFactoryInterface $streamFactory, int $maxResponseBytes = Allkiri\Http\HttpClient::DEFAULT_MAX_RESPONSE_BYTES)
+    function send(Allkiri\Http\HttpRequest $request): Allkiri\Http\HttpResponse
+
+final class Allkiri\Http\TransportException extends Allkiri\Http\HttpException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    static function responseTooLarge(Allkiri\Http\HttpRequest $request, int $limit): self
+
+final class Allkiri\Http\UnexpectedStatusException extends Allkiri\Http\HttpException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    property readonly int $status
+    property readonly string $body
+    function __construct(int $status, string $body, string $message)
+    static function forResponse(string $what, Allkiri\Http\HttpResponse $response): self
+
+final class Allkiri\Http\UserAgent
+    const PACKAGE = 'vaheks/allkiri'
+    const UNKNOWN_VERSION = 'unknown'
+    static function default(): string
+    static function version(): string
+
+final class Allkiri\MobileId\CertificateNotFoundException extends Allkiri\MobileId\MobileIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    property readonly Allkiri\MobileId\MobileIdIdentity $identity
+    property readonly string $result
+    function __construct(Allkiri\MobileId\MobileIdIdentity $identity, string $result = 'NOT_FOUND')
+
+enum Allkiri\MobileId\DisplayTextFormat implements BackedEnum, UnitEnum
+    case Gsm7 = 'GSM-7'
+    case Ucs2 = 'UCS-2'
+    function exceedsExtensionLimit(string $text): bool
+    static function forText(string $text): self
+    function lengthOf(string $text): int
+    function maximumLength(): int
+    function unsupportedCharacters(string $text): array
+
+final class Allkiri\MobileId\MobileIdApiException extends Allkiri\MobileId\MobileIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_TRANSPORT = 'MID_TRANSPORT'
+    const REASON_BAD_REQUEST = 'MID_BAD_REQUEST'
+    const REASON_UNAUTHORISED = 'MID_UNAUTHORISED'
+    const REASON_SESSION_NOT_FOUND = 'MID_SESSION_NOT_FOUND'
+    const REASON_RATE_LIMITED = 'MID_RATE_LIMITED'
+    const REASON_SERVER_ERROR = 'MID_SERVER_ERROR'
+    const REASON_MALFORMED_RESPONSE = 'MID_MALFORMED_RESPONSE'
+    property readonly string $reason
+    property readonly ?int $status
+    function __construct(string $reason, string $message, ?int $status = NULL, ?Throwable $previous = NULL)
+    static function forStatus(int $status, string $url, string $body): self
+
+final class Allkiri\MobileId\MobileIdAuthenticator
+    function __construct(Allkiri\MobileId\MobileIdClient $client, Allkiri\Trust\ChainBuilder $chainBuilder, Allkiri\Crypto\HashAlgorithm $hashAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, Allkiri\Crypto\NonceGenerator $nonceGenerator = new Allkiri\Crypto\RandomNonceGenerator(), Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), Allkiri\Crypto\PublicKeyVerifier $verifier = new Allkiri\Crypto\PublicKeyVerifier())
+    function authenticate(Allkiri\MobileId\MobileIdIdentity $identity, ?Allkiri\MobileId\MobileIdPoller $poller = NULL): Allkiri\Auth\AuthenticatedIdentity
+    function complete(Allkiri\MobileId\MobileIdSession $session, Allkiri\MobileId\MobileIdSessionStatus $status): Allkiri\Auth\AuthenticatedIdentity
+    function poll(Allkiri\MobileId\MobileIdSession $session): ?Allkiri\Auth\AuthenticatedIdentity
+    function start(Allkiri\MobileId\MobileIdIdentity $identity): Allkiri\MobileId\MobileIdSession
+
+final class Allkiri\MobileId\MobileIdClient
+    function __construct(Allkiri\MobileId\MobileIdConfiguration $configuration, Allkiri\Http\HttpClient $httpClient = new Allkiri\Http\CurlHttpClient(), ?Psr\Log\LoggerInterface $logger = NULL)
+    function certificate(Allkiri\MobileId\MobileIdIdentity $identity): Allkiri\Crypto\Certificate
+    function configuration(): Allkiri\MobileId\MobileIdConfiguration
+    static function signatureAlgorithm(string $name): ?Allkiri\Crypto\SignatureAlgorithm
+    function startAuthentication(Allkiri\MobileId\MobileIdIdentity $identity, string $hash, Allkiri\Crypto\HashAlgorithm $hashAlgorithm): string
+    function startSignature(Allkiri\MobileId\MobileIdIdentity $identity, string $hash, Allkiri\Crypto\HashAlgorithm $hashAlgorithm): string
+    function status(string $type, string $sessionId, ?int $timeoutMs = NULL): Allkiri\MobileId\MobileIdSessionStatus
+
+final readonly class Allkiri\MobileId\MobileIdConfiguration
+    const DEMO_URL = 'https://tsp.demo.sk.ee/mid-api'
+    const PRODUCTION_URL = 'https://mid.sk.ee/mid-api'
+    const DEMO_RELYING_PARTY_UUID = '00000000-0000-0000-0000-000000000000'
+    const DEMO_RELYING_PARTY_NAME = 'DEMO'
+    const MAX_POLL_TIMEOUT_MS = 60000
+    const HTTP_TIMEOUT_MARGIN_SECONDS = 5
+    property readonly string $url
+    property readonly string $relyingPartyUuid
+    property readonly string $relyingPartyName
+    property readonly Allkiri\MobileId\MobileIdLanguage $language
+    property readonly string $displayText
+    property readonly Allkiri\MobileId\DisplayTextFormat $displayTextFormat
+    property readonly int $pollTimeoutMs
+    property readonly int $sessionTimeoutSeconds
+    function __construct(string $url, string $relyingPartyUuid, string $relyingPartyName, Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian, string $displayText = '', Allkiri\MobileId\DisplayTextFormat $displayTextFormat = Allkiri\MobileId\DisplayTextFormat::Gsm7, int $pollTimeoutMs = 10000, int $sessionTimeoutSeconds = 120)
+    static function demo(string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): self
+    function httpTimeoutSeconds(): int
+    function isDemo(): bool
+    static function production(string $relyingPartyUuid, string $relyingPartyName, string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): self
+    function withDisplayText(string $text, Allkiri\MobileId\DisplayTextFormat $format = Allkiri\MobileId\DisplayTextFormat::Gsm7): self
+    function withLanguage(Allkiri\MobileId\MobileIdLanguage $language): self
+    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): self
+
+class Allkiri\MobileId\MobileIdException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\MobileId\MobileIdIdentity implements Stringable
+    property readonly string $phoneNumber
+    property readonly string $nationalIdentityNumber
+    function __construct(string $phoneNumber, string $nationalIdentityNumber)
+    function __toString(): string
+    function country(): ?string
+
+enum Allkiri\MobileId\MobileIdLanguage implements BackedEnum, UnitEnum
+    case Estonian = 'EST'
+    case English = 'ENG'
+    case Russian = 'RUS'
+    case Lithuanian = 'LIT'
+    static function forLocale(string $locale): self
+
+final class Allkiri\MobileId\MobileIdPoller
+    function __construct(Allkiri\MobileId\MobileIdClient $client, Allkiri\Clock\Sleeper $sleeper = new Allkiri\Clock\SystemSleeper())
+    function wait(Allkiri\MobileId\MobileIdSession $session): Allkiri\MobileId\MobileIdSessionStatus
+
+enum Allkiri\MobileId\MobileIdResult implements BackedEnum, UnitEnum
+    case Ok = 'OK'
+    case Timeout = 'TIMEOUT'
+    case NotMidClient = 'NOT_MID_CLIENT'
+    case UserCancelled = 'USER_CANCELLED'
+    case SignatureHashMismatch = 'SIGNATURE_HASH_MISMATCH'
+    case PhoneAbsent = 'PHONE_ABSENT'
+    case DeliveryError = 'DELIVERY_ERROR'
+    case SimError = 'SIM_ERROR'
+    function isWorthRetrying(): bool
+    function message(): string
+
+final readonly class Allkiri\MobileId\MobileIdSession implements JsonSerializable
+    const VERSION = 1
+    const TYPE_AUTHENTICATION = 'authentication'
+    const TYPE_SIGNATURE = 'signature'
+    property readonly string $sessionId
+    property readonly string $type
+    property readonly string $verificationCode
+    property readonly Allkiri\MobileId\MobileIdIdentity $identity
+    property readonly string $challenge
+    function __construct(string $sessionId, string $type, string $verificationCode, Allkiri\MobileId\MobileIdIdentity $identity, string $challenge = '')
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function jsonSerialize(): array
+
+final class Allkiri\MobileId\MobileIdSessionException extends Allkiri\MobileId\MobileIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    property readonly Allkiri\MobileId\MobileIdResult $result
+    function __construct(Allkiri\MobileId\MobileIdResult $result)
+
+final readonly class Allkiri\MobileId\MobileIdSessionStatus
+    const STATE_RUNNING = 'RUNNING'
+    const STATE_COMPLETE = 'COMPLETE'
+    property readonly string $state
+    property readonly ?Allkiri\MobileId\MobileIdResult $result
+    property readonly ?string $signatureValue
+    property readonly ?Allkiri\Crypto\SignatureAlgorithm $signatureAlgorithm
+    property readonly ?Allkiri\Crypto\Certificate $certificate
+    function isComplete(): bool
+    function isOk(): bool
+    function isRunning(): bool
+    function requireSignature(): string
+
+final class Allkiri\MobileId\MobileIdSigner
+    function __construct(Allkiri\MobileId\MobileIdClient $client, Allkiri\Signing\SigningService $signingService)
+    function complete(Allkiri\Container\AsicContainer $container, Allkiri\MobileId\MobileIdSigningSession $signing, Allkiri\MobileId\MobileIdSessionStatus $status): Allkiri\Signing\SigningResult
+    function poll(Allkiri\Container\AsicContainer $container, Allkiri\MobileId\MobileIdSigningSession $signing): ?Allkiri\Signing\SigningResult
+    function sign(Allkiri\Container\AsicContainer $container, Allkiri\MobileId\MobileIdIdentity $identity, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions(), ?Allkiri\MobileId\MobileIdPoller $poller = NULL): Allkiri\Signing\SigningResult
+    function start(Allkiri\Container\AsicContainer $container, Allkiri\MobileId\MobileIdIdentity $identity, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions()): Allkiri\MobileId\MobileIdSigningSession
+
+final readonly class Allkiri\MobileId\MobileIdSigningSession implements JsonSerializable
+    const VERSION = 1
+    property readonly Allkiri\MobileId\MobileIdSession $session
+    property readonly Allkiri\Signing\DataToBeSigned $dataToBeSigned
+    function __construct(Allkiri\MobileId\MobileIdSession $session, Allkiri\Signing\DataToBeSigned $dataToBeSigned)
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function jsonSerialize(): array
+    function verificationCode(): string
+
+final class Allkiri\MobileId\VerificationCode
+    static function forHash(string $hash): string
+    static function random(): string
+
+final class Allkiri\Signing\CertificateNotForSigningException extends Allkiri\Signing\SigningException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Signing\DataToBeSigned implements JsonSerializable
+    const VERSION = 1
+    property readonly string $signatureId
+    property readonly string $signatureFileName
+    property readonly Allkiri\Crypto\SignatureAlgorithm $algorithm
+    property readonly string $digest
+    property readonly string $signedInfoCanonical
+    property readonly string $signatureXml
+    property readonly Allkiri\Crypto\Certificate $signerCertificate
+    property readonly string $containerFingerprint
+    property readonly Allkiri\Signing\SignatureLevel $level
+    property readonly DateTimeImmutable $createdAt
+    function digestAlgorithm(): Allkiri\Crypto\HashAlgorithm
+    function digestBase64(): string
+    function digestHex(): string
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function hashName(): string
+    function jsonSerialize(): array
+
+final class Allkiri\Signing\InvalidSignatureValueException extends Allkiri\Signing\SigningException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Signing\LocalKeySigner implements Allkiri\Signing\Signer
+    function __construct(Allkiri\Crypto\PrivateKey $privateKey, Allkiri\Crypto\Certificate $certificate)
+    function certificate(): Allkiri\Crypto\Certificate
+    static function fromKeyPair(Allkiri\Crypto\KeyPair $keyPair): self
+    static function fromPkcs12(string $pkcs12, string $password): self
+    function sign(Allkiri\Signing\DataToBeSigned $dataToBeSigned): string
+
+final class Allkiri\Signing\LtExtender
+    const OCSP_DELAY_WARNING_SECONDS = 900
+    function __construct(Allkiri\Crypto\Tsp\TspClient $tspClient, Allkiri\Crypto\Ocsp\OcspClient $ocspClient, Allkiri\Trust\ChainBuilder $chainBuilder, Allkiri\Trust\TrustStore $trustStore, Allkiri\Xml\Dsig\Canonicalizer $canonicalizer = new Allkiri\Xml\Dsig\Canonicalizer())
+    function requireTrustedSigner(Allkiri\Crypto\Certificate $signer, DateTimeInterface $at): void
+
+final class Allkiri\Signing\LtaExtender
+    function __construct(Allkiri\Crypto\Tsp\TspClient $tspClient, Allkiri\Trust\ChainBuilder $chainBuilder, ?Psr\Log\LoggerInterface $logger = NULL, Allkiri\Xades\Lta\ArchiveTimestampData $data = new Allkiri\Xades\Lta\ArchiveTimestampData())
+
+final class Allkiri\Signing\PreparedSignatureExpiredException extends Allkiri\Signing\SigningException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Signing\SessionMismatchException extends Allkiri\Signing\SigningException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+enum Allkiri\Signing\SignatureLevel implements BackedEnum, UnitEnum
+    case B = 'XAdES_BASELINE_B'
+    case T = 'XAdES_BASELINE_T'
+    case LT = 'XAdES_BASELINE_LT'
+    case LTA = 'XAdES_BASELINE_LTA'
+    function includes(self $other): bool
+    function rank(): int
+
+interface Allkiri\Signing\Signer
+    function certificate(): Allkiri\Crypto\Certificate
+    function sign(Allkiri\Signing\DataToBeSigned $dataToBeSigned): string
+
+class Allkiri\Signing\SigningException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\Signing\SigningOptions
+    property readonly Allkiri\Signing\SignatureLevel $level
+    property readonly ?Allkiri\Crypto\SignatureAlgorithm $signatureAlgorithm
+    property readonly Allkiri\Xades\SignatureProfile $profile
+    function __construct(Allkiri\Signing\SignatureLevel $level = Allkiri\Signing\SignatureLevel::LT, ?Allkiri\Crypto\SignatureAlgorithm $signatureAlgorithm = NULL, Allkiri\Xades\SignatureProfile $profile = new Allkiri\Xades\SignatureProfile())
+    function withAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): self
+    function withLevel(Allkiri\Signing\SignatureLevel $level): self
+    function withProfile(Allkiri\Xades\SignatureProfile $profile): self
+
+final readonly class Allkiri\Signing\SigningResult
+    property readonly Allkiri\Container\AsicContainer $container
+    property readonly string $signatureId
+    property readonly string $signatureFileName
+    property readonly Allkiri\Signing\SignatureLevel $level
+    property readonly ?DateTimeImmutable $timestampTime
+    property readonly ?DateTimeImmutable $ocspProducedAt
+    property readonly array $warnings
+
+final class Allkiri\Signing\SigningService
+    const DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS = 600
+    function __construct(Psr\Clock\ClockInterface $clock, ?Allkiri\Signing\LtExtender $ltExtender = NULL, ?Allkiri\Signing\LtaExtender $ltaExtender = NULL, ?Psr\Log\LoggerInterface $logger = NULL, int $preparedSignatureTtlSeconds = self::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS, ?Allkiri\Xades\SignatureBuilder $builder = NULL, Allkiri\Xades\SignatureCompleter $completer = new Allkiri\Xades\SignatureCompleter(), Allkiri\Xml\Dsig\XmlDsigVerifier $dsigVerifier = new Allkiri\Xml\Dsig\XmlDsigVerifier())
+    function archive(Allkiri\Container\AsicContainer $container, ?string $signatureFileName = NULL): Allkiri\Signing\SigningResult
+    function finalize(Allkiri\Container\AsicContainer $container, Allkiri\Signing\DataToBeSigned $dataToBeSigned, string $signatureValue): Allkiri\Signing\SigningResult
+    function prepare(Allkiri\Container\AsicContainer $container, Allkiri\Crypto\Certificate $signer, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions()): Allkiri\Signing\DataToBeSigned
+    function signWith(Allkiri\Container\AsicContainer $container, Allkiri\Signing\Signer $signer, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions()): Allkiri\Signing\SigningResult
+
+enum Allkiri\SmartId\CertificateLevel implements BackedEnum, UnitEnum
+    case Advanced = 'ADVANCED'
+    case Qualified = 'QUALIFIED'
+    case Qscd = 'QSCD'
+    function authenticationPolicies(): array
+    function isSatisfiedBy(self $actual): bool
+
+final readonly class Allkiri\SmartId\DeviceLink
+    const VERSION = '1.0'
+    const TYPE_QR = 'QR'
+    const TYPE_WEB2APP = 'Web2App'
+    const TYPE_APP2APP = 'App2App'
+    const SESSION_AUTHENTICATION = 'auth'
+    const SESSION_SIGNATURE = 'sign'
+    const SESSION_CERTIFICATE_CHOICE = 'cert'
+    function authenticationCode(string $sessionSecret, string $unprotectedUrl): string
+    static function base64Url(string $bytes): string
+    function payload(string $unprotectedUrl): string
+    function unprotectedUrl(?int $elapsedSeconds = NULL): string
+    function url(string $sessionSecret, ?int $elapsedSeconds = NULL): string
+
+final readonly class Allkiri\SmartId\DeviceLinkSessionResponse
+    property readonly string $sessionId
+    property readonly string $sessionToken
+    property readonly string $sessionSecret
+    property readonly string $deviceLinkBase
+    function __construct(string $sessionId, string $sessionToken, string $sessionSecret, string $deviceLinkBase)
+    static function fromArray(array $body): self
+
+final readonly class Allkiri\SmartId\DocumentNumber implements Stringable
+    property readonly string $value
+    function __construct(string $value)
+    function __toString(): string
+    function semanticsIdentifier(): Allkiri\SmartId\SemanticsIdentifier
+
+enum Allkiri\SmartId\FlowType implements BackedEnum, UnitEnum
+    case Qr = 'QR'
+    case Web2App = 'Web2App'
+    case App2App = 'App2App'
+    case Notification = 'Notification'
+    function isDeviceLink(): bool
+
+final readonly class Allkiri\SmartId\Interaction implements JsonSerializable
+    property readonly Allkiri\SmartId\InteractionType $type
+    property readonly string $text
+    function __construct(Allkiri\SmartId\InteractionType $type, string $text)
+    static function confirmationMessage(string $text): self
+    static function confirmationMessageAndVerificationCodeChoice(string $text): self
+    static function displayTextAndPin(string $text): self
+    function jsonSerialize(): array
+
+enum Allkiri\SmartId\InteractionType implements BackedEnum, UnitEnum
+    case DisplayTextAndPin = 'displayTextAndPIN'
+    case ConfirmationMessage = 'confirmationMessage'
+    case ConfirmationMessageAndVerificationCodeChoice = 'confirmationMessageAndVerificationCodeChoice'
+    function isSupportedInDeviceLink(): bool
+    function maximumLength(): int
+    function textField(): string
+
+final readonly class Allkiri\SmartId\Interactions implements JsonSerializable
+    property readonly array $interactions
+    property readonly string $encoded
+    function digest(): string
+    function forDeviceLink(): self
+    static function forText(string $text, ?string $pinText = NULL): self
+    static function fromEncoded(string $encoded): self
+    function jsonSerialize(): string
+    static function of(Allkiri\SmartId\Interaction ...$interactions): self
+
+final readonly class Allkiri\SmartId\RsaPssParameters
+    const TRAILER_FIELD = '0xbc'
+    property readonly Allkiri\Crypto\HashAlgorithm $hashAlgorithm
+    property readonly Allkiri\Crypto\HashAlgorithm $maskHashAlgorithm
+    property readonly int $saltLength
+    property readonly string $trailerField
+    function __construct(Allkiri\Crypto\HashAlgorithm $hashAlgorithm, Allkiri\Crypto\HashAlgorithm $maskHashAlgorithm, int $saltLength, string $trailerField)
+    function complaint(): ?string
+    function isRfc6931Profile(): bool
+    function signatureAlgorithm(): Allkiri\Crypto\SignatureAlgorithm
+
+final readonly class Allkiri\SmartId\SemanticsIdentifier implements Stringable
+    const TYPE_PERSONAL_NUMBER = 'PNO'
+    const TYPE_PASSPORT = 'PAS'
+    const TYPE_IDENTITY_CARD = 'IDC'
+    property readonly string $identityType
+    property readonly string $country
+    property readonly string $identityNumber
+    function __construct(string $identityType, string $country, string $identityNumber)
+    function __toString(): string
+    static function estonian(string $identityNumber): self
+    static function parse(string $identifier): self
+    static function personalNumber(string $country, string $identityNumber): self
+
+final class Allkiri\SmartId\SmartIdApiException extends Allkiri\SmartId\SmartIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_TRANSPORT = 'SID_TRANSPORT'
+    const REASON_BAD_REQUEST = 'SID_BAD_REQUEST'
+    const REASON_UNAUTHORISED = 'SID_UNAUTHORISED'
+    const REASON_ACCOUNT_NOT_FOUND = 'SID_ACCOUNT_NOT_FOUND'
+    const REASON_NO_SUITABLE_ACCOUNT = 'SID_NO_SUITABLE_ACCOUNT'
+    const REASON_SHOULD_VIEW_PORTAL = 'SID_SHOULD_VIEW_PORTAL'
+    const REASON_CLIENT_TOO_OLD = 'SID_CLIENT_TOO_OLD'
+    const REASON_RATE_LIMITED = 'SID_RATE_LIMITED'
+    const REASON_MAINTENANCE = 'SID_MAINTENANCE'
+    const REASON_SERVER_ERROR = 'SID_SERVER_ERROR'
+    const REASON_SESSION_NOT_FOUND = 'SID_SESSION_NOT_FOUND'
+    const REASON_MALFORMED_RESPONSE = 'SID_MALFORMED_RESPONSE'
+    property readonly string $reason
+    property readonly ?int $status
+    property readonly array $problemCodes
+    function __construct(string $reason, string $message, ?int $status = NULL, ?Throwable $previous = NULL, array $problemCodes = [])
+    static function forStatus(int $status, string $url, string $body, bool $isSessionRequest = false): self
+
+final class Allkiri\SmartId\SmartIdAuthenticator
+    function __construct(Allkiri\SmartId\SmartIdClient $client, Allkiri\Trust\ChainBuilder $chainBuilder, Allkiri\Crypto\Ocsp\OcspClient $ocspClient, Allkiri\Crypto\NonceGenerator $nonceGenerator = new Allkiri\Crypto\RandomNonceGenerator(), Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), ?string $brokeredRelyingPartyName = NULL, Allkiri\Crypto\PublicKeyVerifier $verifier = new Allkiri\Crypto\PublicKeyVerifier())
+    function authenticate(Allkiri\SmartId\SmartIdSession $session, ?Allkiri\SmartId\SmartIdPoller $poller = NULL): Allkiri\Auth\AuthenticatedIdentity
+    function complete(Allkiri\SmartId\SmartIdSession $session, Allkiri\SmartId\SmartIdSessionStatus $status, ?Allkiri\SmartId\SmartIdCallback $callback = NULL): Allkiri\Auth\AuthenticatedIdentity
+    function poll(Allkiri\SmartId\SmartIdSession $session, ?Allkiri\SmartId\SmartIdCallback $callback = NULL): ?Allkiri\Auth\AuthenticatedIdentity
+    function startAnonymous(Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\SmartIdSession
+    function startDeviceLink(Allkiri\SmartId\SemanticsIdentifier|Allkiri\SmartId\DocumentNumber $subject, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\SmartIdSession
+    function startNotification(Allkiri\SmartId\SemanticsIdentifier|Allkiri\SmartId\DocumentNumber $subject, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL): Allkiri\SmartId\SmartIdSession
+
+final readonly class Allkiri\SmartId\SmartIdCallback
+    const VALUE = 'value'
+    const SESSION_SECRET_DIGEST = 'sessionSecretDigest'
+    const USER_CHALLENGE_VERIFIER = 'userChallengeVerifier'
+    property readonly array $parameters
+    function __construct(array $parameters)
+    static function fromQuery(array $query): self
+    static function fromUrl(string $url): self
+    static function initialUrl(string $baseUrl, Allkiri\Crypto\NonceGenerator $nonces = new Allkiri\Crypto\RandomNonceGenerator()): string
+    function sessionSecretDigest(): ?string
+    function userChallengeVerifier(): ?string
+
+final readonly class Allkiri\SmartId\SmartIdCertificate
+    property readonly Allkiri\Crypto\Certificate $certificate
+    property readonly Allkiri\SmartId\CertificateLevel $level
+    property readonly Allkiri\SmartId\DocumentNumber $documentNumber
+    function __construct(Allkiri\Crypto\Certificate $certificate, Allkiri\SmartId\CertificateLevel $level, Allkiri\SmartId\DocumentNumber $documentNumber)
+
+final class Allkiri\SmartId\SmartIdClient
+    const PROTOCOL_ACSP_V2 = 'ACSP_V2'
+    const PROTOCOL_RAW_DIGEST = 'RAW_DIGEST_SIGNATURE'
+    const SIGNATURE_ALGORITHM_PSS = 'rsassa-pss'
+    const VERIFICATION_CODE_TYPE = 'numeric4'
+    function __construct(Allkiri\SmartId\SmartIdConfiguration $configuration, Allkiri\Http\HttpClient $httpClient = new Allkiri\Http\CurlHttpClient(), ?Psr\Log\LoggerInterface $logger = NULL)
+    function certificateByDocumentNumber(Allkiri\SmartId\DocumentNumber $documentNumber, ?Allkiri\SmartId\CertificateLevel $level = NULL): Allkiri\SmartId\SmartIdCertificate
+    function configuration(): Allkiri\SmartId\SmartIdConfiguration
+    static function hashName(Allkiri\Crypto\HashAlgorithm $algorithm): string
+    function sessionStatus(string $sessionId, ?int $timeoutMs = NULL): Allkiri\SmartId\SmartIdSessionStatus
+    function startAnonymousDeviceLinkAuthentication(string $rpChallenge, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\DeviceLinkSessionResponse
+    function startDeviceLinkAuthentication(Allkiri\SmartId\SemanticsIdentifier|Allkiri\SmartId\DocumentNumber $subject, string $rpChallenge, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\DeviceLinkSessionResponse
+    function startDeviceLinkSignature(Allkiri\SmartId\SemanticsIdentifier|Allkiri\SmartId\DocumentNumber $subject, string $digest, Allkiri\Crypto\HashAlgorithm $hashAlgorithm, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\DeviceLinkSessionResponse
+    function startNotificationAuthentication(Allkiri\SmartId\SemanticsIdentifier|Allkiri\SmartId\DocumentNumber $subject, string $rpChallenge, Allkiri\SmartId\Interactions $interactions, ?Allkiri\SmartId\CertificateLevel $level = NULL): string
+    function startNotificationCertificateChoice(Allkiri\SmartId\SemanticsIdentifier $identity, ?Allkiri\SmartId\CertificateLevel $level = NULL): string
+
+final readonly class Allkiri\SmartId\SmartIdConfiguration
+    const DEMO_URL = 'https://sid.demo.sk.ee/smart-id-rp/v3'
+    const PRODUCTION_URL = 'https://rp-api.smart-id.com/v3'
+    const DEMO_RELYING_PARTY_UUID = '00000000-0000-4000-8000-000000000000'
+    const DEMO_RELYING_PARTY_NAME = 'DEMO'
+    const SCHEME_DEMO = 'smart-id-demo'
+    const SCHEME_PRODUCTION = 'smart-id'
+    const MAX_POLL_TIMEOUT_MS = 120000
+    const HTTP_TIMEOUT_MARGIN_SECONDS = 5
+    property readonly string $url
+    property readonly string $relyingPartyUuid
+    property readonly string $relyingPartyName
+    property readonly string $scheme
+    property readonly Allkiri\SmartId\CertificateLevel $certificateLevel
+    property readonly Allkiri\Crypto\HashAlgorithm $signingHashAlgorithm
+    property readonly int $pollTimeoutMs
+    property readonly int $sessionTimeoutSeconds
+    property readonly bool $shareDeviceIpAddress
+    property readonly bool $checkRevocation
+    function __construct(string $url, string $relyingPartyUuid, string $relyingPartyName, string $scheme, Allkiri\SmartId\CertificateLevel $certificateLevel = Allkiri\SmartId\CertificateLevel::Qualified, Allkiri\Crypto\HashAlgorithm $signingHashAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, int $pollTimeoutMs = 10000, int $sessionTimeoutSeconds = 120, bool $shareDeviceIpAddress = false, bool $checkRevocation = true)
+    static function demo(): self
+    function httpTimeoutSeconds(): int
+    function isDemo(): bool
+    static function production(string $relyingPartyUuid, string $relyingPartyName): self
+    function relyingPartyNameBase64(): string
+    function withCertificateLevel(Allkiri\SmartId\CertificateLevel $level): self
+    function withDeviceIpAddress(bool $share = true): self
+    function withSigningHashAlgorithm(Allkiri\Crypto\HashAlgorithm $algorithm): self
+    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): self
+    function withoutRevocationCheck(): self
+
+enum Allkiri\SmartId\SmartIdEndResult implements BackedEnum, UnitEnum
+    case Ok = 'OK'
+    case UserRefused = 'USER_REFUSED'
+    case Timeout = 'TIMEOUT'
+    case DocumentUnusable = 'DOCUMENT_UNUSABLE'
+    case WrongVerificationCode = 'WRONG_VC'
+    case RequiredInteractionNotSupportedByApp = 'REQUIRED_INTERACTION_NOT_SUPPORTED_BY_APP'
+    case UserRefusedCertChoice = 'USER_REFUSED_CERT_CHOICE'
+    case UserRefusedInteraction = 'USER_REFUSED_INTERACTION'
+    case ProtocolFailure = 'PROTOCOL_FAILURE'
+    case ExpectedLinkedSession = 'EXPECTED_LINKED_SESSION'
+    case ServerError = 'SERVER_ERROR'
+    case AccountUnusable = 'ACCOUNT_UNUSABLE'
+    function isWorthRetrying(): bool
+    function message(): string
+
+class Allkiri\SmartId\SmartIdException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\SmartId\SmartIdPoller
+    function __construct(Allkiri\SmartId\SmartIdClient $client, Allkiri\Clock\Sleeper $sleeper = new Allkiri\Clock\SystemSleeper())
+    function wait(Allkiri\SmartId\SmartIdSession $session): Allkiri\SmartId\SmartIdSessionStatus
+    function waitForSuccess(Allkiri\SmartId\SmartIdSession $session): Allkiri\SmartId\SmartIdSessionStatus
+
+final readonly class Allkiri\SmartId\SmartIdSession implements JsonSerializable
+    const VERSION = 2
+    const TYPE_AUTHENTICATION = 'auth'
+    const TYPE_SIGNATURE = 'sign'
+    property readonly string $sessionId
+    property readonly string $type
+    property readonly string $challenge
+    property readonly Allkiri\SmartId\Interactions $interactions
+    property readonly ?string $verificationCode
+    property readonly ?string $documentNumber
+    property readonly ?string $sessionToken
+    property readonly ?string $sessionSecret
+    property readonly ?string $deviceLinkBase
+    property readonly ?DateTimeImmutable $startedAt
+    property readonly ?string $initialCallbackUrl
+    property readonly ?Allkiri\SmartId\CertificateLevel $certificateLevel
+    property readonly ?Allkiri\SmartId\SemanticsIdentifier $semanticsIdentifier
+    function challengeBase64(): string
+    function deviceLink(string $scheme, string $relyingPartyNameBase64, string $linkType = Allkiri\SmartId\DeviceLink::TYPE_QR, string $language = 'eng', ?int $elapsedSeconds = NULL, ?DateTimeImmutable $now = NULL): Allkiri\SmartId\DeviceLink
+    function elapsedSeconds(?DateTimeImmutable $now = NULL): int
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function isDeviceLink(): bool
+    function jsonSerialize(): array
+    static function requireUsableCallbackUrl(?string $initialCallbackUrl): void
+    function verifyCallback(Allkiri\SmartId\SmartIdCallback $callback): void
+
+final class Allkiri\SmartId\SmartIdSessionException extends Allkiri\SmartId\SmartIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    property readonly Allkiri\SmartId\SmartIdEndResult $result
+    property readonly ?Allkiri\SmartId\InteractionType $refusedInteraction
+    function __construct(Allkiri\SmartId\SmartIdEndResult $result, ?Allkiri\SmartId\InteractionType $refusedInteraction = NULL)
+
+final readonly class Allkiri\SmartId\SmartIdSessionStatus
+    const STATE_RUNNING = 'RUNNING'
+    const STATE_COMPLETE = 'COMPLETE'
+    property readonly string $state
+    property readonly ?Allkiri\SmartId\SmartIdEndResult $result
+    property readonly ?Allkiri\SmartId\DocumentNumber $documentNumber
+    property readonly ?string $signatureValue
+    property readonly ?string $signatureAlgorithmName
+    property readonly ?Allkiri\SmartId\RsaPssParameters $pssParameters
+    property readonly ?Allkiri\Crypto\Certificate $certificate
+    property readonly ?Allkiri\SmartId\CertificateLevel $certificateLevel
+    property readonly ?string $serverRandom
+    property readonly ?string $userChallenge
+    property readonly ?Allkiri\SmartId\FlowType $flowType
+    property readonly ?Allkiri\SmartId\InteractionType $interactionTypeUsed
+    property readonly ?Allkiri\SmartId\InteractionType $refusedInteraction
+    property readonly ?string $deviceIpAddress
+    property readonly ?string $signatureProtocol
+    function isComplete(): bool
+    function isLegacyRsa(): bool
+    function isOk(): bool
+    function isRunning(): bool
+    function requireOk(): self
+
+final class Allkiri\SmartId\SmartIdSigner
+    function __construct(Allkiri\SmartId\SmartIdClient $client, Allkiri\Signing\SigningService $signingService)
+    function certificate(Allkiri\SmartId\DocumentNumber $documentNumber, ?Allkiri\SmartId\CertificateLevel $level = NULL): Allkiri\SmartId\SmartIdCertificate
+    function chooseCertificate(Allkiri\SmartId\SemanticsIdentifier $identity, ?Allkiri\SmartId\CertificateLevel $level = NULL): string
+    function complete(Allkiri\Container\AsicContainer $container, Allkiri\SmartId\SmartIdSigningSession $signing, Allkiri\SmartId\SmartIdSessionStatus $status, ?Allkiri\SmartId\SmartIdCallback $callback = NULL): Allkiri\Signing\SigningResult
+    function completeCertificateChoice(Allkiri\SmartId\SmartIdSessionStatus $status, ?Allkiri\SmartId\CertificateLevel $level = NULL): Allkiri\SmartId\SmartIdCertificate
+    function poll(Allkiri\Container\AsicContainer $container, Allkiri\SmartId\SmartIdSigningSession $signing, ?Allkiri\SmartId\SmartIdCallback $callback = NULL): ?Allkiri\Signing\SigningResult
+    function sign(Allkiri\Container\AsicContainer $container, Allkiri\SmartId\SmartIdSigningSession $signing, ?Allkiri\SmartId\SmartIdPoller $poller = NULL): Allkiri\Signing\SigningResult
+    function startDeviceLink(Allkiri\Container\AsicContainer $container, Allkiri\SmartId\DocumentNumber $documentNumber, Allkiri\SmartId\Interactions $interactions, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions(), ?Allkiri\SmartId\CertificateLevel $level = NULL, ?string $initialCallbackUrl = NULL): Allkiri\SmartId\SmartIdSigningSession
+    function startNotification(Allkiri\Container\AsicContainer $container, Allkiri\SmartId\DocumentNumber $documentNumber, Allkiri\SmartId\Interactions $interactions, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions(), ?Allkiri\SmartId\CertificateLevel $level = NULL): Allkiri\SmartId\SmartIdSigningSession
+
+final readonly class Allkiri\SmartId\SmartIdSigningSession implements JsonSerializable
+    const VERSION = 1
+    property readonly Allkiri\SmartId\SmartIdSession $session
+    property readonly Allkiri\Signing\DataToBeSigned $dataToBeSigned
+    function __construct(Allkiri\SmartId\SmartIdSession $session, Allkiri\Signing\DataToBeSigned $dataToBeSigned)
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function jsonSerialize(): array
+    function verificationCode(): ?string
+
+final class Allkiri\SmartId\VerificationCode
+    static function forData(string $data): string
+
+final readonly class Allkiri\Trust\CertificateChain
+    property readonly array $certificates
+    property readonly Allkiri\Trust\TrustAnchor $anchor
+    function __construct(array $certificates, Allkiri\Trust\TrustAnchor $anchor)
+    function caCertificates(): array
+    function contains(Allkiri\Crypto\Certificate $certificate): bool
+    function issuerOfLeaf(): Allkiri\Crypto\Certificate
+    function leaf(): Allkiri\Crypto\Certificate
+    function length(): int
+
+final class Allkiri\Trust\ChainBuilder
+    function __construct(Allkiri\Trust\TrustStore $store, Allkiri\Crypto\AlgorithmConstraints $constraints = new Allkiri\Crypto\AlgorithmConstraints())
+    function build(Allkiri\Crypto\Certificate $leaf, array $intermediates, DateTimeInterface $validationTime, ?array $acceptedAnchorTypes = NULL): Allkiri\Trust\CertificateChain
+
+final class Allkiri\Trust\ChainBuildingException extends Allkiri\Trust\TrustException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_NOT_VALID_AT_TIME = 'CERTIFICATE_NOT_VALID_AT_TIME'
+    const REASON_NO_ISSUER = 'NO_ISSUER_FOUND'
+    const REASON_SIGNATURE = 'CERTIFICATE_SIGNATURE_INVALID'
+    const REASON_ANCHOR_NOT_VALID_AT_TIME = 'TRUST_ANCHOR_NOT_VALID_AT_TIME'
+    const REASON_ANCHOR_STATUS = 'TRUST_ANCHOR_STATUS_NOT_TRUSTWORTHY'
+    const REASON_ANCHOR_TYPE = 'TRUST_ANCHOR_SERVICE_TYPE_MISMATCH'
+    const REASON_DEPTH = 'CHAIN_TOO_LONG'
+    const REASON_UNSUPPORTED_ALGORITHM = 'CERTIFICATE_SIGNATURE_ALGORITHM_UNSUPPORTED'
+    const REASON_ALGORITHM_NOT_ACCEPTED = 'CERTIFICATE_SIGNATURE_ALGORITHM_NOT_ACCEPTED'
+    const REASON_PATH_LENGTH = 'CERTIFICATE_PATH_LENGTH_EXCEEDED'
+    const REASON_CA_KEY_USAGE = 'CA_CERTIFICATE_KEY_USAGE_INVALID'
+    const REASON_SEARCH_LIMIT = 'CHAIN_SEARCH_LIMIT_EXCEEDED'
+    property readonly string $reason
+    function __construct(string $reason, string $message)
+
+final class Allkiri\Trust\CompositeTrustStore implements Allkiri\Trust\TrustStore
+    function __construct(Allkiri\Trust\TrustStore ...$stores)
+    function anchors(?array $types = NULL): array
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+
+final class Allkiri\Trust\InMemoryTrustStore implements Allkiri\Trust\TrustStore
+    function __construct(array $anchors)
+    function anchors(?array $types = NULL): array
+    static function couldHaveIssued(Allkiri\Crypto\Certificate $issuer, Allkiri\Crypto\Certificate $subject): bool
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+    static function fromCertificates(array $certificates, Allkiri\Trust\ServiceType $serviceType, string $source = 'manual'): self
+
+final class Allkiri\Trust\ListOfListsTrustStore implements Allkiri\Trust\TrustStore
+    function __construct(Allkiri\Trust\TrustedList\TrustedListLoader $loader, Allkiri\Trust\TrustedList\ListOfListsSource $source, ?array $serviceTypes = NULL, ?Psr\Log\LoggerInterface $logger = NULL)
+    function anchors(?array $types = NULL): array
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+    function load(): void
+
+enum Allkiri\Trust\ServiceStatus implements BackedEnum, UnitEnum
+    case Granted = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted'
+    case Withdrawn = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn'
+    case RecognisedAtNationalLevel = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/recognisedatnationallevel'
+    case DeprecatedAtNationalLevel = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedatnationallevel'
+    case UnderSupervision = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/undersupervision'
+    case SupervisionInCessation = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionincessation'
+    case SupervisionCeased = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionceased'
+    case SupervisionRevoked = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionrevoked'
+    case Accredited = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accredited'
+    case AccreditationCeased = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accreditationceased'
+    case AccreditationRevoked = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accreditationrevoked'
+    case SetByNationalLaw = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/setbynationallaw'
+    case DeprecatedByNationalLaw = 'http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedbynationallaw'
+    function isTrustworthy(): bool
+
+enum Allkiri\Trust\ServiceType implements BackedEnum, UnitEnum
+    case CaQc = 'http://uri.etsi.org/TrstSvc/Svctype/CA/QC'
+    case CaPkc = 'http://uri.etsi.org/TrstSvc/Svctype/CA/PKC'
+    case OcspQc = 'http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP/QC'
+    case Ocsp = 'http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP'
+    case TsaQtst = 'http://uri.etsi.org/TrstSvc/Svctype/TSA/QTST'
+    case TsaTssQc = 'http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-QC'
+    case TsaTssAdes = 'http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-AdESQCandQES'
+    case Tsa = 'http://uri.etsi.org/TrstSvc/Svctype/TSA'
+    static function caTypes(): array
+    function isCa(): bool
+    function isOcsp(): bool
+    function isTsa(): bool
+    static function ocspTypes(): array
+    static function tsaTypes(): array
+
+final readonly class Allkiri\Trust\TrustAnchor
+    property readonly array $statusHistory
+    property readonly Allkiri\Crypto\Certificate $certificate
+    property readonly Allkiri\Trust\ServiceType $serviceType
+    property readonly string $serviceName
+    property readonly string $source
+    property readonly ?Allkiri\Trust\TrustedList\TrustedListStatus $trustedList
+    function __construct(Allkiri\Crypto\Certificate $certificate, Allkiri\Trust\ServiceType $serviceType, string $serviceName, array $statusHistory, string $source, ?Allkiri\Trust\TrustedList\TrustedListStatus $trustedList = NULL)
+    function currentStatus(): ?Allkiri\Trust\ServiceStatus
+    function isTrustworthyAt(DateTimeInterface $time): bool
+    static function manual(Allkiri\Crypto\Certificate $certificate, Allkiri\Trust\ServiceType $serviceType, string $serviceName = '', string $source = 'manual'): self
+    function statusAt(DateTimeInterface $time): ?Allkiri\Trust\ServiceStatus
+    function withTrustedList(Allkiri\Trust\TrustedList\TrustedListStatus $trustedList): self
+
+class Allkiri\Trust\TrustException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+interface Allkiri\Trust\TrustStore
+    function anchors(?array $types = NULL): array
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+
+final class Allkiri\Trust\TrustedListTrustStore implements Allkiri\Trust\TrustStore
+    function __construct(Allkiri\Trust\TrustedList\TrustedListLoader $loader, array $sources)
+    function anchors(?array $types = NULL): array
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+    static function fromLists(array $lists, Allkiri\Trust\TrustedList\TrustedListLoader $loader): self
+    function load(): void
+
+final readonly class Allkiri\Trust\TrustedList\ListOfListsSource
+    const EU_URL = 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
+    const PIVOT_CACHE_TTL_SECONDS = 2592000
+    const MAX_PIVOTS = 32
+    property readonly string $url
+    property readonly array $allowedSigners
+    property readonly array $territories
+    property readonly string $name
+    property readonly int $cacheTtlSeconds
+    property readonly ?string $officialJournalUrl
+    function __construct(string $url, array $allowedSigners, array $territories, string $name = 'EU list of trusted lists', int $cacheTtlSeconds = 86400, ?string $officialJournalUrl = NULL)
+    function pivotSource(string $url, array $signers): Allkiri\Trust\TrustedList\TrustedListSource
+    function sourceFor(Allkiri\Trust\TrustedList\TrustedListPointer $pointer, ?array $serviceTypes = NULL): Allkiri\Trust\TrustedList\TrustedListSource
+    function toSource(?array $signers = NULL): Allkiri\Trust\TrustedList\TrustedListSource
+
+final readonly class Allkiri\Trust\TrustedList\TrustedList
+    property readonly string $territory
+    property readonly string $schemeOperatorName
+    property readonly int $sequenceNumber
+    property readonly ?DateTimeImmutable $issueDate
+    property readonly ?DateTimeImmutable $nextUpdate
+    property readonly array $anchors
+    property readonly array $pointers
+    property readonly array $schemeInformationUris
+    function __construct(string $territory, string $schemeOperatorName, int $sequenceNumber, ?DateTimeImmutable $issueDate, ?DateTimeImmutable $nextUpdate, array $anchors, array $pointers = [], array $schemeInformationUris = [])
+    function anchors(?array $types = NULL): array
+    function isExpiredAt(DateTimeInterface $time): bool
+    function pointerTo(string $territory, ?string $mimeType = Allkiri\Trust\TrustedList\TrustedListPointer::MIME_XML): ?Allkiri\Trust\TrustedList\TrustedListPointer
+    function pointersTo(string $territory): array
+
+final class Allkiri\Trust\TrustedList\TrustedListException extends Allkiri\Trust\TrustException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_TRANSPORT = 'TRUSTED_LIST_TRANSPORT'
+    const REASON_MALFORMED = 'TRUSTED_LIST_MALFORMED'
+    const REASON_SIGNATURE = 'TRUSTED_LIST_SIGNATURE_INVALID'
+    const REASON_SIGNER_NOT_ALLOWED = 'TRUSTED_LIST_SIGNER_NOT_ALLOWED'
+    const REASON_NO_PINS = 'TRUSTED_LIST_NO_ALLOWED_SIGNERS'
+    const REASON_ROLLED_BACK = 'TRUSTED_LIST_ROLLED_BACK'
+    const REASON_NO_SUCH_LIST = 'TRUSTED_LIST_NOT_POINTED_TO'
+    const REASON_NO_ANCHORS = 'TRUSTED_LIST_NO_ANCHORS'
+    property readonly string $reason
+    function __construct(string $reason, string $message, ?Throwable $previous = NULL)
+
+final class Allkiri\Trust\TrustedList\TrustedListLoader
+    function __construct(Allkiri\Http\HttpClient $http, ?Psr\SimpleCache\CacheInterface $cache = NULL, ?Psr\Clock\ClockInterface $clock = NULL, ?Psr\Log\LoggerInterface $logger = NULL, Allkiri\Trust\TrustedList\TrustedListParser $parser = new Allkiri\Trust\TrustedList\TrustedListParser(), Allkiri\Trust\TrustedList\TrustedListVerifier $verifier = new Allkiri\Trust\TrustedList\TrustedListVerifier())
+    function load(Allkiri\Trust\TrustedList\TrustedListSource $source): Allkiri\Trust\TrustedList\TrustedList
+
+final readonly class Allkiri\Trust\TrustedList\TrustedListPointer
+    const MIME_XML = 'application/vnd.etsi.tsl+xml'
+    const MIME_PDF = 'application/pdf'
+    property readonly string $territory
+    property readonly string $location
+    property readonly array $signingCertificates
+    property readonly ?string $mimeType
+    function __construct(string $territory, string $location, array $signingCertificates, ?string $mimeType = NULL)
+    function allows(Allkiri\Crypto\Certificate $certificate): bool
+
+final readonly class Allkiri\Trust\TrustedList\TrustedListSource
+    property readonly string $url
+    property readonly array $allowedSigners
+    property readonly ?array $serviceTypes
+    property readonly string $name
+    property readonly int $cacheTtlSeconds
+    function __construct(string $url, array $allowedSigners, ?array $serviceTypes = NULL, string $name = '', int $cacheTtlSeconds = 86400)
+    function cacheKey(): string
+    function label(): string
+
+final readonly class Allkiri\Trust\TrustedList\TrustedListStatus
+    property readonly string $label
+    property readonly ?DateTimeImmutable $nextUpdate
+    property readonly ?Allkiri\Trust\TrustedList\TrustedListStatus $listOfLists
+    function __construct(string $label, ?DateTimeImmutable $nextUpdate, ?Allkiri\Trust\TrustedList\TrustedListStatus $listOfLists = NULL)
+    function expiredAt(DateTimeInterface $time, int $graceSeconds = 0): ?self
+    static function of(Allkiri\Trust\TrustedList\TrustedList $list, string $label): self
+    function withListOfLists(self $listOfLists): self
+
+final class Allkiri\Trust\WithoutExpiredListsTrustStore implements Allkiri\Trust\TrustStore
+    function __construct(Allkiri\Trust\TrustStore $inner, DateTimeInterface $at, int $graceSeconds)
+    function anchors(?array $types = NULL): array
+    function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
+    function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
+    function keeps(Allkiri\Trust\TrustAnchor $anchor): bool
+
+final class Allkiri\Validation\ContainerValidator
+    function __construct(Allkiri\Validation\SignatureValidator $signatureValidator, Psr\Clock\ClockInterface $clock, Allkiri\Validation\ValidationPolicy $policy = new Allkiri\Validation\ValidationPolicy(), Allkiri\Container\AsicReader $reader = new Allkiri\Container\AsicReader())
+    function validate(string $bytes, string $filename = 'document.asice', Allkiri\Validation\ValidationOptions $options = new Allkiri\Validation\ValidationOptions()): Allkiri\Validation\Report\ValidationReport
+    function validateFile(string $path, Allkiri\Validation\ValidationOptions $options = new Allkiri\Validation\ValidationOptions()): Allkiri\Validation\Report\ValidationReport
+
+final class Allkiri\Validation\FindingCodes
+    const NOT_A_CONTAINER = 'NOT_A_CONTAINER'
+    const MIMETYPE_INVALID = 'MIMETYPE_INVALID'
+    const MANIFEST_MISMATCH = 'MANIFEST_MISMATCH'
+    const NO_SIGNATURES = 'NO_SIGNATURES'
+    const SIGNATURE_FILE_MALFORMED = 'SIGNATURE_FILE_MALFORMED'
+    const TOO_MANY_SIGNATURES = 'TOO_MANY_SIGNATURES'
+    const SIGNATURE_MALFORMED = 'SIGNATURE_MALFORMED'
+    const SIGNED_PROPERTIES_REFERENCE_MISSING = 'SIGNED_PROPERTIES_REFERENCE_MISSING'
+    const UNSUPPORTED_BDOC_TM = 'UNSUPPORTED_BDOC_TM'
+    const MISSING_DATA_OBJECT_FORMAT = 'MISSING_DATA_OBJECT_FORMAT'
+    const MIME_TYPE_MISMATCH = 'MIME_TYPE_MISMATCH'
+    const ARCHIVE_TIMESTAMP_INVALID = 'ARCHIVE_TIMESTAMP_INVALID'
+    const ARCHIVE_TIMESTAMP_NOT_TRUSTED = 'ARCHIVE_TIMESTAMP_NOT_TRUSTED'
+    const ARCHIVE_TIMESTAMP_ORDER = 'ARCHIVE_TIMESTAMP_ORDER'
+    const ARCHIVE_TIMESTAMP_WEAK_ALGORITHM = 'ARCHIVE_TIMESTAMP_WEAK_ALGORITHM'
+    const CRL_NOT_SUPPORTED = 'CRL_NOT_SUPPORTED'
+    const WEAK_DIGEST_ALGORITHM = 'WEAK_DIGEST_ALGORITHM'
+    const WEAK_SIGNATURE_ALGORITHM = 'WEAK_SIGNATURE_ALGORITHM'
+    const WEAK_KEY = 'WEAK_KEY'
+    const UNSUPPORTED_CANONICALIZATION = 'UNSUPPORTED_CANONICALIZATION'
+    const SIGNATURE_INVALID = 'SIGNATURE_INVALID'
+    const DATA_FILE_DIGEST_MISMATCH = 'DATA_FILE_DIGEST_MISMATCH'
+    const SIGNED_PROPERTIES_DIGEST_MISMATCH = 'SIGNED_PROPERTIES_DIGEST_MISMATCH'
+    const SIGNED_DATA_MISSING = 'SIGNED_DATA_MISSING'
+    const UNSIGNED_DATA_FILE = 'UNSIGNED_DATA_FILE'
+    const DUPLICATE_ID = 'DUPLICATE_ID'
+    const SIGNING_CERTIFICATE_MISSING = 'SIGNING_CERTIFICATE_MISSING'
+    const SIGNING_CERTIFICATE_DIGEST_MISMATCH = 'SIGNING_CERTIFICATE_DIGEST_MISMATCH'
+    const ISSUER_SERIAL_MISMATCH = 'ISSUER_SERIAL_MISMATCH'
+    const SIGNING_CERTIFICATE_REFERENCE_MISSING = 'SIGNING_CERTIFICATE_REFERENCE_MISSING'
+    const SIGNING_CERTIFICATE_KEY_USAGE = 'SIGNING_CERTIFICATE_KEY_USAGE'
+    const TIMESTAMP_MISSING = 'TIMESTAMP_MISSING'
+    const TIMESTAMP_INVALID = 'TIMESTAMP_INVALID'
+    const TIMESTAMP_NOT_TRUSTED = 'TIMESTAMP_NOT_TRUSTED'
+    const NO_POE_CLAIMED_TIME_USED = 'NO_POE_CLAIMED_TIME_USED'
+    const SIGNING_TIME_AFTER_TIMESTAMP = 'SIGNING_TIME_AFTER_TIMESTAMP'
+    const TIMESTAMP_WEAK_ALGORITHM = 'TIMESTAMP_WEAK_ALGORITHM'
+    const CHAIN_NOT_FOUND = 'CHAIN_NOT_FOUND'
+    const CHAIN_INVALID = 'CHAIN_INVALID'
+    const CHAIN_WEAK_ALGORITHM = 'CHAIN_WEAK_ALGORITHM'
+    const CHAIN_CONSTRAINT_VIOLATED = 'CHAIN_CONSTRAINT_VIOLATED'
+    const SIGNING_CERTIFICATE_EXPIRED = 'SIGNING_CERTIFICATE_EXPIRED'
+    const SIGNING_CERTIFICATE_NOT_YET_VALID = 'SIGNING_CERTIFICATE_NOT_YET_VALID'
+    const REVOCATION_MISSING = 'REVOCATION_MISSING'
+    const REVOCATION_INVALID = 'REVOCATION_INVALID'
+    const REVOCATION_WEAK_ALGORITHM = 'REVOCATION_WEAK_ALGORITHM'
+    const REVOCATION_NOT_BOUND_TO_SIGNING_TIME = 'REVOCATION_NOT_BOUND_TO_SIGNING_TIME'
+    const CERTIFICATE_REVOKED = 'CERTIFICATE_REVOKED'
+    const CERTIFICATE_STATUS_UNKNOWN = 'CERTIFICATE_STATUS_UNKNOWN'
+    const OCSP_BEFORE_TIMESTAMP = 'OCSP_BEFORE_TIMESTAMP'
+    const OCSP_TIMESTAMP_DELTA_TOO_LARGE = 'OCSP_TIMESTAMP_DELTA_TOO_LARGE'
+    const OCSP_TIMESTAMP_DELTA_WARNING = 'OCSP_TIMESTAMP_DELTA_WARNING'
+    const TRUSTED_LIST_EXPIRED = 'TRUSTED_LIST_EXPIRED'
+    const TRUST_ANCHORS_UNAVAILABLE = 'TRUST_ANCHORS_UNAVAILABLE'
+
+final readonly class Allkiri\Validation\Report\Finding implements JsonSerializable
+    property readonly string $code
+    property readonly string $message
+    property readonly Allkiri\Validation\Report\Severity $severity
+    property readonly ?Allkiri\Validation\Report\Indication $indication
+    property readonly ?Allkiri\Validation\Report\SubIndication $subIndication
+    static function error(string $code, string $message, Allkiri\Validation\Report\Indication $indication, Allkiri\Validation\Report\SubIndication $subIndication): self
+    static function info(string $code, string $message): self
+    function jsonSerialize(): array
+    static function warning(string $code, string $message): self
+
+enum Allkiri\Validation\Report\Indication implements BackedEnum, UnitEnum
+    case TotalPassed = 'TOTAL-PASSED'
+    case TotalFailed = 'TOTAL-FAILED'
+    case Indeterminate = 'INDETERMINATE'
+    function worse(self $other): self
+
+final class Allkiri\Validation\Report\ReportRenderer
+    static function summary(Allkiri\Validation\Report\ValidationReport $report): string
+    static function text(Allkiri\Validation\Report\ValidationReport $report): string
+
+enum Allkiri\Validation\Report\Severity implements BackedEnum, UnitEnum
+    case Error = 'error'
+    case Warning = 'warning'
+    case Info = 'info'
+
+final readonly class Allkiri\Validation\Report\SignatureInfo implements JsonSerializable
+    property readonly ?DateTimeImmutable $claimedSigningTime
+    property readonly ?DateTimeImmutable $bestSignatureTime
+    property readonly ?DateTimeImmutable $timestampCreationTime
+    property readonly ?DateTimeImmutable $ocspResponseCreationTime
+    property readonly ?string $timeAssertionMessageImprint
+    property readonly array $signerRoles
+    property readonly ?string $signatureProductionPlace
+    property readonly ?DateTimeImmutable $archiveTimestampTime
+    function jsonSerialize(): array
+
+final readonly class Allkiri\Validation\Report\SignatureReport implements JsonSerializable
+    property readonly string $id
+    property readonly string $signatureFileName
+    property readonly Allkiri\Validation\Report\Indication $indication
+    property readonly ?Allkiri\Validation\Report\SubIndication $subIndication
+    property readonly ?Allkiri\Signing\SignatureLevel $format
+    property readonly string $signatureMethod
+    property readonly array $findings
+    property readonly Allkiri\Validation\Report\SignatureInfo $info
+    property readonly array $scopes
+    property readonly ?Allkiri\Crypto\Certificate $signingCertificate
+    function codes(): array
+    function errors(): array
+    function has(string $code): bool
+    function isValid(): bool
+    function jsonSerialize(): array
+    function signedBy(): ?string
+    function warnings(): array
+
+final readonly class Allkiri\Validation\Report\SignatureScope implements JsonSerializable
+    property readonly string $name
+    property readonly string $mimeType
+    property readonly string $scope
+    property readonly string $content
+    function __construct(string $name, string $mimeType, string $scope = 'FullSignatureScope', string $content = 'Full document')
+    function jsonSerialize(): array
+
+enum Allkiri\Validation\Report\SubIndication implements BackedEnum, UnitEnum
+    case FormatFailure = 'FORMAT_FAILURE'
+    case HashFailure = 'HASH_FAILURE'
+    case SigCryptoFailure = 'SIG_CRYPTO_FAILURE'
+    case SignedDataNotFound = 'SIGNED_DATA_NOT_FOUND'
+    case NoSigningCertificateFound = 'NO_SIGNING_CERTIFICATE_FOUND'
+    case NoCertificateChainFound = 'NO_CERTIFICATE_CHAIN_FOUND'
+    case CertificateChainGeneralFailure = 'CERTIFICATE_CHAIN_GENERAL_FAILURE'
+    case ChainConstraintsFailure = 'CHAIN_CONSTRAINTS_FAILURE'
+    case CryptoConstraintsFailure = 'CRYPTO_CONSTRAINTS_FAILURE'
+    case CryptoConstraintsFailureNoPoe = 'CRYPTO_CONSTRAINTS_FAILURE_NO_POE'
+    case Expired = 'EXPIRED'
+    case NotYetValid = 'NOT_YET_VALID'
+    case OutOfBoundsNotRevoked = 'OUT_OF_BOUNDS_NOT_REVOKED'
+    case Revoked = 'REVOKED'
+    case TryLater = 'TRY_LATER'
+    case NoPoe = 'NO_POE'
+    case TimestampOrderFailure = 'TIMESTAMP_ORDER_FAILURE'
+    case SigConstraintsFailure = 'SIG_CONSTRAINTS_FAILURE'
+    case PolicyProcessingError = 'POLICY_PROCESSING_ERROR'
+
+final readonly class Allkiri\Validation\Report\ValidationReport implements JsonSerializable
+    const VERSION = 1
+    property readonly string $filename
+    property readonly DateTimeImmutable $validationTime
+    property readonly string $policy
+    property readonly array $signatures
+    property readonly array $containerFindings
+    function isValid(): bool
+    function jsonSerialize(): array
+    function signature(string $id): ?Allkiri\Validation\Report\SignatureReport
+    function signaturesCount(): int
+    function validSignaturesCount(): int
+
+final class Allkiri\Validation\SignatureValidator
+    function __construct(Allkiri\Trust\TrustStore $trustStore, Allkiri\Validation\ValidationPolicy $policy = new Allkiri\Validation\ValidationPolicy(), Allkiri\Xades\Model\XadesSignatureParser $parser = new Allkiri\Xades\Model\XadesSignatureParser(), Allkiri\Xml\Dsig\XmlDsigVerifier $dsigVerifier = new Allkiri\Xml\Dsig\XmlDsigVerifier(), Allkiri\Crypto\Tsp\TimestampTokenVerifier $timestampVerifier = new Allkiri\Crypto\Tsp\TimestampTokenVerifier(), Allkiri\Crypto\Ocsp\OcspResponseVerifier $ocspVerifier = new Allkiri\Crypto\Ocsp\OcspResponseVerifier(), Allkiri\Xml\Dsig\Canonicalizer $canonicalizer = new Allkiri\Xml\Dsig\Canonicalizer(), Allkiri\Xades\Lta\ArchiveTimestampData $archiveTimestampData = new Allkiri\Xades\Lta\ArchiveTimestampData())
+    function validate(Allkiri\Container\AsicContainer $container, Allkiri\Container\SignatureFile $file, DOMElement $element, DateTimeImmutable $validationTime, ?Allkiri\Trust\TrustStore $trustStore = NULL): Allkiri\Validation\Report\SignatureReport
+
+final class Allkiri\Validation\Siva\SivaClient
+    const POLICY_QES = 'POLv4'
+    const POLICY_ADES = 'POLv3'
+    function __construct(Allkiri\Http\HttpClient $http, string $url, string $signaturePolicy = self::POLICY_QES)
+    function validate(string $container, string $filename): Allkiri\Validation\Siva\SivaReport
+
+final readonly class Allkiri\Validation\Siva\SivaComparison
+    property readonly Allkiri\Validation\Report\ValidationReport $ours
+    property readonly Allkiri\Validation\Siva\SivaReport $theirs
+    property readonly array $differences
+    function __construct(Allkiri\Validation\Report\ValidationReport $ours, Allkiri\Validation\Siva\SivaReport $theirs, array $differences)
+    function agrees(): bool
+    function describe(): string
+    static function of(Allkiri\Validation\Report\ValidationReport $ours, Allkiri\Validation\Siva\SivaReport $theirs): self
+
+final class Allkiri\Validation\Siva\SivaException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+    const REASON_REQUEST = 'SIVA_REQUEST_INVALID'
+    const REASON_TRANSPORT = 'SIVA_TRANSPORT'
+    const REASON_CHALLENGED = 'SIVA_CHALLENGED'
+    const REASON_HTTP_STATUS = 'SIVA_HTTP_STATUS'
+    const REASON_MALFORMED = 'SIVA_MALFORMED'
+    property readonly string $reason
+    function __construct(string $reason, string $message, ?Throwable $previous = NULL)
+
+final readonly class Allkiri\Validation\Siva\SivaReport
+    property readonly string $policy
+    property readonly ?string $signatureForm
+    property readonly int $signaturesCount
+    property readonly int $validSignaturesCount
+    property readonly array $signatures
+    function allErrors(): array
+    static function fromArray(array $data): self
+    function isValid(): bool
+
+final readonly class Allkiri\Validation\Siva\SivaSignature
+    property readonly string $id
+    property readonly string $indication
+    property readonly ?string $subIndication
+    property readonly ?string $signatureFormat
+    property readonly ?string $signatureLevel
+    property readonly ?string $signedBy
+    property readonly array $errors
+    property readonly array $warnings
+    property readonly ?string $claimedSigningTime
+    property readonly ?string $timestampCreationTime
+    property readonly ?string $ocspResponseCreationTime
+    static function fromArray(array $data): self
+    function isValid(): bool
+
+final readonly class Allkiri\Validation\ValidationOptions
+    property readonly ?DateTimeImmutable $validationTime
+    property readonly ?Allkiri\Trust\TrustStore $trustStore
+    function __construct(?DateTimeImmutable $validationTime = NULL, ?Allkiri\Trust\TrustStore $trustStore = NULL)
+
+final readonly class Allkiri\Validation\ValidationPolicy
+    property readonly string $name
+    property readonly array $allowedDigestAlgorithms
+    property readonly ?array $allowedSignatureAlgorithms
+    property readonly int $minimumRsaKeyBits
+    property readonly bool $requireDataObjectFormat
+    property readonly bool $requireSignedPropertiesReference
+    property readonly int $ocspDelayWarningSeconds
+    property readonly int $ocspDelayErrorSeconds
+    property readonly int $clockSkewSeconds
+    property readonly bool $requireSignatureTimestamp
+    property readonly ?int $trustedListGraceSeconds
+    property readonly int $maxSignatures
+    function __construct(string $name = 'allkiri BDOC 2.1.2 / ASiC-E', array $allowedDigestAlgorithms = [Allkiri\Crypto\HashAlgorithm::SHA256, Allkiri\Crypto\HashAlgorithm::SHA384, Allkiri\Crypto\HashAlgorithm::SHA512], ?array $allowedSignatureAlgorithms = NULL, int $minimumRsaKeyBits = 2048, bool $requireDataObjectFormat = true, bool $requireSignedPropertiesReference = true, int $ocspDelayWarningSeconds = 900, int $ocspDelayErrorSeconds = 86400, int $clockSkewSeconds = 300, bool $requireSignatureTimestamp = true, ?int $trustedListGraceSeconds = NULL, int $maxSignatures = 64)
+    function algorithmConstraints(): Allkiri\Crypto\AlgorithmConstraints
+    function allowsDigest(Allkiri\Crypto\HashAlgorithm $algorithm): bool
+    function allowsSignature(Allkiri\Crypto\SignatureAlgorithm $algorithm): bool
+    static function bdoc(): self
+
+final readonly class Allkiri\WebEid\CardAlgorithm implements JsonSerializable, Stringable
+    const CRYPTO_ECC = 'ECC'
+    const CRYPTO_RSA = 'RSA'
+    const PADDING_NONE = 'NONE'
+    const PADDING_PKCS15 = 'PKCS1.5'
+    const PADDING_PSS = 'PSS'
+    property readonly string $cryptoAlgorithm
+    property readonly string $hashFunction
+    property readonly string $paddingScheme
+    function __construct(string $cryptoAlgorithm, string $hashFunction, string $paddingScheme)
+    function __toString(): string
+    function equals(self $other): bool
+    static function forSignatureAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): self
+    static function fromArray(array $data): self
+    function hashAlgorithm(): ?Allkiri\Crypto\HashAlgorithm
+    function hashFunctionName(): string
+    function jsonSerialize(): array
+    static function listFromArray(array $entries): array
+    function signatureAlgorithm(): ?Allkiri\Crypto\SignatureAlgorithm
+
+final class Allkiri\WebEid\WebEidAuthenticator
+    function __construct(Allkiri\WebEid\WebEidConfiguration $configuration, Allkiri\Trust\TrustStore $trustStore, ?Allkiri\Crypto\Ocsp\OcspClient $ocspClient = NULL, ?Allkiri\Trust\ChainBuilder $chainBuilder = NULL, Allkiri\Crypto\NonceGenerator $nonceGenerator = new Allkiri\Crypto\RandomNonceGenerator(), Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), ?Psr\Log\LoggerInterface $logger = NULL)
+    function challenge(): Allkiri\WebEid\WebEidChallenge
+    function validate(string $authToken, Allkiri\WebEid\WebEidChallenge $challenge): Allkiri\Auth\AuthenticatedIdentity
+
+final readonly class Allkiri\WebEid\WebEidChallenge implements JsonSerializable
+    const VERSION = 1
+    const MINIMUM_LENGTH = 44
+    const MAXIMUM_LENGTH = 128
+    property readonly string $nonce
+    property readonly DateTimeImmutable $issuedAt
+    property readonly DateTimeImmutable $expiresAt
+    function __construct(string $nonce, DateTimeImmutable $issuedAt, DateTimeImmutable $expiresAt)
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function isExpiredAt(DateTimeInterface $now): bool
+    function jsonSerialize(): array
+
+final readonly class Allkiri\WebEid\WebEidConfiguration
+    const MOBILE_ID_POLICIES = ['1.3.6.1.4.1.10015.1.3', '1.3.6.1.4.1.10015.1.3.1', '1.3.6.1.4.1.10015.1.3.2', '1.3.6.1.4.1.10015.1.3.3', '1.3.6.1.4.1.10015.18.1']
+    property readonly Allkiri\WebEid\WebEidOrigin $origin
+    property readonly int $challengeTtlSeconds
+    property readonly array $disallowedCertificatePolicies
+    property readonly bool $checkRevocation
+    function __construct(Allkiri\WebEid\WebEidOrigin $origin, int $challengeTtlSeconds = 300, array $disallowedCertificatePolicies = self::MOBILE_ID_POLICIES, bool $checkRevocation = true)
+    static function forOrigin(string $origin): self
+    function withChallengeTtl(int $seconds): self
+    function withDisallowedCertificatePolicies(array $policies): self
+    function withoutRevocationCheck(): self
+
+class Allkiri\WebEid\WebEidException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final readonly class Allkiri\WebEid\WebEidOrigin implements Stringable
+    property readonly string $value
+    function __toString(): string
+    static function parse(string $origin): self
+
+final class Allkiri\WebEid\WebEidSigner
+    function __construct(Allkiri\Signing\SigningService $signingService)
+    function complete(Allkiri\Container\AsicContainer $container, Allkiri\WebEid\WebEidSigningSession $session, string $signature, ?Allkiri\WebEid\CardAlgorithm $reported = NULL): Allkiri\Signing\SigningResult
+    function prepare(Allkiri\Container\AsicContainer $container, string $certificateBase64, array $supportedSignatureAlgorithms, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions()): Allkiri\WebEid\WebEidSigningSession
+
+final readonly class Allkiri\WebEid\WebEidSigningSession implements JsonSerializable
+    const VERSION = 1
+    property readonly Allkiri\Signing\DataToBeSigned $dataToBeSigned
+    property readonly Allkiri\WebEid\CardAlgorithm $algorithm
+    function __construct(Allkiri\Signing\DataToBeSigned $dataToBeSigned, Allkiri\WebEid\CardAlgorithm $algorithm)
+    function forBrowser(): array
+    static function fromArray(array $data): self
+    static function fromJson(string $json): self
+    function jsonSerialize(): array
+
+final readonly class Allkiri\Xades\SignatureProfile
+    property readonly Allkiri\Crypto\HashAlgorithm $digestAlgorithm
+    property readonly string $canonicalizationMethod
+    property readonly bool $useSigningCertificateV2
+    property readonly ?string $signatureId
+    property readonly array $claimedRoles
+    property readonly ?string $city
+    property readonly ?string $stateOrProvince
+    property readonly ?string $postalCode
+    property readonly ?string $country
+    function __construct(Allkiri\Crypto\HashAlgorithm $digestAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, string $canonicalizationMethod = Allkiri\Xml\Dsig\DsigNs::C14N_EXC, bool $useSigningCertificateV2 = true, ?string $signatureId = NULL, array $claimedRoles = [], ?string $city = NULL, ?string $stateOrProvince = NULL, ?string $postalCode = NULL, ?string $country = NULL)
+    function hasProductionPlace(): bool
+    function withSignatureId(string $signatureId): self
+
+final class Allkiri\Xades\SignatureStructureException extends Allkiri\Xades\XadesException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+class Allkiri\Xades\XadesException extends Allkiri\Xml\XmlException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Xml\Dsig\CanonicalizationException extends Allkiri\Xml\XmlException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+final class Allkiri\Xml\InvalidXmlException extends Allkiri\Xml\XmlException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
+
+class Allkiri\Xml\XmlException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable

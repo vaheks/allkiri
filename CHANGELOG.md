@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `tests/fixtures/public-api.txt` records the whole supported API, and a test
+  fails on any difference from it, so a change to what the version number
+  covers is a line in a review rather than something to notice.
 - `ValidationReport`'s JSON carries `"version": 1`.
 - `tests/fixtures/stored` holds the JSON 0.8.0-alpha.1 wrote for every stored
   session, the prepared signature, an identity and a report, and a test

@@ -130,6 +130,13 @@ last year may not this year. That is the system working.
 
 ## What the version number covers
 
+`tests/fixtures/public-api.txt` writes the covered API down, class by class
+and member by member, and `PublicApiSnapshotTest` fails on any difference from
+it. A change to it is therefore a line in a review: removing or changing one is
+a major release, adding one a minor release. Write it again with
+`ALLKIRI_UPDATE_API=1 vendor/bin/phpunit tests/Unit/PublicApiSnapshotTest.php`
+and commit it with the change.
+
 **Everything in `Allkiri\` that is not marked `@internal`:** every class,
 interface, enum, constant, method and property a caller can reach. Removing
 one, changing its signature or changing what it does needs a major release;
