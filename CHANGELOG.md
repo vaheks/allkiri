@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Exception messages no longer carry identity codes or document numbers. A
+  Smart-ID or Mobile-ID answer from another account or person names both by
+  type and country only, `PNOEE-[redacted]`, and a malformed phone number or
+  identity code is no longer repeated in the message refusing it. The demo
+  writes those messages to its log and an application may well do the same.
+
 - Smart-ID's RP API 3.2 answers 404 where it answered 471, with the reason in an
   RFC 9457 body. A 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND` is
   `SmartIdApiException::REASON_NO_SUITABLE_ACCOUNT` again, rather than

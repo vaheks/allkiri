@@ -293,7 +293,7 @@ final class MobileIdAuthenticatorTest extends TestCase
         $session = $authenticator->start(new MobileIdIdentity('+37200000766', '60001019906'));
         $this->service->expectToSign($session->challenge);
 
-        $this->expectExceptionMessageMatches('/but the session was started for 60001019906/');
+        $this->expectExceptionMessage('Mobile-ID answered for PNOEE-[redacted], not for the person the session was started for');
 
         $authenticator->poll($session);
     }
@@ -313,7 +313,8 @@ final class MobileIdAuthenticatorTest extends TestCase
         $session = $authenticator->start(self::identity());
         $this->service->expectToSign($session->challenge);
 
-        $this->expectExceptionMessage('Mobile-ID answered for PASEE-' . self::IDENTITY_CODE . ' but the session was started for ' . self::IDENTITY_CODE);
+        // A passport, not the personal code asked for: the type says so without the number.
+        $this->expectExceptionMessage('Mobile-ID answered for PASEE-[redacted], not for the person the session was started for');
 
         $authenticator->poll($session);
     }

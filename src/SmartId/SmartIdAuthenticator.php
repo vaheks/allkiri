@@ -14,6 +14,7 @@ use Allkiri\Crypto\Ocsp\OcspClient;
 use Allkiri\Crypto\Ocsp\OcspException;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\RandomNonceGenerator;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustException;
@@ -318,25 +319,25 @@ final class SmartIdAuthenticator
             ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'Smart-ID authenticated without naming the account that answered');
         if ($session->documentNumber !== null && $session->documentNumber !== $documentNumber->value) {
             throw new SmartIdException(\sprintf(
-                'Smart-ID answered from account %s but the session was started for %s',
-                $documentNumber->value,
-                $session->documentNumber,
+                'Smart-ID answered from account %s but the session was started for a different one, %s',
+                HttpRequest::withoutIdentities($documentNumber->value),
+                HttpRequest::withoutIdentities($session->documentNumber),
             ));
         }
 
         $account = (string) $documentNumber->semanticsIdentifier();
         if ($session->semanticsIdentifier !== null && (string) $session->semanticsIdentifier !== $account) {
             throw new SmartIdException(\sprintf(
-                'Smart-ID answered for %s but the session was started for %s',
-                $account,
-                $session->semanticsIdentifier,
+                'Smart-ID answered for %s but the session was started for a different person, %s',
+                HttpRequest::withoutIdentities($account),
+                HttpRequest::withoutIdentities((string) $session->semanticsIdentifier),
             ));
         }
         if ($identity->semanticsIdentifier() !== $account) {
             throw new SmartIdException(\sprintf(
-                'The Smart-ID certificate belongs to %s but the account that answered belongs to %s',
-                $identity->semanticsIdentifier(),
-                $account,
+                'The Smart-ID certificate belongs to %s but the account that answered belongs to a different person, %s',
+                HttpRequest::withoutIdentities($identity->semanticsIdentifier()),
+                HttpRequest::withoutIdentities($account),
             ));
         }
     }

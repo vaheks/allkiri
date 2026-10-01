@@ -16,6 +16,7 @@ use Allkiri\Crypto\NonceGenerator;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\RandomNonceGenerator;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustException;
@@ -156,9 +157,8 @@ final class MobileIdAuthenticator
         // be the person the session was started for.
         if ($identity->identifierType !== IdentifierType::PersonalNumber || $identity->identityCode !== $session->identity->nationalIdentityNumber) {
             throw new MobileIdException(\sprintf(
-                'Mobile-ID answered for %s but the session was started for %s',
-                $identity->semanticsIdentifier(),
-                $session->identity->nationalIdentityNumber,
+                'Mobile-ID answered for %s, not for the person the session was started for',
+                HttpRequest::withoutIdentities($identity->semanticsIdentifier()),
             ));
         }
 
