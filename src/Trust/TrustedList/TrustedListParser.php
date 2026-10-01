@@ -101,21 +101,29 @@ final class TrustedListParser
             $name = $providerName;
         }
 
-        $history = [];
+        // The current status must say since when. Without that a withdrawal
+        // would have to be dated somehow, and dated at the epoch it sorts before
+        // every grant in the history, which would then read as still standing.
+        // A service that does not say when its status began is no anchor.
         $currentStatus = ServiceStatus::tryFrom(trim(Xml::text($xpath, 'tsl:ServiceStatus', $info) ?? ''));
         $currentSince = self::time(Xml::text($xpath, 'tsl:StatusStartingTime', $info));
-        if ($currentStatus !== null) {
-            $history[] = ['status' => $currentStatus, 'since' => $currentSince ?? new \DateTimeImmutable('@0')];
+        if ($currentStatus === null || $currentSince === null) {
+            return [];
         }
+        $history = [['status' => $currentStatus, 'since' => $currentSince]];
         foreach (Xml::elements($xpath, 'tsl:ServiceHistory/tsl:ServiceHistoryInstance', $service) as $instance) {
+            // A past status counts for this service only when it was this kind of
+            // service then: one that was a timestamping unit before it became a
+            // CA was never a CA in good standing.
+            $pastType = trim(Xml::text($xpath, 'tsl:ServiceTypeIdentifier', $instance) ?? '');
+            if ($pastType !== '' && $pastType !== $type->value) {
+                continue;
+            }
             $status = ServiceStatus::tryFrom(trim(Xml::text($xpath, 'tsl:ServiceStatus', $instance) ?? ''));
             $since = self::time(Xml::text($xpath, 'tsl:StatusStartingTime', $instance));
-            if ($status !== null) {
-                $history[] = ['status' => $status, 'since' => $since ?? new \DateTimeImmutable('@0')];
+            if ($status !== null && $since !== null) {
+                $history[] = ['status' => $status, 'since' => $since];
             }
-        }
-        if ($history === []) {
-            return [];
         }
 
         $anchors = [];

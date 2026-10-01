@@ -17,6 +17,9 @@ final class TrustedListException extends TrustException
     public const REASON_SIGNER_NOT_ALLOWED = 'TRUSTED_LIST_SIGNER_NOT_ALLOWED';
     public const REASON_NO_PINS = 'TRUSTED_LIST_NO_ALLOWED_SIGNERS';
 
+    /** The list fetched is older, by its sequence number, than one already seen at the same address. */
+    public const REASON_ROLLED_BACK = 'TRUSTED_LIST_ROLLED_BACK';
+
     /** The list of lists carries no usable list for a territory that was asked for. */
     public const REASON_NO_SUCH_LIST = 'TRUSTED_LIST_NOT_POINTED_TO';
 

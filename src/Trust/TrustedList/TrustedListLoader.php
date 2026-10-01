@@ -18,6 +18,11 @@ use Psr\SimpleCache\InvalidArgumentException as CacheInvalidArgumentException;
  *
  * The cache holds the verified XML rather than parsed objects, so a cache hit
  * is still re-verified: a poisoned cache cannot introduce a trust anchor.
+ *
+ * It also remembers the highest sequence number each address has served, and
+ * refuses a fetched list older than that. An older list is genuinely signed,
+ * so its signature says nothing against it, but it may still grant a service
+ * that has since been withdrawn. Without a cache there is nothing to remember.
  */
 final class TrustedListLoader
 {
@@ -54,6 +59,7 @@ final class TrustedListLoader
         // renew the entry's lifetime each time, and under steady use a list past
         // its next update would never be fetched again.
         if ($cached === null) {
+            $this->refuseRollback($source, $list);
             $this->store($source, $xml);
         }
 
@@ -102,6 +108,30 @@ final class TrustedListLoader
         }
 
         return $response->body;
+    }
+
+    /**
+     * @throws TrustedListException when the list is older than one this address served before
+     */
+    private function refuseRollback(TrustedListSource $source, TrustedList $list): void
+    {
+        $key = $source->cacheKey() . '.sequence';
+        try {
+            $seen = $this->cache?->get($key);
+            if (\is_int($seen) && $list->sequenceNumber < $seen) {
+                throw new TrustedListException(TrustedListException::REASON_ROLLED_BACK, \sprintf(
+                    'Trusted list %s is number %d, but number %d has already been served from the same address; a list does not go back',
+                    $source->label(),
+                    $list->sequenceNumber,
+                    $seen,
+                ));
+            }
+            if (!\is_int($seen) || $list->sequenceNumber > $seen) {
+                $this->cache?->set($key, $list->sequenceNumber);
+            }
+        } catch (CacheInvalidArgumentException) {
+            // an unusable cache must never stop a signature from being made
+        }
     }
 
     private function cached(TrustedListSource $source): ?string

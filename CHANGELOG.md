@@ -20,6 +20,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A trusted list older, by its sequence number, than one the same address has
+  already served is refused with `TrustedListException::REASON_ROLLED_BACK`.
+  It is genuinely signed, but may still grant a service withdrawn since. The
+  highest number seen is kept in the PSR-16 cache.
+- A service whose current status gives no starting time is not a trust anchor.
+  It used to be dated at 1970, so a withdrawal without a time sorted before
+  every grant in the history and the service read as granted. A past status
+  without a time, or recorded for another kind of service, is ignored.
 - A signed-properties reference carrying the enveloped-signature transform
   digested the document around the signature instead of the properties, so
   they could be changed under a signature that still verified. It is now a
