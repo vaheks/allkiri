@@ -21,6 +21,12 @@ use Psr\Http\Message\StreamInterface;
  * An answer larger than `$maxResponseBytes` is refused. That bounds the copy
  * this adapter makes, not what the PSR-18 client may already have buffered
  * before handing the response over; limit that on the client itself.
+ *
+ * Give it a client that does not follow redirects. A redirect it followed is
+ * invisible here, so a service URL refused unless it is HTTPS would be only as
+ * HTTPS as wherever the redirect pointed. Symfony's client follows twenty by
+ * default (`max_redirects: 0` turns that off); Guzzle's sendRequest() follows
+ * none. The built-in cURL client follows none either.
  */
 final class Psr18HttpClient implements HttpClient
 {

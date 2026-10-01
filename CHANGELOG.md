@@ -20,6 +20,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `Psr18HttpClient` and `docs/frameworks.md` say to give it a client that does
+  not follow redirects, and how with Symfony's, which follows twenty by default.
+  A redirect it follows is invisible to allkiri, so an HTTPS-only service URL
+  would be only as HTTPS as wherever it pointed.
+
 - Mobile-ID and Smart-ID sign-in refuse a certificate that is not for
   authentication, `digitalSignature` without `nonRepudiation`, as Web eID
   already did. Every authentication certificate SK's demo services issued on
