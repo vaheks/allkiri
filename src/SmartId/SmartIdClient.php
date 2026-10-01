@@ -152,6 +152,8 @@ final class SmartIdClient
     /**
      * Ask for a signature over a digest, as a push notification.
      *
+     * @internal it returns a bare array; SmartIdSigner::startNotification() is the supported way
+     *
      * @return array{sessionId: string, verificationCode: string}
      */
     public function startNotificationSignature(SemanticsIdentifier|DocumentNumber $subject, string $digest, HashAlgorithm $hashAlgorithm, Interactions $interactions, ?CertificateLevel $level = null): array

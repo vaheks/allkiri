@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `OcspException` and `TimestampException` name the reasons their clients
+  give: `REASON_TRANSPORT`, `REASON_HTTP_STATUS`, `REASON_MALFORMED_RESPONSE`,
+  and `REASON_NO_RESPONDER_URL` or `REASON_REJECTED`. The values are the ones
+  already sent.
 - The README says what the phone shows with Mobile-ID and Smart-ID, and how to
   build that sentence per request so it names the document or the person.
 
@@ -46,6 +50,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `Interactions::fromEncoded()` refuses an unknown interaction type with
+  `InvalidArgumentException` rather than letting the enum's `ValueError`
+  through. `SmartIdSigner::chooseCertificate()`'s documentation names the
+  methods that really follow it, and `SmartIdClient::startNotificationSignature()`,
+  which returns a bare array, is `@internal`: `SmartIdSigner` is the supported
+  way.
 - `Psr18HttpClient` and `docs/frameworks.md` say to give it a client that does
   not follow redirects, and how with Symfony's, which follows twenty by default.
   A redirect it follows is invisible to allkiri, so an HTTPS-only service URL
