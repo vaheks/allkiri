@@ -294,6 +294,8 @@ that from the stored session and verifies over it, so an answer is refused
 unless it belongs to *this* session on *this* service. It also refuses unless:
 
 - the PSS parameters are the ones the declared signature method describes;
+- the certificate is for authentication: `digitalSignature` without
+  `nonRepudiation`, as SK issues them. One for signatures is refused;
 - the certificate is at least the level the session asked for, and carries the
   certificate policies of the level the service reported;
 - the certificate is valid now and chains to a trust anchor;

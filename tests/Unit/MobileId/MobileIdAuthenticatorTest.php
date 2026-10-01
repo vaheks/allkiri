@@ -298,6 +298,23 @@ final class MobileIdAuthenticatorTest extends TestCase
         $authenticator->poll($session);
     }
 
+    /**
+     * SK issues the authentication certificate with digitalSignature and the
+     * signing one with nonRepudiation. A sign-in answered with the signing key
+     * is the service answering with the wrong one.
+     */
+    public function testASignInAnsweredWithASigningCertificateIsRefused(): void
+    {
+        $this->service->authenticator = TestPki::signerEc256();
+        $authenticator = $this->authenticator();
+        $session = $authenticator->start(self::identity());
+        $this->service->expectToSign($session->challenge);
+
+        $this->expectExceptionMessage('Mobile-ID answered with a certificate that is not for authentication');
+
+        $authenticator->poll($session);
+    }
+
     public function testACertificateNamingAPassportIsNotThePersonalCodeAskedFor(): void
     {
         // Mobile-ID is asked for by personal code. A passport number that reads
@@ -371,6 +388,7 @@ final class MobileIdAuthenticatorTest extends TestCase
         ], signature: \Allkiri\Tests\Support\Pki\TestCertificateSignature::Sha1);
         $this->http = new MockHttpClient();
         $this->service = MockMobileIdService::register($this->http, $sha1);
+        $this->service->authenticator = $sha1;
         $this->client = new MobileIdClient($this->service->configuration(), $this->http);
         $authenticator = $this->authenticator();
         $session = $authenticator->start(self::identity());

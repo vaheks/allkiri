@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Mobile-ID and Smart-ID sign-in refuse a certificate that is not for
+  authentication, `digitalSignature` without `nonRepudiation`, as Web eID
+  already did. Every authentication certificate SK's demo services issued on
+  2026-10-01 is shaped so, and the signing ones carry `nonRepudiation`.
+  `Certificate::isForAuthentication()` says which a certificate is.
+
 - `SmartIdSigner::certificate()`, and so `startNotification()` and
   `startDeviceLink()`, refuse a certificate of a lower level than was
   requested, as `completeCertificateChoice()` already did. The service is asked

@@ -138,6 +138,12 @@ final class MobileIdAuthenticator
             throw new MobileIdException('The Mobile-ID signature does not match the challenge; this session proves nothing');
         }
 
+        // The service answers a sign-in with the authentication certificate. One
+        // for signatures would mean it had answered with the wrong key.
+        if (!$certificate->isForAuthentication()) {
+            throw new MobileIdException('Mobile-ID answered with a certificate that is not for authentication: its key usage must be digitalSignature without nonRepudiation');
+        }
+
         $now = $this->clock->now();
         if (!$certificate->isValidAt($now)) {
             throw new MobileIdException('The Mobile-ID certificate is not valid at this moment');

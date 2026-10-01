@@ -790,6 +790,22 @@ final class SmartIdAuthenticatorTest extends TestCase
         $authenticator->poll($session);
     }
 
+    /**
+     * SK issues the authentication certificate with digitalSignature and the
+     * signing one with nonRepudiation. A sign-in answered with the signing key
+     * is the service answering with the wrong one.
+     */
+    public function testASignInAnsweredWithASigningCertificateIsRefused(): void
+    {
+        $this->service->authenticator = TestPki::signerRsaPerson();
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID answered with a certificate that is not for authentication');
+
+        $authenticator->poll($session);
+    }
+
     public function testAnAnonymousAnswerWhoseCertificateIsNotTheAccountsIsRefused(): void
     {
         $this->service->flowType = FlowType::Qr;

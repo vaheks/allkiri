@@ -247,6 +247,12 @@ final class SmartIdAuthenticator
 
     private function verifyCertificate(Certificate $certificate, SmartIdSession $session, SmartIdSessionStatus $status): void
     {
+        // The service answers a sign-in with the account's authentication
+        // certificate. One for signatures would mean it had answered with the
+        // wrong key, and a sign-in proves nothing with that.
+        if (!$certificate->isForAuthentication()) {
+            throw new SmartIdException('Smart-ID answered with a certificate that is not for authentication: its key usage must be digitalSignature without nonRepudiation');
+        }
         // A session stored before the level was kept is judged against the
         // configuration, as it would have been when it started.
         $configuration = $this->client->configuration();

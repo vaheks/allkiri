@@ -210,6 +210,8 @@ On the way back, the library refuses the answer unless all of this holds:
 
 - the signature verifies against the certificate the service returned, over the
   random challenge this session generated;
+- the certificate is for authentication: `digitalSignature` without
+  `nonRepudiation`, as SK issues them. One for signatures is refused;
 - the certificate is valid at this moment;
 - it chains to a trust anchor;
 - the certificate names a person by personal code, and it is the code the
