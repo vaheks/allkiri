@@ -28,7 +28,7 @@ final readonly class Allkiri\Auth\AuthenticatedIdentity implements JsonSerializa
     property readonly Allkiri\Crypto\Certificate $certificate
     property readonly Allkiri\Auth\IdentifierType $identifierType
     function __construct(string $identityCode, string $givenName, string $surname, string $country, Allkiri\Crypto\Certificate $certificate, Allkiri\Auth\IdentifierType $identifierType)
-    static function fromCertificate(Allkiri\Crypto\Certificate $certificate): self
+    static function fromCertificate(Allkiri\Crypto\Certificate $certificate): Allkiri\Auth\AuthenticatedIdentity
     function fullName(): string
     function jsonSerialize(): array
     function semanticsIdentifier(): string
@@ -74,18 +74,18 @@ final readonly class Allkiri\Config\Environment
     property readonly ?Allkiri\Trust\TrustedList\ListOfListsSource $listOfLists
     function __construct(string $name, string $tsaUrl, ?string $ocspDefaultUrl, array $ocspUrlOverrides = [], Allkiri\Crypto\Ocsp\NonceMode $ocspNonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required, array $trustedListSources = [], array $extraTrustAnchors = [], int $httpTimeoutSeconds = 30, Allkiri\Crypto\HashAlgorithm $timestampDigestAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, ?string $sivaUrl = NULL, ?Allkiri\Trust\TrustedList\ListOfListsSource $listOfLists = NULL)
     function certIdHashOid(): string
-    static function demo(): self
+    static function demo(): Allkiri\Config\Environment
     static function euListOfLists(array $territories = ['EE']): Allkiri\Trust\TrustedList\ListOfListsSource
-    static function production(): self
-    function withExtraTrustAnchors(array $anchors): self
-    function withHttpTimeout(int $seconds): self
-    function withListOfLists(?Allkiri\Trust\TrustedList\ListOfListsSource $source): self
-    function withOcspDefaultUrl(?string $url): self
-    function withOcspNonceMode(Allkiri\Crypto\Ocsp\NonceMode $mode): self
-    function withOcspUrlOverrides(array $overrides): self
-    function withSivaUrl(?string $url): self
-    function withTrustedListSources(array $sources): self
-    function withTsaUrl(string $url): self
+    static function production(): Allkiri\Config\Environment
+    function withExtraTrustAnchors(array $anchors): Allkiri\Config\Environment
+    function withHttpTimeout(int $seconds): Allkiri\Config\Environment
+    function withListOfLists(?Allkiri\Trust\TrustedList\ListOfListsSource $source): Allkiri\Config\Environment
+    function withOcspDefaultUrl(?string $url): Allkiri\Config\Environment
+    function withOcspNonceMode(Allkiri\Crypto\Ocsp\NonceMode $mode): Allkiri\Config\Environment
+    function withOcspUrlOverrides(array $overrides): Allkiri\Config\Environment
+    function withSivaUrl(?string $url): Allkiri\Config\Environment
+    function withTrustedListSources(array $sources): Allkiri\Config\Environment
+    function withTsaUrl(string $url): Allkiri\Config\Environment
 
 final readonly class Allkiri\Container\AsicContainer
     const MIME_TYPE = 'application/vnd.etsi.asic-e+zip'
@@ -93,15 +93,15 @@ final readonly class Allkiri\Container\AsicContainer
     property readonly array $signatureFiles
     property readonly Allkiri\Container\Manifest $manifest
     property readonly array $structuralFindings
-    static function create(Allkiri\Container\DataFile ...$dataFiles): self
+    static function create(Allkiri\Container\DataFile ...$dataFiles): Allkiri\Container\AsicContainer
     function dataFile(string $name): ?Allkiri\Container\DataFile
     function fatalFindings(): array
     function fingerprint(): string
     function isNew(): bool
     function nextSignatureFileName(): string
     function signatureFile(string $name): ?Allkiri\Container\SignatureFile
-    function withReplacedSignatureFile(Allkiri\Container\SignatureFile $file): self
-    function withSignatureFile(Allkiri\Container\SignatureFile $file): self
+    function withReplacedSignatureFile(Allkiri\Container\SignatureFile $file): Allkiri\Container\AsicContainer
+    function withSignatureFile(Allkiri\Container\SignatureFile $file): Allkiri\Container\AsicContainer
 
 final class Allkiri\Container\AsicReader
     const MIMETYPE_ENTRY = 'mimetype'
@@ -122,8 +122,8 @@ final readonly class Allkiri\Container\DataFile
     property readonly string $mimeType
     function __construct(string $name, string $content, string $mimeType = 'application/octet-stream')
     function digest(Allkiri\Crypto\HashAlgorithm $algorithm = Allkiri\Crypto\HashAlgorithm::SHA256): string
-    static function fromPath(string $path, ?string $name = NULL, ?string $mimeType = NULL): self
-    static function fromString(string $name, string $content, ?string $mimeType = NULL): self
+    static function fromPath(string $path, ?string $name = NULL, ?string $mimeType = NULL): Allkiri\Container\DataFile
+    static function fromString(string $name, string $content, ?string $mimeType = NULL): Allkiri\Container\DataFile
     function size(): int
 
 class Allkiri\Container\InvalidContainerException extends Allkiri\Container\ContainerException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
@@ -133,9 +133,9 @@ final readonly class Allkiri\Container\Manifest
     property readonly array $entries
     function __construct(array $entries)
     function duplicatePaths(): array
-    static function forDataFiles(array $dataFiles): self
+    static function forDataFiles(array $dataFiles): Allkiri\Container\Manifest
     function mediaTypeOf(string $fullPath): ?string
-    static function parse(string $xml): self
+    static function parse(string $xml): Allkiri\Container\Manifest
     function paths(): array
     function toXml(): string
 
@@ -189,9 +189,9 @@ final class Allkiri\Crypto\Certificate
     function equals(Allkiri\Crypto\Certificate $other): bool
     function extendedKeyUsage(): array
     function fingerprint(Allkiri\Crypto\HashAlgorithm $algorithm = Allkiri\Crypto\HashAlgorithm::SHA256): string
-    static function fromBase64(string $base64): self
-    static function fromDer(string $der): self
-    static function fromPem(string $pem): self
+    static function fromBase64(string $base64): Allkiri\Crypto\Certificate
+    static function fromDer(string $der): Allkiri\Crypto\Certificate
+    static function fromPem(string $pem): Allkiri\Crypto\Certificate
     function hasExtendedKeyUsage(string $usage): bool
     function hasExtension(string $extension): bool
     function isCa(): bool
@@ -238,7 +238,7 @@ final class Allkiri\Crypto\Cms\SignedData
     function der(): string
     function eContent(): ?string
     function eContentType(): string
-    static function fromDer(string $contentInfoDer): self
+    static function fromDer(string $contentInfoDer): Allkiri\Crypto\Cms\SignedData
     function signerInfos(): array
 
 final class Allkiri\Crypto\Cms\SignerInfo
@@ -262,12 +262,12 @@ enum Allkiri\Crypto\HashAlgorithm implements BackedEnum, UnitEnum
     case SHA512 = 'sha512'
     function digest(string $data): string
     function digestLength(): int
-    static function fromOid(string $oid): self
-    static function fromXmlUri(string $uri): self
+    static function fromOid(string $oid): Allkiri\Crypto\HashAlgorithm
+    static function fromXmlUri(string $uri): Allkiri\Crypto\HashAlgorithm
     function name(bool $dashed = false): string
     function oid(): string
-    static function tryFromOid(string $oid): ?self
-    static function tryFromXmlUri(string $uri): ?self
+    static function tryFromOid(string $oid): ?Allkiri\Crypto\HashAlgorithm
+    static function tryFromXmlUri(string $uri): ?Allkiri\Crypto\HashAlgorithm
     function xmlUri(): string
 
 final readonly class Allkiri\Crypto\KeyPair
@@ -288,7 +288,7 @@ final class Allkiri\Crypto\Ocsp\BasicOcspResponse
     function der(): string
     function findResponder(array $candidates): ?Allkiri\Crypto\Certificate
     function fingerprint(): string
-    static function fromDer(string $der): self
+    static function fromDer(string $der): Allkiri\Crypto\Ocsp\BasicOcspResponse
     function nonce(): ?string
     function producedAt(): DateTimeImmutable
     function responderKeyHash(): ?string
@@ -306,7 +306,7 @@ final readonly class Allkiri\Crypto\Ocsp\CertId
     property readonly string $serialNumber
     function __construct(string $hashAlgorithmOid, string $issuerNameHash, string $issuerKeyHash, string $serialNumber)
     function equals(Allkiri\Crypto\Ocsp\CertId $other): bool
-    static function for(Allkiri\Crypto\Certificate $subject, Allkiri\Crypto\Certificate $issuer, string $hashAlgorithmOid = Allkiri\Crypto\Asn1\Oids::SHA1): self
+    static function for(Allkiri\Crypto\Certificate $subject, Allkiri\Crypto\Certificate $issuer, string $hashAlgorithmOid = Allkiri\Crypto\Asn1\Oids::SHA1): Allkiri\Crypto\Ocsp\CertId
 
 enum Allkiri\Crypto\Ocsp\CertStatus implements BackedEnum, UnitEnum
     case Good = 'good'
@@ -342,7 +342,7 @@ class Allkiri\Crypto\Ocsp\OcspException extends Allkiri\Crypto\CryptoException i
 final class Allkiri\Crypto\Ocsp\OcspResponse
     function basic(): ?Allkiri\Crypto\Ocsp\BasicOcspResponse
     function der(): string
-    static function fromDer(string $der): self
+    static function fromDer(string $der): Allkiri\Crypto\Ocsp\OcspResponse
     function status(): Allkiri\Crypto\Ocsp\OcspResponseStatus
 
 enum Allkiri\Crypto\Ocsp\OcspResponseStatus implements BackedEnum, UnitEnum
@@ -382,10 +382,10 @@ final readonly class Allkiri\Crypto\Ocsp\OcspVerificationOptions
     property readonly ?int $maxAgeSeconds
     property readonly Allkiri\Crypto\AlgorithmConstraints $algorithmConstraints
     function __construct(Allkiri\Crypto\Ocsp\NonceMode $nonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required, array $trustedResponders = [], int $clockSkewSeconds = 300, ?int $maxAgeSeconds = NULL, Allkiri\Crypto\AlgorithmConstraints $algorithmConstraints = new Allkiri\Crypto\AlgorithmConstraints())
-    static function forSigning(Allkiri\Crypto\Ocsp\NonceMode $nonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required): self
-    static function forValidation(): self
-    function withAlgorithmConstraints(Allkiri\Crypto\AlgorithmConstraints $constraints): self
-    function withTrustedResponders(array $trustedResponders): self
+    static function forSigning(Allkiri\Crypto\Ocsp\NonceMode $nonceMode = Allkiri\Crypto\Ocsp\NonceMode::Required): Allkiri\Crypto\Ocsp\OcspVerificationOptions
+    static function forValidation(): Allkiri\Crypto\Ocsp\OcspVerificationOptions
+    function withAlgorithmConstraints(Allkiri\Crypto\AlgorithmConstraints $constraints): Allkiri\Crypto\Ocsp\OcspVerificationOptions
+    function withTrustedResponders(array $trustedResponders): Allkiri\Crypto\Ocsp\OcspVerificationOptions
 
 final readonly class Allkiri\Crypto\Ocsp\OcspVerificationResult
     property readonly Allkiri\Crypto\Ocsp\OcspResponse $response
@@ -408,7 +408,7 @@ final readonly class Allkiri\Crypto\Ocsp\SingleResponse
 
 final class Allkiri\Crypto\PrivateKey
     function defaultAlgorithm(bool $preferPss = false): Allkiri\Crypto\SignatureAlgorithm
-    static function fromPem(string $pem, ?string $password = NULL): self
+    static function fromPem(string $pem, ?string $password = NULL): Allkiri\Crypto\PrivateKey
     static function fromPkcs12(string $pkcs12, string $password): Allkiri\Crypto\KeyPair
     function keyType(): Allkiri\Crypto\KeyType
     function sign(Allkiri\Crypto\SignatureAlgorithm $algorithm, string $data): string
@@ -416,7 +416,7 @@ final class Allkiri\Crypto\PrivateKey
 final readonly class Allkiri\Crypto\PssParameters
     property readonly Allkiri\Crypto\HashAlgorithm $hash
     property readonly int $saltLength
-    static function fromDer(string $der): self
+    static function fromDer(string $der): Allkiri\Crypto\PssParameters
 
 final class Allkiri\Crypto\RandomNonceGenerator implements Allkiri\Crypto\NonceGenerator
     function generate(int $bytes): string
@@ -431,12 +431,12 @@ enum Allkiri\Crypto\SignatureAlgorithm implements BackedEnum, UnitEnum
     case ES256 = 'ES256'
     case ES384 = 'ES384'
     case ES512 = 'ES512'
-    static function fromXmlUri(string $uri): self
+    static function fromXmlUri(string $uri): Allkiri\Crypto\SignatureAlgorithm
     function hash(): Allkiri\Crypto\HashAlgorithm
     function isPss(): bool
     function keyType(): Allkiri\Crypto\KeyType
     function oid(): ?string
-    static function tryFromXmlUri(string $uri): ?self
+    static function tryFromXmlUri(string $uri): ?Allkiri\Crypto\SignatureAlgorithm
     function xmlUri(): string
 
 final readonly class Allkiri\Crypto\SignatureAlgorithmIdentifier
@@ -444,8 +444,8 @@ final readonly class Allkiri\Crypto\SignatureAlgorithmIdentifier
     property readonly Allkiri\Crypto\KeyType $keyType
     property readonly string $hashName
     property readonly ?Allkiri\Crypto\PssParameters $pss
-    static function fromDer(string $der): self
-    static function fromOid(string $oid): self
+    static function fromDer(string $der): Allkiri\Crypto\SignatureAlgorithmIdentifier
+    static function fromOid(string $oid): Allkiri\Crypto\SignatureAlgorithmIdentifier
     function hash(): ?Allkiri\Crypto\HashAlgorithm
     static function isKnownOid(string $oid): bool
 
@@ -459,7 +459,7 @@ class Allkiri\Crypto\Tsp\TimestampException extends Allkiri\Crypto\CryptoExcepti
 
 final class Allkiri\Crypto\Tsp\TimestampToken
     function der(): string
-    static function fromDer(string $der): self
+    static function fromDer(string $der): Allkiri\Crypto\Tsp\TimestampToken
     function genTime(): DateTimeImmutable
     function signedData(): Allkiri\Crypto\Cms\SignedData
     function signerCertificate(array $extraCandidates = []): ?Allkiri\Crypto\Certificate
@@ -500,7 +500,7 @@ final readonly class Allkiri\Crypto\Tsp\TstInfo
     property readonly ?string $nonce
     property readonly ?int $accuracySeconds
     property readonly string $der
-    static function fromDer(string $der): self
+    static function fromDer(string $der): Allkiri\Crypto\Tsp\TstInfo
 
 final class Allkiri\Crypto\UnsupportedAlgorithmException extends Allkiri\Crypto\CryptoException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
 
@@ -527,10 +527,10 @@ final readonly class Allkiri\Http\HttpRequest
     property readonly string $url
     property readonly array $headers
     property readonly string $body
-    static function get(string $url, array $headers = []): self
+    static function get(string $url, array $headers = []): Allkiri\Http\HttpRequest
     function header(string $name): ?string
     static function isHttpUrl(string $url): bool
-    static function post(string $url, string $contentType, string $body, array $headers = []): self
+    static function post(string $url, string $contentType, string $body, array $headers = []): Allkiri\Http\HttpRequest
     function redactedUrl(): string
     static function requireHttps(string $url, string $what): void
     static function withoutIdentities(string $url): string
@@ -555,13 +555,13 @@ final class Allkiri\Http\Psr18HttpClient implements Allkiri\Http\HttpClient
     function send(Allkiri\Http\HttpRequest $request): Allkiri\Http\HttpResponse
 
 final class Allkiri\Http\TransportException extends Allkiri\Http\HttpException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
-    static function responseTooLarge(Allkiri\Http\HttpRequest $request, int $limit): self
+    static function responseTooLarge(Allkiri\Http\HttpRequest $request, int $limit): Allkiri\Http\TransportException
 
 final class Allkiri\Http\UnexpectedStatusException extends Allkiri\Http\HttpException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
     property readonly int $status
     property readonly string $body
     function __construct(int $status, string $body, string $message)
-    static function forResponse(string $what, Allkiri\Http\HttpResponse $response): self
+    static function forResponse(string $what, Allkiri\Http\HttpResponse $response): Allkiri\Http\UnexpectedStatusException
 
 final class Allkiri\Http\UserAgent
     const PACKAGE = 'vaheks/allkiri'
@@ -578,7 +578,7 @@ enum Allkiri\MobileId\DisplayTextFormat implements BackedEnum, UnitEnum
     case Gsm7 = 'GSM-7'
     case Ucs2 = 'UCS-2'
     function exceedsExtensionLimit(string $text): bool
-    static function forText(string $text): self
+    static function forText(string $text): Allkiri\MobileId\DisplayTextFormat
     function lengthOf(string $text): int
     function maximumLength(): int
     function unsupportedCharacters(string $text): array
@@ -594,7 +594,7 @@ final class Allkiri\MobileId\MobileIdApiException extends Allkiri\MobileId\Mobil
     property readonly string $reason
     property readonly ?int $status
     function __construct(string $reason, string $message, ?int $status = NULL, ?Throwable $previous = NULL)
-    static function forStatus(int $status, string $url, string $body): self
+    static function forStatus(int $status, string $url, string $body): Allkiri\MobileId\MobileIdApiException
 
 final class Allkiri\MobileId\MobileIdAuthenticator
     function __construct(Allkiri\MobileId\MobileIdClient $client, Allkiri\Trust\ChainBuilder $chainBuilder, Allkiri\Crypto\HashAlgorithm $hashAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, Allkiri\Crypto\NonceGenerator $nonceGenerator = new Allkiri\Crypto\RandomNonceGenerator(), Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), Allkiri\Crypto\PublicKeyVerifier $verifier = new Allkiri\Crypto\PublicKeyVerifier())
@@ -628,13 +628,13 @@ final readonly class Allkiri\MobileId\MobileIdConfiguration
     property readonly int $pollTimeoutMs
     property readonly int $sessionTimeoutSeconds
     function __construct(string $url, string $relyingPartyUuid, string $relyingPartyName, Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian, string $displayText = '', Allkiri\MobileId\DisplayTextFormat $displayTextFormat = Allkiri\MobileId\DisplayTextFormat::Gsm7, int $pollTimeoutMs = 10000, int $sessionTimeoutSeconds = 120)
-    static function demo(string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): self
+    static function demo(string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): Allkiri\MobileId\MobileIdConfiguration
     function httpTimeoutSeconds(): int
     function isDemo(): bool
-    static function production(string $relyingPartyUuid, string $relyingPartyName, string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): self
-    function withDisplayText(string $text, Allkiri\MobileId\DisplayTextFormat $format = Allkiri\MobileId\DisplayTextFormat::Gsm7): self
-    function withLanguage(Allkiri\MobileId\MobileIdLanguage $language): self
-    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): self
+    static function production(string $relyingPartyUuid, string $relyingPartyName, string $displayText = '', Allkiri\MobileId\MobileIdLanguage $language = Allkiri\MobileId\MobileIdLanguage::Estonian): Allkiri\MobileId\MobileIdConfiguration
+    function withDisplayText(string $text, Allkiri\MobileId\DisplayTextFormat $format = Allkiri\MobileId\DisplayTextFormat::Gsm7): Allkiri\MobileId\MobileIdConfiguration
+    function withLanguage(Allkiri\MobileId\MobileIdLanguage $language): Allkiri\MobileId\MobileIdConfiguration
+    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): Allkiri\MobileId\MobileIdConfiguration
 
 class Allkiri\MobileId\MobileIdException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
 
@@ -650,7 +650,7 @@ enum Allkiri\MobileId\MobileIdLanguage implements BackedEnum, UnitEnum
     case English = 'ENG'
     case Russian = 'RUS'
     case Lithuanian = 'LIT'
-    static function forLocale(string $locale): self
+    static function forLocale(string $locale): Allkiri\MobileId\MobileIdLanguage
 
 final class Allkiri\MobileId\MobileIdPoller
     function __construct(Allkiri\MobileId\MobileIdClient $client, Allkiri\Clock\Sleeper $sleeper = new Allkiri\Clock\SystemSleeper())
@@ -678,8 +678,8 @@ final readonly class Allkiri\MobileId\MobileIdSession implements JsonSerializabl
     property readonly Allkiri\MobileId\MobileIdIdentity $identity
     property readonly string $challenge
     function __construct(string $sessionId, string $type, string $verificationCode, Allkiri\MobileId\MobileIdIdentity $identity, string $challenge = '')
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\MobileId\MobileIdSession
+    static function fromJson(string $json): Allkiri\MobileId\MobileIdSession
     function jsonSerialize(): array
 
 final class Allkiri\MobileId\MobileIdSessionException extends Allkiri\MobileId\MobileIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
@@ -711,8 +711,8 @@ final readonly class Allkiri\MobileId\MobileIdSigningSession implements JsonSeri
     property readonly Allkiri\MobileId\MobileIdSession $session
     property readonly Allkiri\Signing\DataToBeSigned $dataToBeSigned
     function __construct(Allkiri\MobileId\MobileIdSession $session, Allkiri\Signing\DataToBeSigned $dataToBeSigned)
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\MobileId\MobileIdSigningSession
+    static function fromJson(string $json): Allkiri\MobileId\MobileIdSigningSession
     function jsonSerialize(): array
     function verificationCode(): string
 
@@ -737,8 +737,8 @@ final readonly class Allkiri\Signing\DataToBeSigned implements JsonSerializable
     function digestAlgorithm(): Allkiri\Crypto\HashAlgorithm
     function digestBase64(): string
     function digestHex(): string
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\Signing\DataToBeSigned
+    static function fromJson(string $json): Allkiri\Signing\DataToBeSigned
     function hashName(): string
     function jsonSerialize(): array
 
@@ -747,8 +747,8 @@ final class Allkiri\Signing\InvalidSignatureValueException extends Allkiri\Signi
 final class Allkiri\Signing\LocalKeySigner implements Allkiri\Signing\Signer
     function __construct(Allkiri\Crypto\PrivateKey $privateKey, Allkiri\Crypto\Certificate $certificate)
     function certificate(): Allkiri\Crypto\Certificate
-    static function fromKeyPair(Allkiri\Crypto\KeyPair $keyPair): self
-    static function fromPkcs12(string $pkcs12, string $password): self
+    static function fromKeyPair(Allkiri\Crypto\KeyPair $keyPair): Allkiri\Signing\LocalKeySigner
+    static function fromPkcs12(string $pkcs12, string $password): Allkiri\Signing\LocalKeySigner
     function sign(Allkiri\Signing\DataToBeSigned $dataToBeSigned): string
 
 final class Allkiri\Signing\LtExtender
@@ -768,7 +768,7 @@ enum Allkiri\Signing\SignatureLevel implements BackedEnum, UnitEnum
     case T = 'XAdES_BASELINE_T'
     case LT = 'XAdES_BASELINE_LT'
     case LTA = 'XAdES_BASELINE_LTA'
-    function includes(self $other): bool
+    function includes(Allkiri\Signing\SignatureLevel $other): bool
     function rank(): int
 
 interface Allkiri\Signing\Signer
@@ -782,9 +782,9 @@ final readonly class Allkiri\Signing\SigningOptions
     property readonly ?Allkiri\Crypto\SignatureAlgorithm $signatureAlgorithm
     property readonly Allkiri\Xades\SignatureProfile $profile
     function __construct(Allkiri\Signing\SignatureLevel $level = Allkiri\Signing\SignatureLevel::LT, ?Allkiri\Crypto\SignatureAlgorithm $signatureAlgorithm = NULL, Allkiri\Xades\SignatureProfile $profile = new Allkiri\Xades\SignatureProfile())
-    function withAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): self
-    function withLevel(Allkiri\Signing\SignatureLevel $level): self
-    function withProfile(Allkiri\Xades\SignatureProfile $profile): self
+    function withAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): Allkiri\Signing\SigningOptions
+    function withLevel(Allkiri\Signing\SignatureLevel $level): Allkiri\Signing\SigningOptions
+    function withProfile(Allkiri\Xades\SignatureProfile $profile): Allkiri\Signing\SigningOptions
 
 final readonly class Allkiri\Signing\SigningResult
     property readonly Allkiri\Container\AsicContainer $container
@@ -797,7 +797,7 @@ final readonly class Allkiri\Signing\SigningResult
 
 final class Allkiri\Signing\SigningService
     const DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS = 600
-    function __construct(Psr\Clock\ClockInterface $clock, ?Allkiri\Signing\LtExtender $ltExtender = NULL, ?Allkiri\Signing\LtaExtender $ltaExtender = NULL, ?Psr\Log\LoggerInterface $logger = NULL, int $preparedSignatureTtlSeconds = self::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS, ?Allkiri\Xades\SignatureBuilder $builder = NULL, Allkiri\Xades\SignatureCompleter $completer = new Allkiri\Xades\SignatureCompleter(), Allkiri\Xml\Dsig\XmlDsigVerifier $dsigVerifier = new Allkiri\Xml\Dsig\XmlDsigVerifier())
+    function __construct(Psr\Clock\ClockInterface $clock, ?Allkiri\Signing\LtExtender $ltExtender = NULL, ?Allkiri\Signing\LtaExtender $ltaExtender = NULL, ?Psr\Log\LoggerInterface $logger = NULL, int $preparedSignatureTtlSeconds = Allkiri\Signing\SigningService::DEFAULT_PREPARED_SIGNATURE_TTL_SECONDS, ?Allkiri\Xades\SignatureBuilder $builder = NULL, Allkiri\Xades\SignatureCompleter $completer = new Allkiri\Xades\SignatureCompleter(), Allkiri\Xml\Dsig\XmlDsigVerifier $dsigVerifier = new Allkiri\Xml\Dsig\XmlDsigVerifier())
     function archive(Allkiri\Container\AsicContainer $container, ?string $signatureFileName = NULL): Allkiri\Signing\SigningResult
     function finalize(Allkiri\Container\AsicContainer $container, Allkiri\Signing\DataToBeSigned $dataToBeSigned, string $signatureValue): Allkiri\Signing\SigningResult
     function prepare(Allkiri\Container\AsicContainer $container, Allkiri\Crypto\Certificate $signer, Allkiri\Signing\SigningOptions $options = new Allkiri\Signing\SigningOptions()): Allkiri\Signing\DataToBeSigned
@@ -808,7 +808,7 @@ enum Allkiri\SmartId\CertificateLevel implements BackedEnum, UnitEnum
     case Qualified = 'QUALIFIED'
     case Qscd = 'QSCD'
     function authenticationPolicies(): array
-    function isSatisfiedBy(self $actual): bool
+    function isSatisfiedBy(Allkiri\SmartId\CertificateLevel $actual): bool
 
 final readonly class Allkiri\SmartId\DeviceLink
     const VERSION = '1.0'
@@ -830,7 +830,7 @@ final readonly class Allkiri\SmartId\DeviceLinkSessionResponse
     property readonly string $sessionSecret
     property readonly string $deviceLinkBase
     function __construct(string $sessionId, string $sessionToken, string $sessionSecret, string $deviceLinkBase)
-    static function fromArray(array $body): self
+    static function fromArray(array $body): Allkiri\SmartId\DeviceLinkSessionResponse
 
 final readonly class Allkiri\SmartId\DocumentNumber implements Stringable
     property readonly string $value
@@ -849,9 +849,9 @@ final readonly class Allkiri\SmartId\Interaction implements JsonSerializable
     property readonly Allkiri\SmartId\InteractionType $type
     property readonly string $text
     function __construct(Allkiri\SmartId\InteractionType $type, string $text)
-    static function confirmationMessage(string $text): self
-    static function confirmationMessageAndVerificationCodeChoice(string $text): self
-    static function displayTextAndPin(string $text): self
+    static function confirmationMessage(string $text): Allkiri\SmartId\Interaction
+    static function confirmationMessageAndVerificationCodeChoice(string $text): Allkiri\SmartId\Interaction
+    static function displayTextAndPin(string $text): Allkiri\SmartId\Interaction
     function jsonSerialize(): array
 
 enum Allkiri\SmartId\InteractionType implements BackedEnum, UnitEnum
@@ -866,11 +866,11 @@ final readonly class Allkiri\SmartId\Interactions implements JsonSerializable
     property readonly array $interactions
     property readonly string $encoded
     function digest(): string
-    function forDeviceLink(): self
-    static function forText(string $text, ?string $pinText = NULL): self
-    static function fromEncoded(string $encoded): self
+    function forDeviceLink(): Allkiri\SmartId\Interactions
+    static function forText(string $text, ?string $pinText = NULL): Allkiri\SmartId\Interactions
+    static function fromEncoded(string $encoded): Allkiri\SmartId\Interactions
     function jsonSerialize(): string
-    static function of(Allkiri\SmartId\Interaction ...$interactions): self
+    static function of(Allkiri\SmartId\Interaction ...$interactions): Allkiri\SmartId\Interactions
 
 final readonly class Allkiri\SmartId\RsaPssParameters
     const TRAILER_FIELD = '0xbc'
@@ -892,9 +892,9 @@ final readonly class Allkiri\SmartId\SemanticsIdentifier implements Stringable
     property readonly string $identityNumber
     function __construct(string $identityType, string $country, string $identityNumber)
     function __toString(): string
-    static function estonian(string $identityNumber): self
-    static function parse(string $identifier): self
-    static function personalNumber(string $country, string $identityNumber): self
+    static function estonian(string $identityNumber): Allkiri\SmartId\SemanticsIdentifier
+    static function parse(string $identifier): Allkiri\SmartId\SemanticsIdentifier
+    static function personalNumber(string $country, string $identityNumber): Allkiri\SmartId\SemanticsIdentifier
 
 final class Allkiri\SmartId\SmartIdApiException extends Allkiri\SmartId\SmartIdException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
     const REASON_TRANSPORT = 'SID_TRANSPORT'
@@ -913,7 +913,7 @@ final class Allkiri\SmartId\SmartIdApiException extends Allkiri\SmartId\SmartIdE
     property readonly ?int $status
     property readonly array $problemCodes
     function __construct(string $reason, string $message, ?int $status = NULL, ?Throwable $previous = NULL, array $problemCodes = [])
-    static function forStatus(int $status, string $url, string $body, bool $isSessionRequest = false): self
+    static function forStatus(int $status, string $url, string $body, bool $isSessionRequest = false): Allkiri\SmartId\SmartIdApiException
 
 final class Allkiri\SmartId\SmartIdAuthenticator
     function __construct(Allkiri\SmartId\SmartIdClient $client, Allkiri\Trust\ChainBuilder $chainBuilder, Allkiri\Crypto\Ocsp\OcspClient $ocspClient, Allkiri\Crypto\NonceGenerator $nonceGenerator = new Allkiri\Crypto\RandomNonceGenerator(), Psr\Clock\ClockInterface $clock = new Allkiri\Clock\SystemClock(), ?string $brokeredRelyingPartyName = NULL, Allkiri\Crypto\PublicKeyVerifier $verifier = new Allkiri\Crypto\PublicKeyVerifier())
@@ -930,8 +930,8 @@ final readonly class Allkiri\SmartId\SmartIdCallback
     const USER_CHALLENGE_VERIFIER = 'userChallengeVerifier'
     property readonly array $parameters
     function __construct(array $parameters)
-    static function fromQuery(array $query): self
-    static function fromUrl(string $url): self
+    static function fromQuery(array $query): Allkiri\SmartId\SmartIdCallback
+    static function fromUrl(string $url): Allkiri\SmartId\SmartIdCallback
     static function initialUrl(string $baseUrl, Allkiri\Crypto\NonceGenerator $nonces = new Allkiri\Crypto\RandomNonceGenerator()): string
     function sessionSecretDigest(): ?string
     function userChallengeVerifier(): ?string
@@ -978,16 +978,16 @@ final readonly class Allkiri\SmartId\SmartIdConfiguration
     property readonly bool $shareDeviceIpAddress
     property readonly bool $checkRevocation
     function __construct(string $url, string $relyingPartyUuid, string $relyingPartyName, string $scheme, Allkiri\SmartId\CertificateLevel $certificateLevel = Allkiri\SmartId\CertificateLevel::Qualified, Allkiri\Crypto\HashAlgorithm $signingHashAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, int $pollTimeoutMs = 10000, int $sessionTimeoutSeconds = 120, bool $shareDeviceIpAddress = false, bool $checkRevocation = true)
-    static function demo(): self
+    static function demo(): Allkiri\SmartId\SmartIdConfiguration
     function httpTimeoutSeconds(): int
     function isDemo(): bool
-    static function production(string $relyingPartyUuid, string $relyingPartyName): self
+    static function production(string $relyingPartyUuid, string $relyingPartyName): Allkiri\SmartId\SmartIdConfiguration
     function relyingPartyNameBase64(): string
-    function withCertificateLevel(Allkiri\SmartId\CertificateLevel $level): self
-    function withDeviceIpAddress(bool $share = true): self
-    function withSigningHashAlgorithm(Allkiri\Crypto\HashAlgorithm $algorithm): self
-    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): self
-    function withoutRevocationCheck(): self
+    function withCertificateLevel(Allkiri\SmartId\CertificateLevel $level): Allkiri\SmartId\SmartIdConfiguration
+    function withDeviceIpAddress(bool $share = true): Allkiri\SmartId\SmartIdConfiguration
+    function withSigningHashAlgorithm(Allkiri\Crypto\HashAlgorithm $algorithm): Allkiri\SmartId\SmartIdConfiguration
+    function withTimeouts(int $pollTimeoutMs, int $sessionTimeoutSeconds): Allkiri\SmartId\SmartIdConfiguration
+    function withoutRevocationCheck(): Allkiri\SmartId\SmartIdConfiguration
 
 enum Allkiri\SmartId\SmartIdEndResult implements BackedEnum, UnitEnum
     case Ok = 'OK'
@@ -1032,8 +1032,8 @@ final readonly class Allkiri\SmartId\SmartIdSession implements JsonSerializable
     function challengeBase64(): string
     function deviceLink(string $scheme, string $relyingPartyNameBase64, string $linkType = Allkiri\SmartId\DeviceLink::TYPE_QR, string $language = 'eng', ?int $elapsedSeconds = NULL, ?DateTimeImmutable $now = NULL): Allkiri\SmartId\DeviceLink
     function elapsedSeconds(?DateTimeImmutable $now = NULL): int
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\SmartId\SmartIdSession
+    static function fromJson(string $json): Allkiri\SmartId\SmartIdSession
     function isDeviceLink(): bool
     function jsonSerialize(): array
     static function requireUsableCallbackUrl(?string $initialCallbackUrl): void
@@ -1066,7 +1066,7 @@ final readonly class Allkiri\SmartId\SmartIdSessionStatus
     function isLegacyRsa(): bool
     function isOk(): bool
     function isRunning(): bool
-    function requireOk(): self
+    function requireOk(): Allkiri\SmartId\SmartIdSessionStatus
 
 final class Allkiri\SmartId\SmartIdSigner
     function __construct(Allkiri\SmartId\SmartIdClient $client, Allkiri\Signing\SigningService $signingService)
@@ -1084,8 +1084,8 @@ final readonly class Allkiri\SmartId\SmartIdSigningSession implements JsonSerial
     property readonly Allkiri\SmartId\SmartIdSession $session
     property readonly Allkiri\Signing\DataToBeSigned $dataToBeSigned
     function __construct(Allkiri\SmartId\SmartIdSession $session, Allkiri\Signing\DataToBeSigned $dataToBeSigned)
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\SmartId\SmartIdSigningSession
+    static function fromJson(string $json): Allkiri\SmartId\SmartIdSigningSession
     function jsonSerialize(): array
     function verificationCode(): ?string
 
@@ -1134,7 +1134,7 @@ final class Allkiri\Trust\InMemoryTrustStore implements Allkiri\Trust\TrustStore
     static function couldHaveIssued(Allkiri\Crypto\Certificate $issuer, Allkiri\Crypto\Certificate $subject): bool
     function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
     function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
-    static function fromCertificates(array $certificates, Allkiri\Trust\ServiceType $serviceType, string $source = 'manual'): self
+    static function fromCertificates(array $certificates, Allkiri\Trust\ServiceType $serviceType, string $source = 'manual'): Allkiri\Trust\InMemoryTrustStore
 
 final class Allkiri\Trust\ListOfListsTrustStore implements Allkiri\Trust\TrustStore
     function __construct(Allkiri\Trust\TrustedList\TrustedListLoader $loader, Allkiri\Trust\TrustedList\ListOfListsSource $source, ?array $serviceTypes = NULL, ?Psr\Log\LoggerInterface $logger = NULL)
@@ -1185,9 +1185,9 @@ final readonly class Allkiri\Trust\TrustAnchor
     function __construct(Allkiri\Crypto\Certificate $certificate, Allkiri\Trust\ServiceType $serviceType, string $serviceName, array $statusHistory, string $source, ?Allkiri\Trust\TrustedList\TrustedListStatus $trustedList = NULL)
     function currentStatus(): ?Allkiri\Trust\ServiceStatus
     function isTrustworthyAt(DateTimeInterface $time): bool
-    static function manual(Allkiri\Crypto\Certificate $certificate, Allkiri\Trust\ServiceType $serviceType, string $serviceName = '', string $source = 'manual'): self
+    static function manual(Allkiri\Crypto\Certificate $certificate, Allkiri\Trust\ServiceType $serviceType, string $serviceName = '', string $source = 'manual'): Allkiri\Trust\TrustAnchor
     function statusAt(DateTimeInterface $time): ?Allkiri\Trust\ServiceStatus
-    function withTrustedList(Allkiri\Trust\TrustedList\TrustedListStatus $trustedList): self
+    function withTrustedList(Allkiri\Trust\TrustedList\TrustedListStatus $trustedList): Allkiri\Trust\TrustAnchor
 
 class Allkiri\Trust\TrustException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
 
@@ -1201,7 +1201,7 @@ final class Allkiri\Trust\TrustedListTrustStore implements Allkiri\Trust\TrustSt
     function anchors(?array $types = NULL): array
     function findAnchor(Allkiri\Crypto\Certificate $certificate): ?Allkiri\Trust\TrustAnchor
     function findIssuerAnchors(Allkiri\Crypto\Certificate $subject): array
-    static function fromLists(array $lists, Allkiri\Trust\TrustedList\TrustedListLoader $loader): self
+    static function fromLists(array $lists, Allkiri\Trust\TrustedList\TrustedListLoader $loader): Allkiri\Trust\TrustedListTrustStore
     function load(): void
 
 final readonly class Allkiri\Trust\TrustedList\ListOfListsSource
@@ -1275,9 +1275,9 @@ final readonly class Allkiri\Trust\TrustedList\TrustedListStatus
     property readonly ?DateTimeImmutable $nextUpdate
     property readonly ?Allkiri\Trust\TrustedList\TrustedListStatus $listOfLists
     function __construct(string $label, ?DateTimeImmutable $nextUpdate, ?Allkiri\Trust\TrustedList\TrustedListStatus $listOfLists = NULL)
-    function expiredAt(DateTimeInterface $time, int $graceSeconds = 0): ?self
-    static function of(Allkiri\Trust\TrustedList\TrustedList $list, string $label): self
-    function withListOfLists(self $listOfLists): self
+    function expiredAt(DateTimeInterface $time, int $graceSeconds = 0): ?Allkiri\Trust\TrustedList\TrustedListStatus
+    static function of(Allkiri\Trust\TrustedList\TrustedList $list, string $label): Allkiri\Trust\TrustedList\TrustedListStatus
+    function withListOfLists(Allkiri\Trust\TrustedList\TrustedListStatus $listOfLists): Allkiri\Trust\TrustedList\TrustedListStatus
 
 final class Allkiri\Trust\WithoutExpiredListsTrustStore implements Allkiri\Trust\TrustStore
     function __construct(Allkiri\Trust\TrustStore $inner, DateTimeInterface $at, int $graceSeconds)
@@ -1353,16 +1353,16 @@ final readonly class Allkiri\Validation\Report\Finding implements JsonSerializab
     property readonly Allkiri\Validation\Report\Severity $severity
     property readonly ?Allkiri\Validation\Report\Indication $indication
     property readonly ?Allkiri\Validation\Report\SubIndication $subIndication
-    static function error(string $code, string $message, Allkiri\Validation\Report\Indication $indication, Allkiri\Validation\Report\SubIndication $subIndication): self
-    static function info(string $code, string $message): self
+    static function error(string $code, string $message, Allkiri\Validation\Report\Indication $indication, Allkiri\Validation\Report\SubIndication $subIndication): Allkiri\Validation\Report\Finding
+    static function info(string $code, string $message): Allkiri\Validation\Report\Finding
     function jsonSerialize(): array
-    static function warning(string $code, string $message): self
+    static function warning(string $code, string $message): Allkiri\Validation\Report\Finding
 
 enum Allkiri\Validation\Report\Indication implements BackedEnum, UnitEnum
     case TotalPassed = 'TOTAL-PASSED'
     case TotalFailed = 'TOTAL-FAILED'
     case Indeterminate = 'INDETERMINATE'
-    function worse(self $other): self
+    function worse(Allkiri\Validation\Report\Indication $other): Allkiri\Validation\Report\Indication
 
 final class Allkiri\Validation\Report\ReportRenderer
     static function summary(Allkiri\Validation\Report\ValidationReport $report): string
@@ -1452,7 +1452,7 @@ final class Allkiri\Validation\SignatureValidator
 final class Allkiri\Validation\Siva\SivaClient
     const POLICY_QES = 'POLv4'
     const POLICY_ADES = 'POLv3'
-    function __construct(Allkiri\Http\HttpClient $http, string $url, string $signaturePolicy = self::POLICY_QES)
+    function __construct(Allkiri\Http\HttpClient $http, string $url, string $signaturePolicy = Allkiri\Validation\Siva\SivaClient::POLICY_QES)
     function validate(string $container, string $filename): Allkiri\Validation\Siva\SivaReport
 
 final readonly class Allkiri\Validation\Siva\SivaComparison
@@ -1462,7 +1462,7 @@ final readonly class Allkiri\Validation\Siva\SivaComparison
     function __construct(Allkiri\Validation\Report\ValidationReport $ours, Allkiri\Validation\Siva\SivaReport $theirs, array $differences)
     function agrees(): bool
     function describe(): string
-    static function of(Allkiri\Validation\Report\ValidationReport $ours, Allkiri\Validation\Siva\SivaReport $theirs): self
+    static function of(Allkiri\Validation\Report\ValidationReport $ours, Allkiri\Validation\Siva\SivaReport $theirs): Allkiri\Validation\Siva\SivaComparison
 
 final class Allkiri\Validation\Siva\SivaException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
     const REASON_REQUEST = 'SIVA_REQUEST_INVALID'
@@ -1480,7 +1480,7 @@ final readonly class Allkiri\Validation\Siva\SivaReport
     property readonly int $validSignaturesCount
     property readonly array $signatures
     function allErrors(): array
-    static function fromArray(array $data): self
+    static function fromArray(array $data): Allkiri\Validation\Siva\SivaReport
     function isValid(): bool
 
 final readonly class Allkiri\Validation\Siva\SivaSignature
@@ -1495,7 +1495,7 @@ final readonly class Allkiri\Validation\Siva\SivaSignature
     property readonly ?string $claimedSigningTime
     property readonly ?string $timestampCreationTime
     property readonly ?string $ocspResponseCreationTime
-    static function fromArray(array $data): self
+    static function fromArray(array $data): Allkiri\Validation\Siva\SivaSignature
     function isValid(): bool
 
 final readonly class Allkiri\Validation\ValidationOptions
@@ -1520,7 +1520,7 @@ final readonly class Allkiri\Validation\ValidationPolicy
     function algorithmConstraints(): Allkiri\Crypto\AlgorithmConstraints
     function allowsDigest(Allkiri\Crypto\HashAlgorithm $algorithm): bool
     function allowsSignature(Allkiri\Crypto\SignatureAlgorithm $algorithm): bool
-    static function bdoc(): self
+    static function bdoc(): Allkiri\Validation\ValidationPolicy
 
 final readonly class Allkiri\WebEid\CardAlgorithm implements JsonSerializable, Stringable
     const CRYPTO_ECC = 'ECC'
@@ -1533,9 +1533,9 @@ final readonly class Allkiri\WebEid\CardAlgorithm implements JsonSerializable, S
     property readonly string $paddingScheme
     function __construct(string $cryptoAlgorithm, string $hashFunction, string $paddingScheme)
     function __toString(): string
-    function equals(self $other): bool
-    static function forSignatureAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): self
-    static function fromArray(array $data): self
+    function equals(Allkiri\WebEid\CardAlgorithm $other): bool
+    static function forSignatureAlgorithm(Allkiri\Crypto\SignatureAlgorithm $algorithm): Allkiri\WebEid\CardAlgorithm
+    static function fromArray(array $data): Allkiri\WebEid\CardAlgorithm
     function hashAlgorithm(): ?Allkiri\Crypto\HashAlgorithm
     function hashFunctionName(): string
     function jsonSerialize(): array
@@ -1555,8 +1555,8 @@ final readonly class Allkiri\WebEid\WebEidChallenge implements JsonSerializable
     property readonly DateTimeImmutable $issuedAt
     property readonly DateTimeImmutable $expiresAt
     function __construct(string $nonce, DateTimeImmutable $issuedAt, DateTimeImmutable $expiresAt)
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\WebEid\WebEidChallenge
+    static function fromJson(string $json): Allkiri\WebEid\WebEidChallenge
     function isExpiredAt(DateTimeInterface $now): bool
     function jsonSerialize(): array
 
@@ -1566,18 +1566,18 @@ final readonly class Allkiri\WebEid\WebEidConfiguration
     property readonly int $challengeTtlSeconds
     property readonly array $disallowedCertificatePolicies
     property readonly bool $checkRevocation
-    function __construct(Allkiri\WebEid\WebEidOrigin $origin, int $challengeTtlSeconds = 300, array $disallowedCertificatePolicies = self::MOBILE_ID_POLICIES, bool $checkRevocation = true)
-    static function forOrigin(string $origin): self
-    function withChallengeTtl(int $seconds): self
-    function withDisallowedCertificatePolicies(array $policies): self
-    function withoutRevocationCheck(): self
+    function __construct(Allkiri\WebEid\WebEidOrigin $origin, int $challengeTtlSeconds = 300, array $disallowedCertificatePolicies = Allkiri\WebEid\WebEidConfiguration::MOBILE_ID_POLICIES, bool $checkRevocation = true)
+    static function forOrigin(string $origin): Allkiri\WebEid\WebEidConfiguration
+    function withChallengeTtl(int $seconds): Allkiri\WebEid\WebEidConfiguration
+    function withDisallowedCertificatePolicies(array $policies): Allkiri\WebEid\WebEidConfiguration
+    function withoutRevocationCheck(): Allkiri\WebEid\WebEidConfiguration
 
 class Allkiri\WebEid\WebEidException extends RuntimeException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
 
 final readonly class Allkiri\WebEid\WebEidOrigin implements Stringable
     property readonly string $value
     function __toString(): string
-    static function parse(string $origin): self
+    static function parse(string $origin): Allkiri\WebEid\WebEidOrigin
 
 final class Allkiri\WebEid\WebEidSigner
     function __construct(Allkiri\Signing\SigningService $signingService)
@@ -1590,8 +1590,8 @@ final readonly class Allkiri\WebEid\WebEidSigningSession implements JsonSerializ
     property readonly Allkiri\WebEid\CardAlgorithm $algorithm
     function __construct(Allkiri\Signing\DataToBeSigned $dataToBeSigned, Allkiri\WebEid\CardAlgorithm $algorithm)
     function forBrowser(): array
-    static function fromArray(array $data): self
-    static function fromJson(string $json): self
+    static function fromArray(array $data): Allkiri\WebEid\WebEidSigningSession
+    static function fromJson(string $json): Allkiri\WebEid\WebEidSigningSession
     function jsonSerialize(): array
 
 final readonly class Allkiri\Xades\SignatureProfile
@@ -1606,7 +1606,7 @@ final readonly class Allkiri\Xades\SignatureProfile
     property readonly ?string $country
     function __construct(Allkiri\Crypto\HashAlgorithm $digestAlgorithm = Allkiri\Crypto\HashAlgorithm::SHA256, string $canonicalizationMethod = Allkiri\Xml\Dsig\DsigNs::C14N_EXC, bool $useSigningCertificateV2 = true, ?string $signatureId = NULL, array $claimedRoles = [], ?string $city = NULL, ?string $stateOrProvince = NULL, ?string $postalCode = NULL, ?string $country = NULL)
     function hasProductionPlace(): bool
-    function withSignatureId(string $signatureId): self
+    function withSignatureId(string $signatureId): Allkiri\Xades\SignatureProfile
 
 final class Allkiri\Xades\SignatureStructureException extends Allkiri\Xades\XadesException implements Allkiri\Exception\AllkiriException, Stringable, Throwable
 

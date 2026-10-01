@@ -26,6 +26,9 @@ final class PublicApiSnapshotTest extends TestCase
 {
     private const SNAPSHOT = __DIR__ . '/../fixtures/public-api.txt';
 
+    /** `self` in a type or a default, which PHP 8.5 writes out as the class and earlier versions do not. */
+    private const SELF = '/\bself\b/';
+
     public function testTheSupportedApiIsWhatTheSnapshotSays(): void
     {
         $today = self::describe();
@@ -104,7 +107,7 @@ final class PublicApiSnapshotTest extends TestCase
             if ($property->getDeclaringClass()->getName() !== $class->getName() || $property->isStatic() || ($class->isEnum() && \in_array($property->getName(), ['name', 'value'], true))) {
                 continue;
             }
-            $members[] = 'property ' . ($property->isReadOnly() ? 'readonly ' : '') . self::type($property->getType()) . ' $' . $property->getName();
+            $members[] = 'property ' . ($property->isReadOnly() ? 'readonly ' : '') . self::type($property->getType(), $class) . ' $' . $property->getName();
         }
         $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
         usort($methods, static fn(\ReflectionMethod $a, \ReflectionMethod $b): int => strcmp($a->getName(), $b->getName()));
@@ -115,27 +118,37 @@ final class PublicApiSnapshotTest extends TestCase
             if ($class->isEnum() && \in_array($method->getName(), ['cases', 'from', 'tryFrom'], true)) {
                 continue;
             }
-            $parameters = array_map(self::parameter(...), $method->getParameters());
+            $parameters = array_map(static fn(\ReflectionParameter $parameter): string => self::parameter($parameter, $class), $method->getParameters());
             $members[] = ($method->isStatic() ? 'static ' : '') . 'function ' . $method->getName() . '(' . implode(', ', $parameters) . ')'
-                . ($method->hasReturnType() ? ': ' . self::type($method->getReturnType()) : '');
+                . ($method->hasReturnType() ? ': ' . self::type($method->getReturnType(), $class) : '');
         }
 
         return $members;
     }
 
-    private static function parameter(\ReflectionParameter $parameter): string
+    /**
+     * @param \ReflectionClass<object> $class
+     */
+    private static function parameter(\ReflectionParameter $parameter, \ReflectionClass $class): string
     {
-        $text = self::type($parameter->getType()) . ($parameter->isVariadic() ? ' ...' : ' ') . '$' . $parameter->getName();
+        $text = self::type($parameter->getType(), $class) . ($parameter->isVariadic() ? ' ...' : ' ') . '$' . $parameter->getName();
         if ($parameter->isDefaultValueAvailable()) {
-            $text .= ' = ' . ($parameter->isDefaultValueConstant() ? (string) $parameter->getDefaultValueConstantName() : self::export($parameter->getDefaultValue()));
+            $text .= ' = ' . ($parameter->isDefaultValueConstant() ? (string) preg_replace(self::SELF, $class->getName(), (string) $parameter->getDefaultValueConstantName()) : self::export($parameter->getDefaultValue()));
         }
 
         return ltrim($text);
     }
 
-    private static function type(?\ReflectionType $type): string
+    /**
+     * PHP 8.5 writes `self` as the class it means and earlier versions write
+     * `self`, so it is always written out here, and the snapshot reads the same
+     * on every version CI runs.
+     *
+     * @param \ReflectionClass<object> $class
+     */
+    private static function type(?\ReflectionType $type, \ReflectionClass $class): string
     {
-        return $type === null ? 'mixed' : (string) $type;
+        return $type === null ? 'mixed' : (string) preg_replace(self::SELF, $class->getName(), (string) $type);
     }
 
     private static function caseValue(mixed $case): string
