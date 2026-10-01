@@ -29,11 +29,11 @@ $e = static fn(string $text): string => htmlspecialchars($text, ENT_QUOTES | ENT
 
 <section>
 <?php if ($signedIn !== null) { ?>
-  <strong>Signed in with Smart-ID</strong>
-  <p>Signed in as <?= $e($signedIn['name']) ?> (<?= $e($signedIn['identity']) ?>).</p>
+  <strong>Authenticated with Smart-ID</strong>
+  <p>Authenticated as <?= $e($signedIn['name']) ?> (<?= $e($signedIn['identity']) ?>).</p>
   <p class="note">The Smart-ID app opened this page in a new tab. The tab you started in says the same, and you can close it.</p>
 <?php } else { ?>
-  <strong>Not signed in</strong>
+  <strong>Not authenticated</strong>
   <p class="bad"><?= $e((string) $problem) ?></p>
 <?php } ?>
   <p><a href="/">Back to the demo</a></p>

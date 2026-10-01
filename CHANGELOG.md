@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The README says what the phone shows with Mobile-ID and Smart-ID, and how to
+  build that sentence per request so it names the document or the person.
+
+### Changed
+
+- The demo application calls its first step "Authenticate" rather than "Sign
+  in", so it no longer reads like the second, "Sign a file".
+- The demo's phone texts are two settings, `ALLKIRI_AUTH_TEXT` and
+  `ALLKIRI_SIGN_TEXT`, each shown by Mobile-ID and Smart-ID alike and in either
+  mode, and checked against both services' limits at start-up. Mobile-ID now
+  shows a sentence for authenticating and another for signing.
+  `ALLKIRI_MID_DISPLAY_TEXT` is gone; the demo refuses to start while it is set.
+
 ## [0.9.0-alpha.1] - 2026-10-01
 
 A security release, from a fourth review of the library. It closes four ways

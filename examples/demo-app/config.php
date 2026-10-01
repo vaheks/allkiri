@@ -23,7 +23,10 @@ declare(strict_types=1);
 namespace Allkiri\Demo;
 
 use Allkiri\Config\Environment;
+use Allkiri\Exception\InvalidArgumentException;
+use Allkiri\MobileId\DisplayTextFormat;
 use Allkiri\MobileId\MobileIdConfiguration;
+use Allkiri\SmartId\Interactions;
 use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\WebEid\WebEidConfiguration;
 use Psr\Log\LoggerInterface;
@@ -76,7 +79,30 @@ final class Config
 
         $bundle = self::env('ALLKIRI_CA_BUNDLE', '');
 
-        return $mode === self::MODE_LIVE ? self::live($bundle) : self::demo($bundle);
+        $config = $mode === self::MODE_LIVE ? self::live($bundle) : self::demo($bundle);
+        // A text that does not fit is found now, not halfway through a sign-in.
+        $config->authenticationText();
+        $config->signingText();
+
+        return $config;
+    }
+
+    /**
+     * What a person's phone shows when they authenticate: `ALLKIRI_AUTH_TEXT`,
+     * or "Log in to" and the service's name.
+     */
+    public function authenticationText(): PhoneText
+    {
+        return PhoneText::fromSetting('ALLKIRI_AUTH_TEXT', self::env('ALLKIRI_AUTH_TEXT', ''), 'Log in to ' . $this->serviceName(), 'Log in');
+    }
+
+    /**
+     * What a person's phone shows when they sign: `ALLKIRI_SIGN_TEXT`, or "Sign
+     * the uploaded file".
+     */
+    public function signingText(): PhoneText
+    {
+        return PhoneText::fromSetting('ALLKIRI_SIGN_TEXT', self::env('ALLKIRI_SIGN_TEXT', ''), 'Sign the uploaded file', 'Sign the uploaded file');
     }
 
     public function isLive(): bool
@@ -128,7 +154,7 @@ final class Config
         return new self(
             self::MODE_DEMO,
             Environment::demo(),
-            MobileIdConfiguration::demo('allkiri demo'),
+            MobileIdConfiguration::demo(),
             SmartIdConfiguration::demo(),
             // Whatever the browser reports as location.origin, exactly. The
             // card signs it, and a mismatch verifies nothing.
@@ -165,15 +191,16 @@ final class Config
         // in a signing flow rather than here, where the cause is obvious.
         self::refuseDemoCredentials('Mobile-ID', $midUuid, $midName, MobileIdConfiguration::DEMO_RELYING_PARTY_UUID);
         self::refuseDemoCredentials('Smart-ID', $sidUuid, $sidName, SmartIdConfiguration::DEMO_RELYING_PARTY_UUID);
+        if (self::env('ALLKIRI_MID_DISPLAY_TEXT', '') !== '') {
+            throw new \RuntimeException('ALLKIRI_MID_DISPLAY_TEXT is gone. Set ALLKIRI_AUTH_TEXT and ALLKIRI_SIGN_TEXT instead: each is shown by Mobile-ID and Smart-ID alike.');
+        }
 
         return new self(
             self::MODE_LIVE,
             Environment::production(),
-            // No display text unless one is given. Mobile-ID shows the relying
-            // party's name regardless, and a wrong sentence above it is worse
-            // than none. It is also checked against what GSM-7 can carry, so a
-            // name with "õ" in it would refuse to start rather than sign.
-            MobileIdConfiguration::production($midUuid, $midName, self::env('ALLKIRI_MID_DISPLAY_TEXT', '')),
+            // The text is set per request, from authenticationText() and
+            // signingText(), as an application would set one per document.
+            MobileIdConfiguration::production($midUuid, $midName),
             SmartIdConfiguration::production($sidUuid, $sidName),
             WebEidConfiguration::forOrigin(self::env('ALLKIRI_ORIGIN', '')),
             $bundle === '' ? null : $bundle,
@@ -264,5 +291,64 @@ final class Config
                 putenv($name . '=' . $value);
             }
         }
+    }
+}
+
+/**
+ * One sentence for a person's phone, with the shorter one Smart-ID's PIN
+ * dialogue takes.
+ *
+ * An application would build this per request, naming the document or the
+ * person: "Allkirjasta: Martin Vahemetsa mängijalitsents". The demo has one
+ * for authenticating and one for signing, each from a setting. The library
+ * cuts nothing to fit, so neither does this: a text that is too long stops
+ * the demo from starting, with the reason.
+ */
+final class PhoneText
+{
+    private function __construct(
+        public readonly string $text,
+        /** Smart-ID's PIN dialogue holds 60 characters. */
+        public readonly string $pinText,
+    ) {}
+
+    /**
+     * @param string $setting the variable it came from, for the error message
+     * @param string $value   the setting; empty for the defaults
+     */
+    public static function fromSetting(string $setting, string $value, string $defaultText, string $defaultPinText): self
+    {
+        $text = $value === '' ? new self($defaultText, $defaultPinText) : new self($value, $value);
+        try {
+            $text->interactions();
+            $text->forMobileId(MobileIdConfiguration::demo());
+        } catch (InvalidArgumentException $e) {
+            throw new \RuntimeException(\sprintf(
+                '%s cannot be shown on a phone: %s. It has to fit Smart-ID\'s PIN dialogue, 60 characters, and Mobile-ID, 100 characters or 50 with "õ", "š" or "ž" in it.',
+                $value === '' ? 'The default text "' . $defaultText . '"' : $setting,
+                $e->getMessage(),
+            ), 0, $e);
+        }
+
+        return $text;
+    }
+
+    /**
+     * For Smart-ID, which takes the text with every request. The strongest
+     * dialogue comes first: the app shows three codes and only one matches
+     * the page.
+     */
+    public function interactions(): Interactions
+    {
+        return Interactions::forText($this->text, $this->pinText);
+    }
+
+    /**
+     * For Mobile-ID, which takes the text in its configuration. GSM-7 holds
+     * "ä", "ö" and "ü" but not "õ", "š" or "ž", so the format follows the text.
+     */
+    public function forMobileId(MobileIdConfiguration $configuration): MobileIdConfiguration
+    {
+        return $configuration->withDisplayText($this->text, DisplayTextFormat::forText($this->text));
     }
 }
