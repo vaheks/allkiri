@@ -93,6 +93,15 @@ An alpha waits for no gates, only for the same care:
    what is still alpha, like the tags before it. Then push the tag.
 4. If the version left the README's install range, the install line follows.
 
+### The release candidates
+
+`1.0.0-rc.1` is the API 1.0 will have. From it on nothing in
+`tests/fixtures/public-api.txt` changes except to fix what is wrong, and a
+stored format does not change at all. What an application writes against a
+candidate keeps working on 1.0.0. A candidate is released like an alpha, and
+installs with `composer require vaheks/allkiri:^1.0@RC`. Further candidates
+follow as fixes need them, until the gates above are met and 1.0.0 is tagged.
+
 ## When something is found
 
 The repository is public, so filing an issue is publishing. Anything that could
