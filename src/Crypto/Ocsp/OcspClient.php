@@ -62,16 +62,16 @@ final class OcspClient
         try {
             $http = $this->http->send(HttpRequest::post($url, self::CONTENT_TYPE_REQUEST, $request->der, ['Accept' => 'application/ocsp-response']));
         } catch (TransportException $e) {
-            throw new OcspException('OCSP_TRANSPORT', \sprintf('OCSP request to %s failed: %s', $shown, $e->getMessage()), $e);
+            throw new OcspException(OcspException::REASON_TRANSPORT, \sprintf('OCSP request to %s failed: %s', $shown, $e->getMessage()), $e);
         }
         if (!$http->isSuccess()) {
-            throw new OcspException('OCSP_HTTP_STATUS', \sprintf('OCSP responder %s answered HTTP %d', $shown, $http->status));
+            throw new OcspException(OcspException::REASON_HTTP_STATUS, \sprintf('OCSP responder %s answered HTTP %d', $shown, $http->status));
         }
 
         try {
             $response = OcspResponse::fromDer($http->body);
         } catch (Asn1Exception $e) {
-            throw new OcspException('OCSP_MALFORMED_RESPONSE', \sprintf('OCSP responder %s returned an unparseable response: %s', $shown, $e->getMessage()), $e);
+            throw new OcspException(OcspException::REASON_MALFORMED_RESPONSE, \sprintf('OCSP responder %s returned an unparseable response: %s', $shown, $e->getMessage()), $e);
         }
 
         $options = $trustedResponders === [] ? $this->options : $this->options->withTrustedResponders($trustedResponders);
@@ -106,6 +106,6 @@ final class OcspClient
             }
         }
 
-        return $this->defaultUrl ?? throw new OcspException('OCSP_NO_RESPONDER_URL', \sprintf('No OCSP responder known for certificates issued by %s', $issuer->subjectDn()));
+        return $this->defaultUrl ?? throw new OcspException(OcspException::REASON_NO_RESPONDER_URL, \sprintf('No OCSP responder known for certificates issued by %s', $issuer->subjectDn()));
     }
 }
