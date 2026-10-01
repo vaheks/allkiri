@@ -167,7 +167,9 @@ That moment changes less than the name suggests.
 
 - **It changes** whether a trusted list counts as past its next update, and,
   for a signature whose timestamp does not verify, the latest moment an OCSP
-  response may have been produced. The report records it as the validation
+  response may have been produced. A signature timestamp made after it proves
+  nothing about that moment, so it is `TIMESTAMP_INVALID` and the signature
+  has no proof of existence then. The report records it as the validation
   time.
 - **It does not change** how the signer's certificate, its chain and the
   revocation answer are judged. Those are always judged at the moment the

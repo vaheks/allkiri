@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Validating at a past moment no longer takes a signature timestamp made after
+  that moment as proof the signature existed then; it is `TIMESTAMP_INVALID`.
+- A signing time the signer claims later than the signature timestamp is a
+  warning, the new `SIGNING_TIME_AFTER_TIMESTAMP`.
+- A signature timestamp that names no canonicalisation method is read with
+  inclusive canonicalisation, XML-DSig's default, as archive timestamps already
+  were. Every Estonian signature names exclusive.
+- A time an XML document states without a zone is read as UTC, not in the
+  server's `date.timezone`.
+
+### Fixed
+
+- A signed-properties reference carrying the enveloped-signature transform
+  digested the document around the signature instead of the properties, so
+  they could be changed under a signature that still verified. It is now a
+  `SIGNED_PROPERTIES_DIGEST_MISMATCH`. A signer has to have made it so; no XAdES
+  producer does.
+
 ## [0.9.0-alpha.1] - 2026-10-01
 
 A security release, from a fourth review of the library. It closes four ways
