@@ -1,0 +1,41 @@
+{
+    "policy": "allkiri BDOC 2.1.2 / ASiC-E",
+    "validationTime": "2026-03-01T10:00:00+00:00",
+    "validatedDocument": {
+        "filename": "leping.asice"
+    },
+    "signaturesCount": 1,
+    "validSignaturesCount": 1,
+    "signatures": [
+        {
+            "id": "id-2404c8fdb764d4381840dd9682c0fd1c",
+            "signatureFileName": "META-INF/signatures0.xml",
+            "indication": "TOTAL-PASSED",
+            "signatureFormat": "XAdES_BASELINE_LT",
+            "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
+            "signedBy": "ALLKIRI,TESTER,38001085718",
+            "subjectDistinguishedName": {
+                "commonName": "ALLKIRI,TESTER,38001085718",
+                "serialNumber": "PNOEE-38001085718",
+                "givenName": "TESTER",
+                "surname": "ALLKIRI",
+                "countryName": "EE"
+            },
+            "info": {
+                "claimedSigningTime": "2026-03-01T10:00:00+00:00",
+                "bestSignatureTime": "2026-03-01T10:00:00+00:00",
+                "timestampCreationTime": "2026-03-01T10:00:00+00:00",
+                "ocspResponseCreationTime": "2026-03-01T10:00:00+00:00",
+                "timeAssertionMessageImprint": "QX+pZw7AT9FACj9XBetT0WPMWBviB6jEHsJLLpP4kUU="
+            },
+            "signatureScopes": [
+                {
+                    "name": "leping.txt",
+                    "scope": "FullSignatureScope",
+                    "content": "Full document",
+                    "mimeType": "text/plain"
+                }
+            ]
+        }
+    ]
+}

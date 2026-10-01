@@ -158,7 +158,8 @@ so a later minor release reads what an earlier one wrote:
   `SmartIdSigningSession`. Each carries a `version`. A new shape takes a new
   version, and `fromJson()` keeps reading the older ones until the next major
   release, as `SmartIdSession` reads version 1;
-- the JSON of a `ValidationReport`;
+- the JSON of a `ValidationReport`, which carries a `version` and leaves out
+  an empty list or an unknown value rather than writing `[]` or `null`;
 - the JSON of an `AuthenticatedIdentity`, which carries a `version` of its own.
 
 A key may be added to the report or the identity in a minor release; removing

@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `ValidationReport`'s JSON carries `"version": 1`.
+- `tests/fixtures/stored` holds the JSON 0.8.0-alpha.1 wrote for every stored
+  session, the prepared signature, an identity and a report, and a test
+  restores each with today's code, so the promise that a minor release reads
+  what an earlier one wrote is checked rather than assumed.
 - `OcspException` and `TimestampException` name the reasons their clients
   give: `REASON_TRANSPORT`, `REASON_HTTP_STATUS`, `REASON_MALFORMED_RESPONSE`,
   and `REASON_NO_RESPONDER_URL` or `REASON_REJECTED`. The values are the ones

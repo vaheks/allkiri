@@ -242,7 +242,9 @@ suite compares them on every run.
 ## Reading a report
 
 The report is built for programs: stable codes, ETSI indications, a JSON shape
-that mirrors SiVa's. For a log or a support ticket:
+that mirrors SiVa's, with a `version`. A list with nothing in it and a value
+that is not known are left out of the JSON rather than written as `[]` or
+`null`. For a log or a support ticket:
 
 ```php
 use Allkiri\Validation\Report\ReportRenderer;
