@@ -220,6 +220,8 @@ final class XmlDsigVerifier
     /**
      * The referenced node in a copy of the document from which this signature
      * has been removed, as the enveloped-signature transform prescribes.
+     *
+     * @throws CanonicalizationException when the node is inside the signature removed
      */
     private static function withoutSignature(\DOMDocument $document, \DOMNode $node, \DOMElement $signature): \DOMNode
     {
@@ -234,8 +236,16 @@ final class XmlDsigVerifier
             return $copy->documentElement ?? $copy;
         }
         $id = $node instanceof \DOMElement ? $node->getAttribute('Id') : '';
+        $target = $id === '' ? null : Xml::elementById($copy, $id);
+        if ($target === null) {
+            // What the reference points at is inside the signature the transform
+            // removes, as a XAdES SignedProperties is. Digesting the rest of the
+            // document instead would cover nothing the reference names, and
+            // whatever it names could then be changed under a valid signature.
+            throw new CanonicalizationException(\sprintf('The enveloped-signature transform removes what it points at, "#%s", so the reference covers nothing', $id));
+        }
 
-        return ($id === '' ? null : Xml::elementById($copy, $id)) ?? $copy;
+        return $target;
     }
 
     /**

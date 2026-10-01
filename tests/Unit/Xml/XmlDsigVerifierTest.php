@@ -149,6 +149,53 @@ final class XmlDsigVerifierTest extends TestCase
         self::assertTrue($reference->isValid());
     }
 
+    /**
+     * The enveloped-signature transform removes the signature from the
+     * document. A reference through it to something inside that signature, as
+     * a XAdES SignedProperties is, has nothing left to point at. The verifier
+     * used to digest the rest of the document instead, so the properties were
+     * covered by nothing, and anyone could change them under a valid
+     * signature.
+     */
+    public function testAnEnvelopedReferenceToWhatTheSignatureHoldsCoversNothing(): void
+    {
+        $keyPair = \Allkiri\Tests\Support\Pki\TestPki::signerEc256();
+        $canonicalizer = new Canonicalizer();
+        $build = static function (string $properties, string $digest, string $signatureValue): \DOMDocument {
+            $document = new \DOMDocument();
+            $document->loadXML(
+                '<root><ds:Signature xmlns:ds="' . DsigNs::DS . '"><ds:SignedInfo>'
+                . '<ds:CanonicalizationMethod Algorithm="' . DsigNs::C14N_EXC . '"/>'
+                . '<ds:SignatureMethod Algorithm="' . \Allkiri\Crypto\SignatureAlgorithm::ES256->xmlUri() . '"/>'
+                . '<ds:Reference URI="#props"><ds:Transforms>'
+                . '<ds:Transform Algorithm="' . DsigNs::TRANSFORM_ENVELOPED . '"/><ds:Transform Algorithm="' . DsigNs::C14N_EXC . '"/>'
+                . '</ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>'
+                . '<ds:DigestValue>' . $digest . '</ds:DigestValue></ds:Reference></ds:SignedInfo>'
+                . '<ds:SignatureValue>' . $signatureValue . '</ds:SignatureValue>'
+                . '<ds:Object><Props Id="props">' . $properties . '</Props></ds:Object></ds:Signature></root>',
+            );
+
+            return $document;
+        };
+        // The digest the old code computed: the document with the signature
+        // removed, whatever the properties said.
+        $digest = base64_encode(hash('sha256', '<root></root>', true));
+        $unsigned = $build('signed at noon', $digest, '');
+        $signedInfo = $unsigned->getElementsByTagNameNS(DsigNs::DS, 'SignedInfo')->item(0);
+        self::assertNotNull($signedInfo);
+        $value = base64_encode($keyPair->privateKey->sign(\Allkiri\Crypto\SignatureAlgorithm::ES256, $canonicalizer->canonicalize($signedInfo, DsigNs::C14N_EXC)));
+
+        foreach (['signed at noon', 'changed to midnight'] as $properties) {
+            $signature = $build($properties, $digest, $value)->getElementsByTagNameNS(DsigNs::DS, 'Signature')->item(0);
+            self::assertInstanceOf(\DOMElement::class, $signature);
+            $result = (new XmlDsigVerifier())->verify($signature, new ArrayReferenceResolver([]), $keyPair->certificate);
+
+            self::assertTrue($result->signatureValid, 'the signature value itself is genuine');
+            self::assertFalse($result->isValid(), $properties . ' passed');
+            self::assertStringContainsString('removes what it points at', (string) $result->reference('#props')?->problem);
+        }
+    }
+
     public function testEnvelopedSignatureOfTheEstonianTestTrustedList(): void
     {
         $document = SignatureDocument::parse((string) file_get_contents(self::FIXTURES . 'captured/test-tl-EE_T.xml'));
