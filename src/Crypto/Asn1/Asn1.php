@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Allkiri\Crypto\Asn1;
 
+use Allkiri\Crypto\Phpseclib;
 use phpseclib3\File\ASN1 as PhpseclibAsn1;
 use phpseclib3\File\ASN1\Element;
 use phpseclib3\Math\BigInteger;
@@ -27,7 +28,14 @@ final class Asn1
     {
         $node = self::decodeRaw($der);
         Oids::register();
-        $value = PhpseclibAsn1::asn1map($node->raw(), $map);
+        try {
+            $value = Phpseclib::onUntrustedInput(static fn(): mixed => PhpseclibAsn1::asn1map($node->raw(), $map));
+        } catch (\Throwable $e) {
+            // phpseclib's mapper assumes the tree has the shape the map
+            // describes; a constructed element where it expects a primitive one
+            // ends in a TypeError inside it. The bytes are a stranger's.
+            throw new Asn1Exception('DER does not match the expected structure: ' . $e->getMessage(), 0, $e);
+        }
         if (!\is_array($value)) {
             throw new Asn1Exception('DER does not match the expected structure');
         }
@@ -46,7 +54,11 @@ final class Asn1
         }
         NestingGuard::check($der);
         Oids::register();
-        $decoded = PhpseclibAsn1::decodeBER($der);
+        try {
+            $decoded = Phpseclib::onUntrustedInput(static fn(): mixed => PhpseclibAsn1::decodeBER($der));
+        } catch (\Throwable $e) {
+            throw new Asn1Exception('DER cannot be decoded: ' . $e->getMessage(), 0, $e);
+        }
         $root = \is_array($decoded) ? ($decoded[0] ?? null) : null;
         if (!\is_array($root) || \count($decoded) !== 1) {
             throw new Asn1Exception('Not a single DER element');

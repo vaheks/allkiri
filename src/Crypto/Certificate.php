@@ -68,7 +68,11 @@ final class Certificate
             throw new CertificateException('Not a DER-encoded X.509 certificate: ' . $e->getMessage(), 0, $e);
         }
         $x509 = new X509();
-        $parsed = $x509->loadX509($der, X509::FORMAT_DER);
+        try {
+            $parsed = Phpseclib::onUntrustedInput(static fn(): mixed => $x509->loadX509($der, X509::FORMAT_DER));
+        } catch (\Throwable $e) {
+            throw new CertificateException('Not a DER-encoded X.509 certificate: ' . $e->getMessage(), 0, $e);
+        }
         if (!\is_array($parsed) || !isset($parsed['tbsCertificate'])) {
             throw new CertificateException('Not a DER-encoded X.509 certificate');
         }
@@ -183,7 +187,14 @@ final class Certificate
     public function publicKey(): PublicKey
     {
         if ($this->publicKey === null) {
-            $key = $this->x509->getPublicKey();
+            try {
+                $key = Phpseclib::onUntrustedInput(fn(): mixed => $this->x509->getPublicKey());
+            } catch (\Throwable $e) {
+                // phpseclib checks the key as it loads it, and says so with
+                // whatever exception is at hand: an unknown curve, a point that
+                // is not on it, a malformed point encoding.
+                throw new CertificateException('Certificate public key could not be loaded: ' . $e->getMessage(), 0, $e);
+            }
             if (!$key instanceof PublicKey) {
                 throw new CertificateException('Certificate public key could not be loaded');
             }

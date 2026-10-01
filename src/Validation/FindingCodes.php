@@ -17,6 +17,9 @@ final class FindingCodes
     public const NO_SIGNATURES = 'NO_SIGNATURES';
     public const SIGNATURE_FILE_MALFORMED = 'SIGNATURE_FILE_MALFORMED';
 
+    /** More signatures than the policy's maxSignatures; none of them is validated. */
+    public const TOO_MANY_SIGNATURES = 'TOO_MANY_SIGNATURES';
+
     // Signature structure
     public const SIGNATURE_MALFORMED = 'SIGNATURE_MALFORMED';
     public const SIGNED_PROPERTIES_REFERENCE_MISSING = 'SIGNED_PROPERTIES_REFERENCE_MISSING';

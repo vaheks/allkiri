@@ -23,6 +23,18 @@ final class ChainBuilder
     private const MAX_DEPTH = 8;
 
     /**
+     * The search is bounded, because the candidates are whatever the document
+     * brought. A dozen CA certificates sharing one name and one key each verify
+     * as the issuer of every other, and an unbounded search walks every
+     * ordering of them: at eight that took nearly two minutes, and every one
+     * more multiplies it. Real candidates number under ten, and a real chain is
+     * found within a handful of steps and signature checks.
+     */
+    private const MAX_CANDIDATES = 32;
+    private const MAX_STEPS = 256;
+    private const MAX_SIGNATURE_CHECKS = 128;
+
+    /**
      * How far along a path each failure got. When no path works, the failure
      * reported is the one that got furthest: a path that reached an anchor over
      * genuine signatures says more than a candidate that never signed the
@@ -38,6 +50,16 @@ final class ChainBuilder
     /** Failures reached over a genuine signature: validity, the anchor, algorithm constraints. */
     private const RANK_PAST_A_SIGNATURE = 4;
 
+    /**
+     * What one build() has learnt: each issuer–subject pair's signature check,
+     * keyed by both fingerprints, with the failure it recorded.
+     *
+     * @var array<string, array{bool, ?ChainBuildingException}>
+     */
+    private array $signatureChecks = [];
+
+    private int $steps = 0;
+
     public function __construct(
         private readonly TrustStore $store,
         private readonly AlgorithmConstraints $constraints = new AlgorithmConstraints(),
@@ -47,12 +69,27 @@ final class ChainBuilder
      * @param list<Certificate>      $intermediates candidate issuer certificates that are not anchors
      * @param list<ServiceType>|null $acceptedAnchorTypes which service types may terminate the chain; null for any
      *
-     * @throws ChainBuildingException when no acceptable chain exists; the reason is the failure that got furthest along a path
+     * @throws ChainBuildingException when no acceptable chain exists; the reason is the failure that got furthest along a path,
+     *                                or REASON_SEARCH_LIMIT when the candidates would take longer to search than any real chain does
      */
     public function build(Certificate $leaf, array $intermediates, \DateTimeInterface $validationTime, ?array $acceptedAnchorTypes = null): CertificateChain
     {
+        $candidates = [];
+        foreach ($intermediates as $intermediate) {
+            $candidates[$intermediate->der()] = $intermediate;
+        }
+        if (\count($candidates) > self::MAX_CANDIDATES) {
+            throw new ChainBuildingException(ChainBuildingException::REASON_SEARCH_LIMIT, \sprintf('%d candidate certificates were offered for the chain of %s; no more than %d are searched', \count($candidates), $leaf->subjectDn(), self::MAX_CANDIDATES));
+        }
+
+        $this->signatureChecks = [];
+        $this->steps = 0;
         $failure = null;
-        $chain = $this->search($leaf, $intermediates, $validationTime, $acceptedAnchorTypes, [], $failure);
+        try {
+            $chain = $this->search($leaf, array_values($candidates), $validationTime, $acceptedAnchorTypes, [], $failure);
+        } finally {
+            $this->signatureChecks = [];
+        }
         if ($chain !== null) {
             return $chain;
         }
@@ -67,6 +104,9 @@ final class ChainBuilder
      */
     private function search(Certificate $current, array $intermediates, \DateTimeInterface $time, ?array $acceptedAnchorTypes, array $path, ?ChainBuildingException &$failure): ?CertificateChain
     {
+        if (++$this->steps > self::MAX_STEPS) {
+            throw new ChainBuildingException(ChainBuildingException::REASON_SEARCH_LIMIT, \sprintf('The candidate certificates allow more paths than are searched, after %d steps', self::MAX_STEPS));
+        }
         if (\count($path) >= self::MAX_DEPTH) {
             self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_DEPTH, 'Certificate chain exceeds the maximum depth'));
 
@@ -155,26 +195,40 @@ final class ChainBuilder
      */
     private function signedBy(Certificate $subject, Certificate $issuer, ?ChainBuildingException &$failure): bool
     {
+        $pair = $issuer->fingerprint() . $subject->fingerprint();
+        if (!isset($this->signatureChecks[$pair])) {
+            if (\count($this->signatureChecks) >= self::MAX_SIGNATURE_CHECKS) {
+                throw new ChainBuildingException(ChainBuildingException::REASON_SEARCH_LIMIT, \sprintf('The candidate certificates need more than %d signature checks', self::MAX_SIGNATURE_CHECKS));
+            }
+            $this->signatureChecks[$pair] = $this->checkSignature($subject, $issuer);
+        }
+        [$signed, $refusal] = $this->signatureChecks[$pair];
+        if ($refusal !== null) {
+            self::record($failure, $refusal);
+        }
+
+        return $signed;
+    }
+
+    /**
+     * @return array{bool, ?ChainBuildingException}
+     */
+    private function checkSignature(Certificate $subject, Certificate $issuer): array
+    {
         try {
             if (!$subject->isSignedBy($issuer)) {
-                self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_SIGNATURE, \sprintf('%s is not signed by %s', $subject->subjectDn(), $issuer->subjectDn())));
-
-                return false;
+                return [false, new ChainBuildingException(ChainBuildingException::REASON_SIGNATURE, \sprintf('%s is not signed by %s', $subject->subjectDn(), $issuer->subjectDn()))];
             }
             $violation = $this->constraints->violation($subject->signatureAlgorithm(), $issuer->publicKey());
         } catch (CryptoException $e) {
             // An algorithm allkiri does not verify, or an issuer key it cannot read.
-            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage()));
-
-            return false;
+            return [false, new ChainBuildingException(ChainBuildingException::REASON_UNSUPPORTED_ALGORITHM, $e->getMessage())];
         }
         if ($violation !== null) {
-            self::record($failure, new ChainBuildingException(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, \sprintf('%s is %s', $subject->subjectDn(), $violation)));
-
-            return false;
+            return [false, new ChainBuildingException(ChainBuildingException::REASON_ALGORITHM_NOT_ACCEPTED, \sprintf('%s is %s', $subject->subjectDn(), $violation))];
         }
 
-        return true;
+        return [true, null];
     }
 
     /**

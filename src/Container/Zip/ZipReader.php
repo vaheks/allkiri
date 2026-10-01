@@ -16,10 +16,13 @@ use Allkiri\Container\UnsupportedZipException;
  * it carries extra fields.
  *
  * An archive that different readers could read differently is refused rather
- * than read one way: two entries with one name, or an entry whose local header
- * names it differently from the central directory. A validator that checks
- * one file while DigiDoc4 or an unzip tool shows another has reported on the
- * wrong document.
+ * than read one way: two entries with one name, an entry whose local header
+ * disagrees with the central directory about its name, its method, its flags,
+ * its checksum or its sizes, entries that share bytes, and an end record that
+ * does not end the archive. A streaming reader walks the local headers and
+ * never sees the central directory, so where the two disagree it extracts
+ * something else. A validator that checks one file while DigiDoc4 or an unzip
+ * tool shows another has reported on the wrong document.
  *
  * @internal
  */
@@ -29,6 +32,8 @@ final class ZipReader
     private const SIGNATURE_CENTRAL = "PK\x01\x02";
     private const SIGNATURE_LOCAL = "PK\x03\x04";
     private const SIGNATURE_ZIP64_LOCATOR = "PK\x06\x07";
+    private const SIGNATURE_DATA_DESCRIPTOR = "PK\x07\x08";
+    private const FLAG_DATA_DESCRIPTOR = 0x08;
     private const MAX_COMMENT_LENGTH = 0xFFFF;
     private const UINT32_MAX = 0xFFFFFFFF;
 
@@ -55,9 +60,22 @@ final class ZipReader
         if ($eocd->get('count') === 0xFFFF || $eocd->get('centralOffset') === self::UINT32_MAX) {
             throw new UnsupportedZipException('ZIP64 archives are not supported');
         }
+        // A record found inside a comment, or a directory that is not where the
+        // record says, would be read one way here and another by a reader that
+        // looks for it differently.
+        if ($eocdOffset + 22 + $eocd->get('commentLength') !== \strlen($bytes)) {
+            throw new InvalidContainerException('The end of central directory record does not end the archive');
+        }
+        if ($eocd->get('centralOffset') + $eocd->get('centralSize') !== $eocdOffset) {
+            throw new InvalidContainerException('The central directory does not end where the end of central directory record begins');
+        }
+        if ($eocd->get('countOnDisk') !== $eocd->get('count')) {
+            throw new InvalidContainerException('The end of central directory record counts the entries two ways');
+        }
 
         $entries = [];
         $names = [];
+        $spans = [];
         $offset = $eocd->get('centralOffset');
         for ($i = 0; $i < $eocd->get('count'); ++$i) {
             if (substr($bytes, $offset, 4) !== self::SIGNATURE_CENTRAL) {
@@ -91,13 +109,44 @@ final class ZipReader
                 throw new UnsupportedZipException(\sprintf('Entry "%s" needs ZIP64', $name));
             }
 
-            $entries[] = self::readLocal($bytes, $central, $name, $centralExtra, $comment, $limit);
+            [$entries[], $spans[$name]] = self::readLocal($bytes, $central, $name, $centralExtra, $comment, $limit);
         }
+        if ($offset !== $eocdOffset) {
+            throw new InvalidContainerException('The central directory holds more than the entries it counts');
+        }
+        self::refuseSharedBytes($spans, $eocd->get('centralOffset'));
 
         return $entries;
     }
 
-    private static function readLocal(string $bytes, Fields $central, string $name, string $centralExtra, string $comment, InflationLimit $limit): ZipEntry
+    /**
+     * Each entry's bytes are its own. Two entries over the same data would
+     * make a change to one a change to the other, and data running into the
+     * central directory is read as both.
+     *
+     * @param array<string, array{int, int}> $spans each entry's local header offset and the offset past its data
+     */
+    private static function refuseSharedBytes(array $spans, int $centralOffset): void
+    {
+        uasort($spans, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+        $previousEnd = 0;
+        $previousName = null;
+        foreach ($spans as $name => [$start, $end]) {
+            if ($previousName !== null && $start < $previousEnd) {
+                throw new InvalidContainerException(\sprintf('Entries "%s" and "%s" share bytes', $previousName, $name));
+            }
+            if ($end > $centralOffset) {
+                throw new InvalidContainerException(\sprintf('Entry "%s" runs into the central directory', $name));
+            }
+            $previousEnd = $end;
+            $previousName = $name;
+        }
+    }
+
+    /**
+     * @return array{ZipEntry, array{int, int}} the entry, and its local header offset with the offset past its data
+     */
+    private static function readLocal(string $bytes, Fields $central, string $name, string $centralExtra, string $comment, InflationLimit $limit): array
     {
         $offset = $central->get('localOffset');
         if (substr($bytes, $offset, 4) !== self::SIGNATURE_LOCAL) {
@@ -114,14 +163,37 @@ final class ZipReader
         if ($localName !== $name) {
             throw new InvalidContainerException(\sprintf('Entry "%s" is named "%s" in its local header', $name, $localName));
         }
+        // What a streaming reader decides by: these say how to read the bytes
+        // that follow, so the two headers must agree on them.
+        if ($local->get('method') !== $central->get('method')) {
+            throw new InvalidContainerException(\sprintf('Entry "%s" has a different compression method in its local header', $name));
+        }
+        if ($local->get('flags') !== $central->get('flags')) {
+            throw new InvalidContainerException(\sprintf('Entry "%s" has different flags in its local header', $name));
+        }
         $compressedSize = $central->get('compressedSize');
         $dataOffset = $offset + 30 + $local->get('nameLength') + $local->get('extraLength');
         $data = substr($bytes, $dataOffset, $compressedSize);
         if (\strlen($data) !== $compressedSize) {
             throw new InvalidContainerException(\sprintf('Entry "%s" is truncated', $name));
         }
+        $end = $dataOffset + $compressedSize;
+        if (($central->get('flags') & self::FLAG_DATA_DESCRIPTOR) === 0) {
+            self::agree($name, 'local header', $local, $central, false);
+        } else {
+            // A writer that streams, as Java's does, knows these only after the
+            // data: the local header leaves them at zero and a descriptor after
+            // the data gives them. Both must agree with the directory.
+            self::agree($name, 'local header', $local, $central, true);
+            if (substr($bytes, $end, 4) === self::SIGNATURE_DATA_DESCRIPTOR) {
+                $end += 4;
+            }
+            $descriptor = new Fields('Vcrc32/VcompressedSize/VuncompressedSize', substr($bytes, $end, 12), \sprintf('data descriptor of "%s"', $name));
+            self::agree($name, 'data descriptor', $descriptor, $central, false);
+            $end += 12;
+        }
 
-        return new ZipEntry(
+        $entry = new ZipEntry(
             $name,
             $central->get('method'),
             $central->get('flags'),
@@ -140,6 +212,21 @@ final class ZipReader
             $central->get('versionNeeded'),
             $limit,
         );
+
+        return [$entry, [$offset, $end]];
+    }
+
+    /**
+     * @param bool $zeroAllowed a local header that defers to a data descriptor leaves these at zero
+     */
+    private static function agree(string $name, string $where, Fields $fields, Fields $central, bool $zeroAllowed): void
+    {
+        foreach (['crc32' => 'CRC-32', 'compressedSize' => 'compressed size', 'uncompressedSize' => 'size'] as $field => $description) {
+            $value = $fields->get($field);
+            if ($value !== $central->get($field) && !($zeroAllowed && $value === 0)) {
+                throw new InvalidContainerException(\sprintf('Entry "%s" has a different %s in its %s', $name, $description, $where));
+            }
+        }
     }
 
     private static function findEndOfCentralDirectory(string $bytes): int

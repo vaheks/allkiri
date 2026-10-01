@@ -55,7 +55,12 @@ final class ContainerValidator
         $containerFindings = $this->structuralFindings($container);
         $fatal = array_filter($containerFindings, static fn(Finding $f): bool => $f->indication === Indication::TotalFailed);
 
+        // Every signature file is read before any signature is validated, so the
+        // signatures can be counted first. Each costs tens of milliseconds of
+        // signature checks, and a few kilobytes of upload can hold hundreds.
         $signatures = [];
+        $found = [];
+        $count = 0;
         foreach ($container->signatureFiles as $file) {
             try {
                 $document = SignatureDocument::parse($file->xml);
@@ -68,6 +73,17 @@ final class ContainerValidator
                 $signatures[] = $this->unreadable($file->name, 'The signature file contains no signature');
                 continue;
             }
+            $found[] = [$file, $elements];
+            $count += \count($elements);
+        }
+        if ($count > $this->policy->maxSignatures) {
+            return new ValidationReport($filename, $validationTime, $this->policy->name, [], [
+                ...$containerFindings,
+                Finding::error(FindingCodes::TOO_MANY_SIGNATURES, \sprintf('The container holds %d signatures; the policy validates no more than %d, so none of them is validated', $count, $this->policy->maxSignatures), Indication::TotalFailed, SubIndication::FormatFailure),
+            ]);
+        }
+
+        foreach ($found as [$file, $elements]) {
             foreach ($elements as $element) {
                 $report = $this->signatureValidator->validate($container, $file, $element, $validationTime, $options->trustStore);
                 $signatures[] = $fatal === [] ? $report : $this->demote($report, $fatal);

@@ -32,10 +32,10 @@ final class Asn1Encoders
      * @param (\Closure(string): array{string, string})|null $sign               signs the attributes in place of the key's usual algorithm, returning the AlgorithmIdentifier DER and the signature
      * @param int                                             $signerInfoCopies   how many times to put the SignerInfo in (negative tests)
      */
-    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false, ?\Closure $sign = null, int $signerInfoCopies = 1): string
+    public static function signedData(KeyPair $signer, string $eContentTypeOid, string $eContent, \DateTimeImmutable $signingTime, bool $includeCertificate = true, bool $corruptSignature = false, ?\Closure $sign = null, int $signerInfoCopies = 1, ?string $signingCertificateValue = null): string
     {
         $cert = $signer->certificate;
-        $essCertId = Asn1::encode(['certs' => [['certHash' => HashAlgorithm::SHA256->digest($cert->der())]]], CmsMaps::SIGNING_CERTIFICATE_V2);
+        $essCertId = $signingCertificateValue ?? Asn1::encode(['certs' => [['certHash' => HashAlgorithm::SHA256->digest($cert->der())]]], CmsMaps::SIGNING_CERTIFICATE_V2);
         $signedAttrs = Asn1::set([
             self::attribute(Oids::ID_CONTENT_TYPE, Asn1::primitive(PhpseclibAsn1::TYPE_OBJECT_IDENTIFIER, $eContentTypeOid)),
             self::attribute(Oids::ID_SIGNING_TIME, self::utcTime($signingTime)),

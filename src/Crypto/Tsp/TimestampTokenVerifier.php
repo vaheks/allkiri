@@ -8,6 +8,7 @@ use Allkiri\Crypto\AlgorithmConstraints;
 use Allkiri\Crypto\Asn1\Oids;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Crypto\CertificateException;
+use Allkiri\Crypto\CryptoException;
 use Allkiri\Crypto\HashAlgorithm;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\UnsupportedAlgorithmException;
@@ -30,6 +31,27 @@ final class TimestampTokenVerifier
      * @throws TimestampVerificationException
      */
     public function verify(TimestampToken $token, HashAlgorithm $imprintAlgorithm, string $expectedImprint, ?BigInteger $expectedNonce = null, array $tsaCandidates = [], AlgorithmConstraints $constraints = new AlgorithmConstraints()): TimestampVerificationResult
+    {
+        try {
+            return $this->check($token, $imprintAlgorithm, $expectedImprint, $expectedNonce, $tsaCandidates, $constraints);
+        } catch (TimestampException $e) {
+            throw $e;
+        } catch (CryptoException $e) {
+            // The token parsed, but an attribute in it does not hold what its
+            // type says: a content type that is not an OID, a signing-certificate
+            // reference that is not one. It comes from whoever wrote the
+            // document, so it is a reason like any other, not an escape.
+            throw new TimestampVerificationException(TimestampVerificationException::REASON_STRUCTURE, 'Token cannot be read: ' . $e->getMessage(), $e);
+        }
+    }
+
+    /**
+     * @param list<Certificate> $tsaCandidates
+     *
+     * @throws TimestampVerificationException
+     * @throws CryptoException                 from an attribute whose value is not of its type, read on the way
+     */
+    private function check(TimestampToken $token, HashAlgorithm $imprintAlgorithm, string $expectedImprint, ?BigInteger $expectedNonce, array $tsaCandidates, AlgorithmConstraints $constraints): TimestampVerificationResult
     {
         $signedData = $token->signedData();
         $signerInfo = $token->signerInfo();

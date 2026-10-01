@@ -59,6 +59,7 @@ use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationOptions;
 use Allkiri\Validation\ValidationPolicy;
 use Allkiri\Xades\SignatureBuilder;
+use phpseclib3\File\ASN1 as PhpseclibAsn1;
 use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -1178,8 +1179,17 @@ final class ValidationTest extends TestCase
         $unreadableTsa = new SigningFixture($fixture->clock, tsa: new KeyPair(TestPki::tsa()->privateKey, DerPatch::unreadableKey(TestPki::tsa()->certificate)));
         $unreadableResponder = new SigningFixture($fixture->clock, ocspResponder: new KeyPair(TestPki::ocspResponder()->privateKey, DerPatch::unreadableKey(TestPki::ocspResponder()->certificate)));
         $plain = new SigningFixture($fixture->clock);
+        $unparseableReference = new SigningFixture($fixture->clock);
+        $unparseableReference->tsa->signingCertificateValue = Asn1::sequence([Asn1::primitive(PhpseclibAsn1::TYPE_OCTET_STRING, 'not a list of certificates')]);
+        // The content-type attribute holding an INTEGER where the OID belongs.
+        // It is read before the token's signature is checked.
+        $contentTypeAttribute = (string) hex2bin('06092a864886f70d010903310d060b2a864886f70d0109100104');
+        $notAnOid = str_replace($contentTypeAttribute, substr_replace($contentTypeAttribute, "", 13, 1), $tokenFrom($plain), $count);
+        self::assertSame(1, $count);
 
         $cases = [
+            'a timestamp whose content-type attribute is not an OID' => ['EncapsulatedTimeStamp', $notAnOid, FindingCodes::TIMESTAMP_INVALID],
+            'a timestamp whose signing-certificate attribute does not parse' => ['EncapsulatedTimeStamp', $tokenFrom($unparseableReference), FindingCodes::TIMESTAMP_INVALID],
             'a timestamp authority whose key cannot be read' => ['EncapsulatedTimeStamp', $tokenFrom($unreadableTsa), FindingCodes::TIMESTAMP_INVALID],
             'a timestamp claiming two signers' => ['EncapsulatedTimeStamp', $tokenFrom($twoSigners), FindingCodes::TIMESTAMP_INVALID],
             'a timestamp carrying something that is not a certificate' => ['EncapsulatedTimeStamp', DerPatch::withoutCertificate($tokenFrom($plain), TestPki::tsa()->certificate), FindingCodes::TIMESTAMP_INVALID],
@@ -1197,6 +1207,106 @@ final class ValidationTest extends TestCase
         $signature = self::validator($fixture)->validate(self::containerOfA($unreadableSigner))->signatures[0];
         self::assertContains(FindingCodes::WEAK_KEY, $signature->codes());
         self::assertContains(FindingCodes::SIGNATURE_INVALID, $signature->codes());
+    }
+
+    /**
+     * The cases above are the ones someone thought of. This changes bytes all
+     * through the embedded timestamp and revocation answer and asks only that
+     * every container still gets a report. A timestamp whose content-type
+     * attribute held an INTEGER escaped as an exception before anything
+     * cryptographic was checked; so did a certificate whose curve point was
+     * damaged, and a warning phpseclib raised on a malformed structure, under
+     * an error handler that throws as Laravel's and Symfony's do.
+     *
+     * The tokens are signed afresh each run, so the bytes at a given offset
+     * differ from run to run. The thorough version, every byte with three
+     * changes each, takes about five minutes; this samples it.
+     */
+    public function testNoChangeToAnEmbeddedTokenEscapesTheValidator(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $validator = self::validator($fixture);
+        $escaped = [];
+        set_error_handler(static function (int $level, string $message, string $file, int $line): never {
+            throw new \ErrorException($message, 0, $level, $file, $line);
+        });
+        try {
+            foreach (['EncapsulatedTimeStamp', 'EncapsulatedOCSPValue'] as $element) {
+                self::assertSame(1, preg_match('#<xades:' . $element . '[^>]*>([^<]+)#', self::signatureXml($result), $match));
+                $der = (string) base64_decode($match[1], true);
+                // Every byte of the outermost headers, then every seventeenth.
+                for ($offset = 0, $step = 0; $offset < \strlen($der); $offset += $offset < 32 ? 1 : 17, ++$step) {
+                    $mask = [0x01, 0x20, 0xFF][$step % 3];
+                    $mutated = $der;
+                    $mutated[$offset] = \chr(\ord($der[$offset]) ^ $mask);
+                    try {
+                        $validator->validate(self::withEncapsulated($result, $element, $mutated));
+                    } catch (\Throwable $e) {
+                        $escaped[\sprintf('%s byte %d ^ 0x%02x', $element, $offset, $mask)] = $e::class . ': ' . $e->getMessage();
+                    }
+                }
+            }
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $escaped);
+    }
+
+    /**
+     * @return iterable<string, array{string, int, string}>
+     */
+    public static function excessReferences(): iterable
+    {
+        $enveloped = '<ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></ds:Transforms>';
+        // Eight more beside the signed properties' own.
+        yield 'references into the signature document' => ['URI="#elsewhere-{i}"', 8, 'more than 8 references into the signature document', $enveloped];
+        yield 'the whole document twice' => ['URI=""', 2, 'references "" more than once', $enveloped];
+        yield 'one data file referenced twice' => ['URI="a.txt"', 1, 'references "a.txt" more than once', ''];
+        yield 'the same file, once percent-encoded' => ['URI="a%2Etxt"', 1, 'references "a.txt" more than once', ''];
+        // With a.txt and the signed properties, ten, where one file allows nine.
+        yield 'files the container does not have' => ['URI="missing-{i}.txt"', 8, '10 references, for a container of 1 files', ''];
+    }
+
+    /**
+     * Each reference is work for every check that follows, and a same-document
+     * one is a search and a canonicalisation of the whole document, with the
+     * enveloped transform a copy of it too. Four thousand of them in an 11 KB
+     * container took half a minute.
+     */
+    #[DataProvider('excessReferences')]
+    public function testReferencesNoSignatureNeedsAreNotFollowed(string $uri, int $copies, string $message, string $transforms = ''): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $extra = '';
+        for ($i = 0; $i < $copies; ++$i) {
+            $extra .= '<ds:Reference ' . str_replace('{i}', (string) $i, $uri) . '>' . $transforms . '<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>AAAA</ds:DigestValue></ds:Reference>';
+        }
+        $xml = preg_replace('#(<ds:SignedInfo[^>]*>)#', '${1}' . $extra, self::signatureXml($result), 1, $count);
+        self::assertSame(1, $count);
+
+        $signature = self::validator($fixture)->validate(self::containerOfA((string) $xml))->signatures[0];
+
+        self::assertSame(Indication::TotalFailed, $signature->indication);
+        self::assertSame(SubIndication::FormatFailure, $signature->subIndication);
+        self::assertSame([FindingCodes::SIGNATURE_MALFORMED], array_map(static fn($f): string => $f->code, $signature->errors()));
+        self::assertStringContainsString($message, $signature->errors()[0]->message);
+    }
+
+    public function testThousandsOfReferencesCostNothing(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $reference = '<ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>AAAA</ds:DigestValue></ds:Reference>';
+        $xml = (string) preg_replace('#(<ds:SignedInfo[^>]*>)#', '${1}' . str_repeat($reference, 4000), self::signatureXml($result), 1);
+
+        $started = hrtime(true);
+        $signature = self::validator($fixture)->validate(self::containerOfA($xml))->signatures[0];
+
+        self::assertSame(Indication::TotalFailed, $signature->indication);
+        self::assertLessThan(5, (hrtime(true) - $started) / 1e9, 'the references were followed');
     }
 
     public function testAnOcspResponseNestedTooDeeplyIsReportedRatherThanFatal(): void
@@ -1240,6 +1350,40 @@ final class ValidationTest extends TestCase
         $files = array_map(static fn($s): string => $s->signatureFileName, $report->signatures);
         self::assertSame(['META-INF/signatures0.xml', 'META-INF/signatures1.xml'], $files);
         self::assertNotNull($report->signature($report->signatures[0]->id));
+    }
+
+    /**
+     * Each signature costs tens of milliseconds of signature checks, and one
+     * signature file can hold hundreds of them in a few kilobytes. The count
+     * is checked before any is validated.
+     */
+    public function testMoreSignaturesThanThePolicyAllowsAreNotValidated(): void
+    {
+        $fixture = new SigningFixture();
+        $first = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $second = $fixture->signingService->signWith($first->container, LocalKeySigner::fromKeyPair(TestPki::signerRsa()));
+
+        $report = self::validator($fixture, new ValidationPolicy(maxSignatures: 1))->validate((new AsicWriter())->write($second->container));
+
+        self::assertFalse($report->isValid());
+        self::assertSame(0, $report->signaturesCount());
+        self::assertSame([FindingCodes::TOO_MANY_SIGNATURES], array_map(static fn($f): string => $f->code, $report->containerFindings));
+        self::assertStringContainsString('holds 2 signatures', $report->containerFindings[0]->message);
+
+        // The default allows 64, wherever they sit.
+        self::assertSame(1, preg_match('#<ds:Signature .*</ds:Signature>#s', self::signatureXml($first), $signature));
+        $many = str_replace($signature[0], str_repeat($signature[0], 65), self::signatureXml($first));
+        $started = hrtime(true);
+        $report = self::validator($fixture)->validate(self::containerOfA($many));
+        self::assertSame([FindingCodes::TOO_MANY_SIGNATURES], array_map(static fn($f): string => $f->code, $report->containerFindings));
+        self::assertLessThan(2, (hrtime(true) - $started) / 1e9, 'the signatures were validated');
+    }
+
+    public function testAPolicyMustAllowASignature(): void
+    {
+        $this->expectException(\Allkiri\Exception\InvalidArgumentException::class);
+
+        new ValidationPolicy(maxSignatures: 0);
     }
 
     /**

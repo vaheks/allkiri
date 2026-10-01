@@ -144,6 +144,13 @@ given to `Allkiri` applies that floor when signing and signing people in, too.
 `allowedDigestAlgorithms` governs only the signature's own references: SHA-1 is
 refused beneath a signature whatever it says.
 
+`maxSignatures`, 64 unless set, is how many signatures a container may hold.
+One beyond it and none of them is validated: the report carries
+`TOO_MANY_SIGNATURES` and no signature reports. Each signature costs tens of
+milliseconds of signature checks, and a few kilobytes of upload can hold
+hundreds of them, so the count is taken before any is checked. Raise it if your
+documents really gather more signers than that.
+
 ## Validating at a past moment
 
 A signature valid today may not be valid in a decade, when the signer's
@@ -299,6 +306,19 @@ libdigidocpp refuses the same archives. Also refused:
 
 - an entry whose local header gives a different name from the central
   directory, since that name is what a streaming reader sees;
+- an entry whose local header gives a different compression method or
+  different flags, or a different CRC-32 or size where it gives one at all.
+  A streaming reader decodes the bytes by the local header, so a header that
+  says deflated over data the directory says is stored has it extract a
+  different file from the one checked. Writers that stream, as Java's does for
+  digidoc4j, leave the CRC and sizes at zero there and put them in a descriptor
+  after the data, which must then agree with the directory;
+- two entries whose bytes overlap, or an entry that runs into the central
+  directory;
+- an end of central directory record that is not the last thing in the
+  archive, a directory that does not end where that record begins, and a
+  record that counts the entries two different ways. A record planted inside
+  the archive comment is found first by a reader that searches from the end;
 - an entry whose name an unzip tool would place outside the folder it extracts
   to, or that no file system holds: an absolute path, a `..` segment, a
   backslash, or a NUL byte, wherever in the archive the entry sits;
@@ -321,12 +341,43 @@ time. Apart from this depth limit, it refuses nothing phpseclib accepts, except
 crafted input too intricate to walk within a budget proportional to its size.
 Real structures nest a few dozen levels at most.
 
+**Certificates that issue each other.** The certificates a chain is built from
+are the ones the signature, its timestamps and its revocation answers carry,
+which anyone can add to. A dozen CA certificates sharing one name and one key
+each verify as the issuer of every other, and a search that tries every path
+walks every ordering of them: eight such certificates, 2.5 KB of them, took
+nearly two minutes, and each one more multiplied that by eight. The search is
+bounded instead. More than 32 different candidates, more than 256 steps or more
+than 128 signature checks end it, and the signature is `INDETERMINATE` with
+`NO_CERTIFICATE_CHAIN_FOUND` and the reason `CHAIN_SEARCH_LIMIT_EXCEEDED`. A real
+chain is found within a handful of each, and a certificate carried twice counts
+once.
+
+**References no signature needs.** Each reference in a signature is work for
+every check that follows it, and one into the signature document itself is a
+search and a canonicalisation of the whole document, with the enveloped
+transform a copy of it as well. Four thousand of them in an 11 KB container
+took half a minute. A signature with more than 8 references into its own
+document, two references to one target, or more references than the container
+has files plus those 8 is `TOTAL-FAILED` with `FORMAT_FAILURE` and
+`SIGNATURE_MALFORMED`, and none of its references is followed. A XAdES
+signature has one reference into its document and one for each file.
+
 **Parts that do not parse.** Something inside an OCSP response or a timestamp
 token that is not a certificate, a token claiming more than one signer, and a
 certificate whose public key cannot be loaded are each reported as a finding
 against the revocation answer, the timestamp or the signing certificate. None of
 them escapes the validator as an exception, and the OCSP and timestamp clients
-report them as a malformed response or an unsupported algorithm.
+report them as a malformed response or an unsupported algorithm. The same holds
+for an attribute whose value is not of its type, such as a timestamp's content
+type holding a number where an identifier belongs, for a certificate whose key
+names an unknown curve or a point not on it, and for a structure malformed in a
+way that makes phpseclib warn. Those warnings are raised as exceptions inside
+the library and reported as findings, so an application whose error handler
+turns warnings into exceptions, as Laravel's and Symfony's do, gets a report
+like any other. A test changes bytes all through an embedded timestamp and
+revocation answer under such a handler and checks that every container still
+gets one.
 
 **What is not guarded here.** Total upload size is your decision, and it belongs
 in your application or your web server, where `upload_max_filesize` and

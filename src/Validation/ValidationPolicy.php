@@ -23,6 +23,7 @@ final readonly class ValidationPolicy
      * @param list<SignatureAlgorithm> $allowedSignatureAlgorithms
      * @param bool                     $requireSignatureTimestamp  whether a signature without a signature timestamp can pass; without one only the signer's own claim says when it was made
      * @param int|null                 $trustedListGraceSeconds    how long after a trusted list's next update its anchors still count: null for always, with a warning; 0 to refuse them at once
+     * @param int                      $maxSignatures              how many signatures a container may hold before none of them is validated
      */
     public function __construct(
         public string $name = 'allkiri BDOC 2.1.2 / ASiC-E',
@@ -36,9 +37,13 @@ final readonly class ValidationPolicy
         public int $clockSkewSeconds = 300,
         public bool $requireSignatureTimestamp = true,
         public ?int $trustedListGraceSeconds = null,
+        public int $maxSignatures = 64,
     ) {
         if ($trustedListGraceSeconds !== null && $trustedListGraceSeconds < 0) {
             throw new InvalidArgumentException('The trusted list grace period cannot be negative');
+        }
+        if ($maxSignatures < 1) {
+            throw new InvalidArgumentException('A container must be allowed at least one signature');
         }
     }
 

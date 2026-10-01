@@ -82,6 +82,27 @@ final class SignatureValidator
         $level = $this->levelOf($signature, $findings);
         $signer = $signature->signerCertificate();
 
+        // Before anything walks them: the references decide how much work every
+        // check after this one does, the archive timestamps' included.
+        $referenceProblem = $this->referenceProblem($container, $signature);
+        if ($referenceProblem !== null) {
+            $findings[] = Finding::error(FindingCodes::SIGNATURE_MALFORMED, $referenceProblem, Indication::TotalFailed, SubIndication::FormatFailure);
+            [$indication, $subIndication] = $this->verdict($findings);
+
+            return new SignatureReport(
+                $signature->id,
+                $file->name,
+                $indication,
+                $subIndication,
+                $level,
+                $signature->signatureMethod,
+                $findings,
+                new SignatureInfo($signature->signingTime, null, null, null, null, $signature->claimedRoles, $signature->productionPlace, null),
+                [],
+                $signer,
+            );
+        }
+
         $this->checkStructure($signature, $findings);
         $this->checkAlgorithms($signature, $signer, $findings);
         $this->checkSigningCertificateReference($signature, $signer, $findings);
@@ -876,6 +897,24 @@ final class SignatureValidator
         if ($delay > $this->policy->ocspDelayWarningSeconds) {
             $findings[] = Finding::warning(FindingCodes::OCSP_TIMESTAMP_DELTA_WARNING, \sprintf('The revocation answer was produced %d seconds after the timestamp', $delay));
         }
+    }
+
+    /**
+     * Why this signature's references are not worth checking, or null. Beyond
+     * the limits every XML signature is held to, a container signature has
+     * no use for more references than the container has files, plus the few
+     * into the signature itself: any further one names a file that is not
+     * there.
+     */
+    private function referenceProblem(AsicContainer $container, XadesSignature $signature): ?string
+    {
+        $problem = XmlDsigVerifier::referenceProblem(array_column($signature->references, 'uri'));
+        $limit = \count($container->dataFiles) + XmlDsigVerifier::MAX_SAME_DOCUMENT_REFERENCES;
+        if ($problem === null && \count($signature->references) > $limit) {
+            $problem = \sprintf('ds:SignedInfo has %d references, for a container of %d files; none of them is checked', \count($signature->references), \count($container->dataFiles));
+        }
+
+        return $problem;
     }
 
     /**

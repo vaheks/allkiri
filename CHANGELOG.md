@@ -6,6 +6,75 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0-alpha.1] - 2026-10-01
+
+A security release, from a fourth review of the library. It closes four ways
+to make an application that validates containers it receives spend minutes to
+hours on one small upload, or throw where it promised a report, and one way a
+container could be read differently by allkiri than by a ZIP reader that
+streams it. All of them are reachable by anyone who can send such an
+application a container, and are described together in
+[GHSA-wp7r-h56v-f8p4](https://github.com/vaheks/allkiri/security/advisories/GHSA-wp7r-h56v-f8p4).
+Upgrade from `0.8.0-alpha.1`; there is no configuration that mitigates them in
+an older version, though limiting upload size and request time bounds the
+damage.
+
+`ValidationPolicy` gains `maxSignatures` and `FindingCodes` gains
+`TOO_MANY_SIGNATURES`; `ChainBuildingException` gains `REASON_SEARCH_LIMIT`.
+Nothing is removed or renamed.
+
+### Security
+
+- Validating a container can no longer be made to run for hours. The
+  certificates a chain is built from are the ones the document carries, and CA
+  certificates sharing one name and one key each verify as the issuer of every
+  other, so the search walked every ordering of them: eight took nearly two
+  minutes, ten would take hours, and the validator ran the search twice. Any
+  application that validates containers it receives was exposed, as was
+  anything that builds a chain from certificates someone else supplied. The
+  search now gives up after 32 different candidates, 256 steps or 128 signature
+  checks, with `ChainBuildingException::REASON_SEARCH_LIMIT`; a real chain needs
+  a handful of each. Affects every release up to and including 0.8.0-alpha.1.
+- Validating a container can no longer be slowed by a signature with
+  thousands of references. Each reference into the signature document cost a
+  search and a canonicalisation of the whole document, so the work grew with
+  the square of its size: 4000 such references in an 11 KB container took half
+  a minute, and the same file referenced over and over was digested each time.
+  A signature with more than 8 references into its own document, two
+  references to one target, or more references than the container has files
+  plus those 8 is now `TOTAL-FAILED` with `SIGNATURE_MALFORMED`, before any of
+  them is followed. Affects every release up to and including 0.8.0-alpha.1.
+- A container may hold at most 64 signatures, `ValidationPolicy::$maxSignatures`,
+  before none of them is validated and the report carries the new finding
+  `TOO_MANY_SIGNATURES`. Each signature costs tens of milliseconds of signature
+  checks, and one signature file can hold hundreds of them in a few kilobytes:
+  fifty copies of one signature took two seconds to validate. The signatures
+  are counted before any is checked. Raise the limit if your documents gather
+  more signers.
+- Validating a container no longer throws instead of returning a report when
+  something embedded in it is malformed in one of several ways nobody had
+  tried: a timestamp whose content-type attribute is not an identifier, or
+  whose signing-certificate attribute does not parse, both read before any
+  signature was checked; a certificate in a timestamp or revocation answer
+  whose key names an unknown curve or a point not on it; and a structure that
+  makes phpseclib warn, which escaped as an `ErrorException` wherever the
+  application turns warnings into exceptions, as Laravel and Symfony do. Each is
+  now a finding against the timestamp, the revocation answer or the
+  certificate. An application that validated what it was sent answered such a
+  container with an error page rather than a verdict. Affects every release up
+  to and including 0.8.0-alpha.1.
+- A container whose ZIP structure lets a streaming reader see different
+  content from the one allkiri checked is refused. Only an entry's name was
+  compared between its local header and the central directory, so a local
+  header could say deflated over bytes the directory says are stored, and an
+  application or tool that streams the archive would extract a different file
+  from the one whose signature allkiri reported on. The method, the flags, the
+  CRC-32 and the sizes must now agree, in a data descriptor too where there is
+  one; entries may not share bytes; and the end of central directory record
+  must end the archive and describe the directory that precedes it. Every
+  container digidoc4j and libdigidocpp wrote in the test fixtures still reads.
+  Affects every release up to and including 0.8.0-alpha.1.
+
 ## [0.8.0-alpha.1] - 2026-09-18
 
 A security release. It closes an unauthenticated server-side request forgery in
@@ -886,7 +955,8 @@ needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
 
-[Unreleased]: https://github.com/vaheks/allkiri/compare/0.8.0-alpha.1...HEAD
+[Unreleased]: https://github.com/vaheks/allkiri/compare/0.9.0-alpha.1...HEAD
+[0.9.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.8.0-alpha.1...0.9.0-alpha.1
 [0.8.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...0.8.0-alpha.1
 [0.7.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.6.0-alpha.1...0.7.0-alpha.1
 [0.6.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.5.0-alpha.1...0.6.0-alpha.1

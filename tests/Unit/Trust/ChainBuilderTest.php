@@ -347,6 +347,63 @@ final class ChainBuilderTest extends TestCase
         return TestIssuer::of($issued, $key);
     }
 
+    /**
+     * CA certificates sharing one name and one key each verify as the issuer
+     * of every other, so an unbounded search walks every ordering of them. At
+     * eight the search took nearly two minutes, and each one more multiplied
+     * it. The candidates come from the document, which anyone can write.
+     */
+    public function testCertificatesThatIssueEachOtherDoNotExhaustTheSearch(): void
+    {
+        $key = TestKey::ec(label: 'one key for many CAs');
+        $name = ['id-at-commonName' => 'allkiri Looping CA'];
+        $asCa = ['id-ce-basicConstraints' => [['cA' => true], true], 'id-ce-keyUsage' => [['keyCertSign'], true], 'id-pe-authorityInfoAccess' => null];
+        $looping = TestIssuer::of(TestCertificates::issue($key, $name, $asCa), $key);
+        $candidates = [];
+        for ($i = 0; $i < 12; ++$i) {
+            $candidates[] = TestCertificates::issue($key, $name, $asCa, $looping)->certificate;
+        }
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+
+        $started = hrtime(true);
+        try {
+            (new ChainBuilder($store))->build(self::leaf($looping), $candidates, new \DateTimeImmutable('2026-01-01T00:00:00Z'), ServiceType::caTypes());
+            self::fail('a chain was built through certificates that only issue each other');
+        } catch (ChainBuildingException $e) {
+            self::assertSame(ChainBuildingException::REASON_SEARCH_LIMIT, $e->reason);
+        }
+        self::assertLessThan(10, (hrtime(true) - $started) / 1e9, 'the search was not bounded');
+    }
+
+    public function testMoreCandidatesThanAnyChainNeedsAreRefused(): void
+    {
+        $candidates = [];
+        for ($i = 0; $i < 33; ++$i) {
+            $candidates[] = TestCertificates::issue(TestKey::ec(label: 'candidate ' . $i), ['id-at-commonName' => 'allkiri Candidate ' . $i])->certificate;
+        }
+        $store = InMemoryTrustStore::fromCertificates([TestPki::ca()->certificate], ServiceType::CaQc);
+
+        $this->expectException(ChainBuildingException::class);
+        $this->expectExceptionMessage('33 candidate certificates were offered');
+        (new ChainBuilder($store))->build(TestPki::signerEc256()->certificate, $candidates, new \DateTimeImmutable('2026-03-01T00:00:00Z'), ServiceType::caTypes());
+    }
+
+    /**
+     * A signature may carry the same certificate more than once; that is one
+     * candidate, not many.
+     */
+    public function testARepeatedCandidateCountsOnce(): void
+    {
+        $leaf = Certificate::fromPem((string) file_get_contents(self::CERTS . 'TEST_ESTEID2018_signer_JOEORG.pem'));
+        $intermediate = Certificate::fromPem((string) file_get_contents(self::CERTS . 'TEST_of_ESTEID2018.pem'));
+        $root = Certificate::fromPem((string) file_get_contents(self::CERTS . 'TEST_of_EE_GovCA2018.pem'));
+        $store = InMemoryTrustStore::fromCertificates([$root], ServiceType::CaQc, 'tl');
+
+        $chain = (new ChainBuilder($store))->build($leaf, array_fill(0, 40, $intermediate), new \DateTimeImmutable('2024-09-02T12:36:44Z'), ServiceType::caTypes());
+
+        self::assertSame(3, $chain->length());
+    }
+
     private static function leaf(TestIssuer $issuer): Certificate
     {
         return TestCertificates::issue(TestKey::ec(label: 'leaf of ' . $issuer->certificate->subjectDn()), ['id-at-commonName' => 'allkiri Test Leaf'], issuer: $issuer)->certificate;

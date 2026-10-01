@@ -30,6 +30,13 @@ final class ChainBuildingException extends TrustException
     /** An intermediate CA's key usage does not include keyCertSign. */
     public const REASON_CA_KEY_USAGE = 'CA_CERTIFICATE_KEY_USAGE_INVALID';
 
+    /**
+     * The search for a path gave up: too many candidate certificates, or more
+     * paths through them than any real chain needs. Only a document built to
+     * exhaust the search gets here.
+     */
+    public const REASON_SEARCH_LIMIT = 'CHAIN_SEARCH_LIMIT_EXCEEDED';
+
     public function __construct(
         public readonly string $reason,
         string $message,

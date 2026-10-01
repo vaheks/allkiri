@@ -22,6 +22,15 @@ use Allkiri\Xml\Xml;
  */
 final class XmlDsigVerifier
 {
+    /**
+     * Each same-document reference is a search of the whole document and a
+     * canonicalisation of what it finds, and with the enveloped transform a
+     * copy of the document as well, so their cost grows with the square of
+     * the document. Four thousand of them in an 11 KB container took half a
+     * minute. A XAdES signature has one, a trusted list one.
+     */
+    public const MAX_SAME_DOCUMENT_REFERENCES = 8;
+
     public function __construct(
         private readonly Canonicalizer $canonicalizer = new Canonicalizer(),
         private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier(),
@@ -42,8 +51,13 @@ final class XmlDsigVerifier
         $c14nMethod = Xml::attribute($xpath, 'ds:CanonicalizationMethod/@Algorithm', $signedInfo);
         $signatureMethod = Xml::attribute($xpath, 'ds:SignatureMethod/@Algorithm', $signedInfo);
 
+        $referenceElements = Xml::elements($xpath, 'ds:Reference', $signedInfo);
+        $tooMany = self::referenceProblem(array_map(static fn(\DOMElement $reference): string => $reference->getAttribute('URI'), $referenceElements));
+        if ($tooMany !== null) {
+            return new DsigVerificationResult([], false, $signatureMethod, $c14nMethod, $certificate, '', [$tooMany]);
+        }
         $references = [];
-        foreach (Xml::elements($xpath, 'ds:Reference', $signedInfo) as $referenceElement) {
+        foreach ($referenceElements as $referenceElement) {
             $references[] = $this->verifyReference($xpath, $referenceElement, $signature, $resolver);
         }
         if ($references === []) {
@@ -78,6 +92,35 @@ final class XmlDsigVerifier
         }
 
         return new DsigVerificationResult($references, $signatureValid, $signatureMethod, $c14nMethod, $certificate, $signedInfoCanonical, $problems);
+    }
+
+    /**
+     * Why references like these are not worth dereferencing, or null when
+     * they are: more same-document references than any signature has, or two
+     * references to one target. Neither has a use, and each makes the work
+     * of checking a signature grow faster than the signature does: the same
+     * file referenced a thousand times is digested a thousand times.
+     *
+     * @param list<string> $uris the references' URI attributes, in order
+     */
+    public static function referenceProblem(array $uris): ?string
+    {
+        $sameDocument = 0;
+        $seen = [];
+        foreach ($uris as $uri) {
+            $isSameDocument = $uri === '' || str_starts_with($uri, '#');
+            if ($isSameDocument && ++$sameDocument > self::MAX_SAME_DOCUMENT_REFERENCES) {
+                return \sprintf('ds:SignedInfo has more than %d references into the signature document; none of them is checked', self::MAX_SAME_DOCUMENT_REFERENCES);
+            }
+            // A data file is named percent-encoded or not, as the signer chose.
+            $target = $isSameDocument ? $uri : rawurldecode($uri);
+            if (isset($seen[$target])) {
+                return \sprintf('ds:SignedInfo references "%s" more than once; none of its references is checked', $target);
+            }
+            $seen[$target] = true;
+        }
+
+        return null;
     }
 
     private function verifyReference(\DOMXPath $xpath, \DOMElement $reference, \DOMElement $signature, ReferenceResolver $resolver): ReferenceResult
