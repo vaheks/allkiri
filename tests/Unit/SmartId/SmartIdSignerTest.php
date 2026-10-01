@@ -130,6 +130,24 @@ final class SmartIdSignerTest extends TestCase
         }
     }
 
+    /**
+     * The service is asked for a level, and an answer below it is refused
+     * here as it is after a certificate choice: a signature for which a
+     * qualified one was asked must not be made with an advanced one.
+     */
+    public function testACertificateBelowTheRequestedLevelIsRefused(): void
+    {
+        $this->service->certificateLevel = CertificateLevel::Advanced;
+
+        try {
+            $this->signer->certificate(self::documentNumber(), CertificateLevel::Qualified);
+            self::fail('an ADVANCED certificate was taken where QUALIFIED was requested');
+        } catch (SmartIdException $exception) {
+            self::assertSame('The certificate is ADVANCED where QUALIFIED was requested', $exception->getMessage());
+        }
+        self::assertSame(CertificateLevel::Advanced, $this->signer->certificate(self::documentNumber(), CertificateLevel::Advanced)->level);
+    }
+
     // --- signing ------------------------------------------------------------
 
     public function testStartingPreparesTheSignatureAndSendsItsDigest(): void

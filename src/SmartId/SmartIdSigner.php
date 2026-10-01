@@ -47,10 +47,17 @@ final class SmartIdSigner
 
     /**
      * The certificate an account will sign with. No interaction.
+     *
+     * @throws SmartIdException when the certificate is of a lower level than was requested
      */
     public function certificate(DocumentNumber $documentNumber, ?CertificateLevel $level = null): SmartIdCertificate
     {
-        return $this->client->certificateByDocumentNumber($documentNumber, $level);
+        $certificate = $this->client->certificateByDocumentNumber($documentNumber, $level);
+        // The service is asked for this level, and is not taken at its word for
+        // having kept to it, as the certificate choice is not.
+        $this->requireLevel($certificate->level, $level, 'The certificate');
+
+        return $certificate;
     }
 
     /**
@@ -71,16 +78,20 @@ final class SmartIdSigner
 
         $actual = $status->certificateLevel
             ?? throw new SmartIdApiException(SmartIdApiException::REASON_MALFORMED_RESPONSE, 'The certificate choice did not report a certificate level');
-        $requested = $level ?? $this->client->configuration()->certificateLevel;
-        if (!$requested->isSatisfiedBy($actual)) {
-            throw new SmartIdException(\sprintf(
-                'The chosen certificate is %s where %s was requested',
-                $actual->value,
-                $requested->value,
-            ));
-        }
+        $this->requireLevel($actual, $level, 'The chosen certificate');
 
         return new SmartIdCertificate($certificate, $actual, $documentNumber);
+    }
+
+    /**
+     * @throws SmartIdException
+     */
+    private function requireLevel(CertificateLevel $actual, ?CertificateLevel $level, string $what): void
+    {
+        $requested = $level ?? $this->client->configuration()->certificateLevel;
+        if (!$requested->isSatisfiedBy($actual)) {
+            throw new SmartIdException(\sprintf('%s is %s where %s was requested', $what, $actual->value, $requested->value));
+        }
     }
 
     /**

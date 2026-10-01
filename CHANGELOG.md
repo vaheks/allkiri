@@ -20,6 +20,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `SmartIdSigner::certificate()`, and so `startNotification()` and
+  `startDeviceLink()`, refuse a certificate of a lower level than was
+  requested, as `completeCertificateChoice()` already did. The service is asked
+  for the level and was trusted to keep to it.
+
 - A Web eID challenge lasts no longer than the configured lifetime from when it
   was issued, whatever deadline the stored challenge gives, and one that says it
   was issued in the future is refused. The challenge comes back from wherever
