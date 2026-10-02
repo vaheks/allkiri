@@ -121,7 +121,8 @@ final readonly class Interactions implements \JsonSerializable
             if (!\is_string($type)) {
                 throw new InvalidArgumentException('An encoded interaction has no type');
             }
-            $interactionType = InteractionType::from($type);
+            $interactionType = InteractionType::tryFrom($type)
+                ?? throw new InvalidArgumentException(\sprintf('An encoded interaction has the unknown type "%s"', $type));
             $text = $entry[$interactionType->textField()] ?? null;
             if (!\is_string($text)) {
                 throw new InvalidArgumentException(\sprintf('An encoded interaction has no %s', $interactionType->textField()));

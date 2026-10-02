@@ -98,63 +98,61 @@ final class CurlHttpClient implements HttpClient
             throw new TransportException('curl_init() failed');
         }
 
-        try {
-            $responseHeaders = [];
-            $body = new BoundedBody($this->maxResponseBytes);
-            $options = [
-                CURLOPT_URL => $request->url,
-                CURLOPT_CUSTOMREQUEST => $request->method,
-                CURLOPT_HEADER => false,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_CONNECTTIMEOUT => $this->connectTimeoutSeconds,
-                CURLOPT_TIMEOUT => $this->timeoutSeconds,
-                // Refuses an announced length before any of the body is read.
-                // The write function below catches an answer that announces none.
-                CURLOPT_MAXFILESIZE => $this->maxResponseBytes,
-                CURLOPT_USERAGENT => $this->userAgent,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER => self::headerLines($request),
-                CURLOPT_HEADERFUNCTION => static function (\CurlHandle $unused, string $line) use (&$responseHeaders): int {
-                    $separator = strpos($line, ':');
-                    if ($separator !== false) {
-                        $name = strtolower(trim(substr($line, 0, $separator)));
-                        $value = trim(substr($line, $separator + 1));
-                        $responseHeaders[$name] = isset($responseHeaders[$name]) ? $responseHeaders[$name] . ', ' . $value : $value;
-                    }
+        // The handle is freed when it goes out of scope. curl_close() has done
+        // nothing since PHP 8.0, and PHP 8.5 deprecates it.
+        $responseHeaders = [];
+        $body = new BoundedBody($this->maxResponseBytes);
+        $options = [
+            CURLOPT_URL => $request->url,
+            CURLOPT_CUSTOMREQUEST => $request->method,
+            CURLOPT_HEADER => false,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => $this->connectTimeoutSeconds,
+            CURLOPT_TIMEOUT => $this->timeoutSeconds,
+            // Refuses an announced length before any of the body is read.
+            // The write function below catches an answer that announces none.
+            CURLOPT_MAXFILESIZE => $this->maxResponseBytes,
+            CURLOPT_USERAGENT => $this->userAgent,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_HTTPHEADER => self::headerLines($request),
+            CURLOPT_HEADERFUNCTION => static function (\CurlHandle $unused, string $line) use (&$responseHeaders): int {
+                $separator = strpos($line, ':');
+                if ($separator !== false) {
+                    $name = strtolower(trim(substr($line, 0, $separator)));
+                    $value = trim(substr($line, $separator + 1));
+                    $responseHeaders[$name] = isset($responseHeaders[$name]) ? $responseHeaders[$name] . ', ' . $value : $value;
+                }
 
-                    return \strlen($line);
-                },
-                // Taking fewer bytes than were offered makes cURL abort the transfer.
-                CURLOPT_WRITEFUNCTION => static fn(\CurlHandle $unused, string $chunk): int => $body->append($chunk) ? \strlen($chunk) : 0,
-            ];
-            if ($request->body !== '' || $request->method === 'POST') {
-                $options[CURLOPT_POSTFIELDS] = $request->body;
-            }
-            if ($this->pinnedPublicKeyOption !== null) {
-                $options[CURLOPT_PINNEDPUBLICKEY] = $this->pinnedPublicKeyOption;
-            }
-            if ($this->caBundle !== null) {
-                $options[CURLOPT_CAINFO] = $this->caBundle;
-            }
-            if (!curl_setopt_array($handle, $options)) {
-                throw new TransportException('curl_setopt_array() rejected the request options: ' . curl_error($handle));
-            }
-
-            $completed = curl_exec($handle);
-            if ($body->exceeded() || curl_errno($handle) === CURLE_FILESIZE_EXCEEDED) {
-                throw TransportException::responseTooLarge($request, $this->maxResponseBytes);
-            }
-            if ($completed === false) {
-                throw new TransportException(\sprintf('%s %s failed: %s (curl error %d)', $request->method, $request->redactedUrl(), curl_error($handle), curl_errno($handle)));
-            }
-            $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-
-            return new HttpResponse(\is_int($status) ? $status : 0, $responseHeaders, $body->bytes());
-        } finally {
-            curl_close($handle);
+                return \strlen($line);
+            },
+            // Taking fewer bytes than were offered makes cURL abort the transfer.
+            CURLOPT_WRITEFUNCTION => static fn(\CurlHandle $unused, string $chunk): int => $body->append($chunk) ? \strlen($chunk) : 0,
+        ];
+        if ($request->body !== '' || $request->method === 'POST') {
+            $options[CURLOPT_POSTFIELDS] = $request->body;
         }
+        if ($this->pinnedPublicKeyOption !== null) {
+            $options[CURLOPT_PINNEDPUBLICKEY] = $this->pinnedPublicKeyOption;
+        }
+        if ($this->caBundle !== null) {
+            $options[CURLOPT_CAINFO] = $this->caBundle;
+        }
+        if (!curl_setopt_array($handle, $options)) {
+            throw new TransportException('curl_setopt_array() rejected the request options: ' . curl_error($handle));
+        }
+
+        $completed = curl_exec($handle);
+        if ($body->exceeded() || curl_errno($handle) === CURLE_FILESIZE_EXCEEDED) {
+            throw TransportException::responseTooLarge($request, $this->maxResponseBytes);
+        }
+        if ($completed === false) {
+            throw new TransportException(\sprintf('%s %s failed: %s (curl error %d)', $request->method, $request->redactedUrl(), curl_error($handle), curl_errno($handle)));
+        }
+        $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+
+        return new HttpResponse(\is_int($status) ? $status : 0, $responseHeaders, $body->bytes());
     }
 
     /**

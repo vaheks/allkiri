@@ -26,6 +26,8 @@ final readonly class AlgorithmConstraints
      * Why a signature made with this algorithm and key cannot be relied on, or
      * null when it can. The reason reads after "is", as in "the OCSP response is
      * signed with SHA-1, which is no longer accepted".
+     *
+     * @internal it takes or returns a phpseclib type, which the version number does not cover
      */
     public function violation(SignatureAlgorithmIdentifier $algorithm, PublicKey $signingKey): ?string
     {

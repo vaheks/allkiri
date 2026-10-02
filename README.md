@@ -4,11 +4,13 @@ Estonian eID for PHP. Sign people in with an ID card, Mobile-ID or Smart-ID,
 have them sign documents, and check the signatures you receive. The documents
 are ASiC-E containers with XAdES signatures, the files DigiDoc4 opens.
 
-> **Status: alpha.** Every means has signed people in and signed documents
-> against the production services, by hand, in September 2026, including a
-> Smart-ID QR code and the Smart-ID app on the same phone. Before 1.0 the manual
-> checklist and the production smoke test still have to be run and recorded
-> ([releasing.md](docs/releasing.md)). The API may change until then.
+> **Status: release candidate.** The API is the one 1.0 will have, and what an
+> application stores with it keeps working on 1.0. Every means has signed people
+> in and signed documents against the production services, by hand, in
+> September 2026, including a Smart-ID QR code and the Smart-ID app on the same
+> phone. Before 1.0 the rest of the DigiDoc4 checklist and the production smoke
+> test have to be run and recorded ([releasing.md](docs/releasing.md)). A Thales
+> ID card, issued since November 2025, has not been tried.
 
 ## Why
 
@@ -21,11 +23,11 @@ exists for PHP. `allkiri` is that library.
 ## Install
 
 ```bash
-composer require vaheks/allkiri:^0.9@alpha
+composer require vaheks/allkiri:^1.0@RC
 ```
 
-Until 1.0 every release is an alpha, and Composer installs one only when asked,
-which is what `@alpha` does. The PHP version and extensions it needs are under
+Until 1.0.0 the releases are candidates, and Composer installs one only when
+asked, which is what `@RC` does. The PHP version and extensions it needs are under
 [Requirements](#requirements).
 
 ## Quick start

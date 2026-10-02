@@ -22,6 +22,8 @@ final readonly class SmartIdSessionStatus
      * @param string|null $signatureValue raw signature bytes, already base64-decoded
      * @param string|null $serverRandom   base64, part of the authenticated payload
      * @param string|null $userChallenge  base64url, present in device-link flows
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $state,

@@ -184,6 +184,19 @@ final class SmartIdValueObjectsTest extends TestCase
         self::assertSame('Tere', $restored->interactions[0]->text);
     }
 
+    /**
+     * A stored string comes back from the application's store, and an unknown
+     * type in it is the library's InvalidArgumentException, not a ValueError
+     * from the enum underneath.
+     */
+    public function testRestoringAnUnknownInteractionTypeIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An encoded interaction has the unknown type "hologram"');
+
+        Interactions::fromEncoded(base64_encode('[{"type":"hologram","displayText60":"Tere"}]'));
+    }
+
     public function testInteractionsNeedAtLeastOneEntry(): void
     {
         $this->expectException(InvalidArgumentException::class);

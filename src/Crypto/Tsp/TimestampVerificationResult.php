@@ -13,6 +13,9 @@ use Allkiri\Crypto\Certificate;
  */
 final readonly class TimestampVerificationResult
 {
+    /**
+     * @internal the library builds these, so the parameters may change in a minor release
+     */
     public function __construct(
         public TimestampToken $token,
         public Certificate $tsaCertificate,

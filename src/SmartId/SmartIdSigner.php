@@ -37,8 +37,10 @@ final class SmartIdSigner
     /**
      * Ask the person's device which account should sign.
      *
-     * Returns a session to poll; its result carries the document number that
-     * `start()` then needs.
+     * Returns the id of a session to poll with `SmartIdClient::sessionStatus()`.
+     * Hand the finished status to completeCertificateChoice(), whose result
+     * carries the document number that startNotification() and
+     * startDeviceLink() then need.
      */
     public function chooseCertificate(SemanticsIdentifier $identity, ?CertificateLevel $level = null): string
     {

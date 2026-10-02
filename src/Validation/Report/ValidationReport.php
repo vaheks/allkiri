@@ -10,8 +10,16 @@ namespace Allkiri\Validation\Report;
 final readonly class ValidationReport implements \JsonSerializable
 {
     /**
+     * The shape of the JSON. A key may be added in a minor release; removing or
+     * renaming one, or changing what it means, takes a new version.
+     */
+    public const VERSION = 1;
+
+    /**
      * @param list<SignatureReport> $signatures
      * @param list<Finding>         $containerFindings problems with the container rather than a signature
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $filename,
@@ -51,11 +59,16 @@ final readonly class ValidationReport implements \JsonSerializable
     }
 
     /**
+     * In the shape SiVa reports in, with a version. A list with nothing in it
+     * and a value that is not known are left out, here and in each signature,
+     * rather than written as [] or null.
+     *
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array
     {
         return array_filter([
+            'version' => self::VERSION,
             'policy' => $this->policy,
             'validationTime' => $this->validationTime->format(DATE_ATOM),
             'validatedDocument' => ['filename' => $this->filename],

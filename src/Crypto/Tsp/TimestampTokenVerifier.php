@@ -114,7 +114,7 @@ final class TimestampTokenVerifier
         if ($tstInfo->hashAlgorithmOid !== $imprintAlgorithm->oid() || !hash_equals($expectedImprint, $tstInfo->messageImprint)) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_IMPRINT, 'Token does not cover the expected message imprint');
         }
-        if ($expectedNonce !== null && ($tstInfo->nonce === null || !$tstInfo->nonce->equals($expectedNonce))) {
+        if ($expectedNonce !== null && $tstInfo->nonce !== $expectedNonce->toString()) {
             throw new TimestampVerificationException(TimestampVerificationException::REASON_NONCE, 'Token nonce does not match the request');
         }
         if ($weakness !== null) {
