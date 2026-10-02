@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-10-02
+
+The second release candidate, for one fix the manual checklist found:
+signatures made by DigiDoc4 were reported invalid, because libdigidocpp signs
+with C14N 1.1. They validate now. Nothing in the API changes; upgrade from
+`1.0.0-rc.1`.
+
+### Fixed
+
+- Signatures made by DigiDoc4 validate. libdigidocpp, the library inside
+  DigiDoc4, signs with C14N 1.1, which allkiri did not read, so every signature
+  DigiDoc4 4.11 makes was reported TOTAL-FAILED with `UNSUPPORTED_CANONICALIZATION`
+  and `SIGNED_PROPERTIES_DIGEST_MISMATCH`. C14N 1.1 is now read as inclusive
+  C14N 1.0, which gives the same bytes wherever no element above carries
+  `xml:id` or `xml:base`, and is still refused where one does. Two DigiDoc4
+  4.11 containers validate TOTAL-PASSED against production trust, and two of
+  libdigidocpp's own test containers are now fixtures.
+
 ## [1.0.0-rc.1] - 2026-10-02
 
 The first release candidate. The API is the one 1.0 will have: from here,
@@ -1083,7 +1101,8 @@ needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
 
-[Unreleased]: https://github.com/vaheks/allkiri/compare/1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/vaheks/allkiri/compare/1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/vaheks/allkiri/compare/1.0.0-rc.1...1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/vaheks/allkiri/compare/0.9.0-alpha.1...1.0.0-rc.1
 [0.9.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.8.0-alpha.1...0.9.0-alpha.1
 [0.8.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...0.8.0-alpha.1

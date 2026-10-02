@@ -223,7 +223,7 @@ final class XmlDsigVerifierTest extends TestCase
         self::assertSame('Test TSL', $result->certificate?->commonName());
     }
 
-    public function testCanonicalizerSupportsTheAlgorithmsWeEmitAndRejectsC14n11(): void
+    public function testCanonicalizerSupportsTheAlgorithmsInUse(): void
     {
         $canonicalizer = new Canonicalizer();
         $document = SignatureDocument::parse('<r xmlns:a="urn:a" xmlns:unused="urn:u"><c a:x="1">  text  </c><!-- note --></r>');
@@ -234,16 +234,78 @@ final class XmlDsigVerifierTest extends TestCase
 
         self::assertTrue(Canonicalizer::supports(DsigNs::C14N_EXC));
         self::assertTrue(Canonicalizer::supports(DsigNs::C14N_10));
-        self::assertFalse(Canonicalizer::supports(DsigNs::C14N_11));
+        self::assertTrue(Canonicalizer::supports(DsigNs::C14N_11));
+        self::assertFalse(Canonicalizer::supports('http://www.w3.org/2006/12/xml-c14n12'));
 
         // Exclusive c14n drops namespaces the subtree does not use; inclusive keeps them.
         self::assertSame('<c xmlns:a="urn:a" a:x="1">  text  </c>', $canonicalizer->canonicalize($child, DsigNs::C14N_EXC));
         self::assertStringContainsString('xmlns:unused="urn:u"', $canonicalizer->canonicalize($child, DsigNs::C14N_10));
         self::assertStringContainsString('<!-- note -->', $canonicalizer->canonicalize($element, DsigNs::C14N_EXC_WITH_COMMENTS));
         self::assertStringNotContainsString('<!-- note -->', $canonicalizer->canonicalize($element, DsigNs::C14N_EXC));
+    }
 
-        $this->expectException(\Allkiri\Xml\Dsig\CanonicalizationException::class);
-        $canonicalizer->canonicalize($element, DsigNs::C14N_11);
+    /**
+     * C14N 1.1 is what libdigidocpp, and so DigiDoc4, signs with, and ext-dom
+     * does not have it. It differs from 1.0 only in the xml:id and xml:base an
+     * element inherits from above, so where nothing above carries either, 1.0
+     * gives its bytes; where something does, it is refused.
+     */
+    public function testC14n11IsC14n10WhereNothingAboveCarriesXmlIdOrXmlBase(): void
+    {
+        $canonicalizer = new Canonicalizer();
+        $child = static function (string $xml): \DOMNode {
+            $root = SignatureDocument::parse($xml)->document()->documentElement;
+            self::assertNotNull($root);
+            $child = $root->firstChild;
+            self::assertNotNull($child);
+
+            return $child;
+        };
+
+        // xml:lang and xml:space are inherited by both versions alike.
+        $plain = $child('<r xml:lang="et" xmlns:a="urn:a"><c a:x="1">tekst</c></r>');
+        self::assertSame($canonicalizer->canonicalize($plain, DsigNs::C14N_10), $canonicalizer->canonicalize($plain, DsigNs::C14N_11));
+        self::assertStringContainsString('xml:lang="et"', $canonicalizer->canonicalize($plain, DsigNs::C14N_11));
+
+        foreach (['xml:id="above"' => 'xml:id', 'xml:base="http://example.test/"' => 'xml:base'] as $attribute => $name) {
+            try {
+                $canonicalizer->canonicalize($child('<r ' . $attribute . '><c>tekst</c></r>'), DsigNs::C14N_11);
+                self::fail('C14N 1.1 was read as 1.0 under an inherited ' . $name);
+            } catch (\Allkiri\Xml\Dsig\CanonicalizationException $e) {
+                self::assertStringContainsString('carries ' . $name, $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Signatures libdigidocpp made, from its own test data. Expired test
+     * certificates, so what is checked is the XML signature: every reference
+     * digest and the signature value, over C14N 1.1.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function libdigidocppContainers(): iterable
+    {
+        yield '2016, TEST of ESTEID-SK 2011' => ['libdigidocpp-c14n11-2016.asice'];
+        yield '2013, libdigidocpp test CA' => ['libdigidocpp-c14n11-2013.asice'];
+    }
+
+    #[DataProvider('libdigidocppContainers')]
+    public function testWhatLibdigidocppSignsWithC14n11Verifies(string $file): void
+    {
+        $container = (new AsicReader())->readFile(self::FIXTURES . 'containers/' . $file);
+        $signature = SignatureDocument::parse($container->signatureFiles[0]->xml)->signatures()[0];
+        self::assertStringContainsString(DsigNs::C14N_11, $container->signatureFiles[0]->xml);
+
+        $result = (new XmlDsigVerifier())->verify($signature, new ContainerReferenceResolver($container));
+
+        self::assertSame([], $result->problems);
+        self::assertSame(DsigNs::C14N_11, $result->canonicalizationMethod);
+        self::assertCount(2, $result->references);
+        foreach ($result->references as $reference) {
+            self::assertTrue($reference->isValid(), $reference->uri);
+        }
+        self::assertTrue($result->signatureValid);
     }
 
     public function testDocumentLoadingRefusesDoctypesAndMalformedXml(): void

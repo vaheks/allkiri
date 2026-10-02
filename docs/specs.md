@@ -13,6 +13,7 @@ these moves, update this file in the same change.
 | ETSI EN 319 162-1, ASiC building blocks and baseline containers | https://www.etsi.org/deliver/etsi_en/319100_319199/31916201/ |
 | XML Signature Syntax and Processing 1.1 | https://www.w3.org/TR/xmldsig-core1/ |
 | Exclusive XML Canonicalization | https://www.w3.org/TR/xml-exc-c14n/ |
+| Canonical XML 1.1, what libdigidocpp and DigiDoc4 sign with | https://www.w3.org/TR/xml-c14n11/ |
 | RFC 6931, additional XML-DSig algorithm URIs (RSA-PSS with MGF1, ECDSA-SHA*) | https://www.rfc-editor.org/rfc/rfc6931 |
 | RFC 3161, Time-Stamp Protocol | https://www.rfc-editor.org/rfc/rfc3161 |
 | RFC 6960, OCSP | https://www.rfc-editor.org/rfc/rfc6960 |
