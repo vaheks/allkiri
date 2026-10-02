@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-10-02
+
+The first release candidate. The API is the one 1.0 will have: from here,
+nothing in `tests/fixtures/public-api.txt` changes except to fix what is wrong,
+and no stored format changes, so what an application writes against it keeps
+working on 1.0.0. What separates it from 1.0.0 is manual: the rest of the
+DigiDoc4 checklist and the production smoke test (see `docs/releasing.md`). A
+Thales ID card, issued since November 2025, has not been tried, and 1.0.0 will
+say so.
+
+Upgrade from `0.9.0-alpha.1`. A few things moved to make the API safe to
+freeze. Members that take or return a phpseclib type, and the constructors of
+the objects the library returns, are no longer covered (`@internal`).
+`TstInfo::$nonce` is a string, and `SmartIdAuthenticator`'s optional
+`$verifier` moved to the end of its constructor. A Smart-ID 404 meaning "no
+suitable account" is `REASON_NO_SUITABLE_ACCOUNT` again under SK's RP API 3.2
+(#51). Mobile-ID and Smart-ID sign-in refuse a certificate that is not for
+authentication. A stored Web eID challenge lasts no longer than the configured
+lifetime.
+
 ### Added
 
 - `tests/fixtures/public-api.txt` records the whole supported API, and a test
@@ -1063,7 +1083,8 @@ needs contracts with SK. Those four are what 1.0 waits for. BDOC-TM (time-mark)
 signatures are not coming: SK stopped supporting them on 2023-11-01 and this
 library reports them as unsupported rather than validating them.
 
-[Unreleased]: https://github.com/vaheks/allkiri/compare/0.9.0-alpha.1...HEAD
+[Unreleased]: https://github.com/vaheks/allkiri/compare/1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/vaheks/allkiri/compare/0.9.0-alpha.1...1.0.0-rc.1
 [0.9.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.8.0-alpha.1...0.9.0-alpha.1
 [0.8.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.7.0-alpha.1...0.8.0-alpha.1
 [0.7.0-alpha.1]: https://github.com/vaheks/allkiri/compare/0.6.0-alpha.1...0.7.0-alpha.1
