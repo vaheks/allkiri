@@ -56,8 +56,8 @@ Produce the containers with the integration suite or a short script, then:
 | 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
 | 5 | DigiDoc4 shows the signer's name and the signing time as expected | 2026-09-18 | As expected |
 | 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | | In production: the beta cannot sign |
-| 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | In production, with a real Mobile-ID: the beta cannot sign |
-| 8 | The same with a Smart-ID demo account | | In production, with a real Smart-ID: the beta cannot sign |
+| 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | 2026-10-02 | In production: DigiDoc4 4.11.1.5434, a real Mobile-ID (ECDSA). Valid in allkiri from 1.0.0-rc.2; rc.1 refused it, see below |
+| 8 | The same with a Smart-ID demo account | 2026-10-02 | In production: DigiDoc4 4.11.1.5434, a real Smart-ID (RSA). Valid in allkiri from 1.0.0-rc.2; rc.1 refused it, see below |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | 2026-10-02 | Valid in the beta 4.3.0.4685: digidoc4j's `valid-asice-esteid2018.asice`, signed by JÕEORG, JAAK-KRISTJAN, with a test Mobile-ID signature allkiri added. Both shown as valid, and both TOTAL-PASSED in allkiri |
 | 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — in the beta with test Mobile-ID, and in 4.11.1.5434 with live |
 | 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid — in the beta with demo Smart-ID, and in 4.11.1.5434 with live, on 2026-09-18 with SHA-256; in the beta 4.3.0.4685 with SHA-512 on 2026-10-02. See below |
@@ -151,6 +151,13 @@ Item 9 was done the same way. allkiri added a signature with the test Mobile-ID
 digidoc4j signed in 2024, and the beta showed both signatures as valid. Adding a
 signature rewrites none of the entries already in a container, which is what
 this item checks from the other side.
+
+**Items 7 and 8 found a bug.** Containers the released DigiDoc4 4.11.1.5434
+made in production, one with Mobile-ID and one with Smart-ID, opened in
+DigiDoc4 as valid, and allkiri 1.0.0-rc.1, in the demo's live deployment,
+called both TOTAL-FAILED. libdigidocpp signs with C14N 1.1, which allkiri did
+not read (see `docs/decisions.md`). 1.0.0-rc.2 reads it, and with rc.2 deployed
+the same demo validates both. Item 6 is still to do.
 
 ### What the round of 2026-09-18 settles for 1.0
 
