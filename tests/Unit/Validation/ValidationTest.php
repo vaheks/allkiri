@@ -1305,7 +1305,7 @@ final class ValidationTest extends TestCase
                 for ($offset = 0, $step = 0; $offset < \strlen($der); $offset += $offset < 32 ? 1 : 17, ++$step) {
                     $mask = [0x01, 0x20, 0xFF][$step % 3];
                     $mutated = $der;
-                    $mutated[$offset] = \chr(\ord($der[$offset]) ^ $mask);
+                    $mutated[$offset] = \chr((\ord($der[$offset]) ^ $mask) & 0xFF);
                     try {
                         $validator->validate(self::withEncapsulated($result, $element, $mutated));
                     } catch (\Throwable $e) {

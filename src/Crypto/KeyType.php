@@ -13,6 +13,9 @@ enum KeyType
     case RSA;
     case EC;
 
+    /**
+     * @internal it takes or returns a phpseclib type, which the version number does not cover
+     */
     public static function of(PublicKey $key): self
     {
         return match (true) {

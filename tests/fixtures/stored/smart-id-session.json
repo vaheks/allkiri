@@ -1,0 +1,16 @@
+{
+    "version": 2,
+    "sessionId": "fa53b91c-0000-4000-8000-000000000001",
+    "type": "auth",
+    "challenge": "ghyYLCrKlZz94/YY1Y7rHi1klUu5lW9GbVjrIG6Dse9zb81eVz5wtrx1WPPiWntekX/nE9SWpoWRK1EMb35ZYg==",
+    "interactions": "W3sidHlwZSI6ImNvbmZpcm1hdGlvbk1lc3NhZ2VBbmRWZXJpZmljYXRpb25Db2RlQ2hvaWNlIiwiZGlzcGxheVRleHQyMDAiOiJMb2cgaW4gdG8gdGhlIGFsbGtpcmkgdGVzdHMifSx7InR5cGUiOiJjb25maXJtYXRpb25NZXNzYWdlIiwiZGlzcGxheVRleHQyMDAiOiJMb2cgaW4gdG8gdGhlIGFsbGtpcmkgdGVzdHMifSx7InR5cGUiOiJkaXNwbGF5VGV4dEFuZFBJTiIsImRpc3BsYXlUZXh0NjAiOiJMb2cgaW4ifV0=",
+    "verificationCode": "4752",
+    "documentNumber": "PNOEE-40504040001-MOCK-Q",
+    "sessionToken": null,
+    "sessionSecret": null,
+    "deviceLinkBase": null,
+    "startedAt": "2026-10-01T20:29:28+00:00",
+    "initialCallbackUrl": null,
+    "certificateLevel": "QUALIFIED",
+    "semanticsIdentifier": null
+}

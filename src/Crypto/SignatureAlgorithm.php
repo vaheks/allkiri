@@ -103,6 +103,8 @@ enum SignatureAlgorithm: string
      *
      * @param HashAlgorithm|null $hash overrides the hash; for EC keys any of
      *                                 the three is valid XML-DSig
+     *
+     * @internal it takes or returns a phpseclib type, which the version number does not cover
      */
     public static function forKey(PublicKey $key, bool $preferPss = false, ?HashAlgorithm $hash = null): self
     {

@@ -27,6 +27,9 @@ final readonly class DataToBeSigned implements \JsonSerializable
 {
     public const VERSION = 1;
 
+    /**
+     * @internal the library builds these, so the parameters may change in a minor release
+     */
     public function __construct(
         public string $signatureId,
         public string $signatureFileName,

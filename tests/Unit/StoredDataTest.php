@@ -185,7 +185,7 @@ final class StoredDataTest extends TestCase
             static fn(array $data): array => ['documentNumber' => 'PNOEE-40504040001-MOCK-Q', 'semanticsIdentifier' => 'PNOEE-40504040001'] + $data,
             InvalidArgumentException::class,
         ];
-        yield 'an interaction of a type Smart-ID does not have' => ['Smart-ID session', $set('interactions', base64_encode('[{"type":"telepathy","displayText60":"Log in"}]')), \ValueError::class];
+        yield 'an interaction of a type Smart-ID does not have' => ['Smart-ID session', $set('interactions', base64_encode('[{"type":"telepathy","displayText60":"Log in"}]')), InvalidArgumentException::class];
         yield 'a nested session of the wrong type' => [
             'Mobile-ID signing session',
             static function (array $data): array {

@@ -43,6 +43,8 @@ final readonly class SmartIdSession implements \JsonSerializable
      *                                                      link's authentication code covers it
      * @param CertificateLevel|null    $certificateLevel    the level the session asked for; null for a session stored before it was kept
      * @param SemanticsIdentifier|null $semanticsIdentifier the person the session was started for, when it was started for a person
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $sessionId,

@@ -65,6 +65,9 @@ final class PrivateKey
         return new KeyPair(self::fromPem($keyPem), Certificate::fromPem($certPem), $chain);
     }
 
+    /**
+     * @internal it takes or returns a phpseclib type, which the version number does not cover
+     */
     public function publicKey(): PublicKey
     {
         $public = $this->key->getPublicKey();

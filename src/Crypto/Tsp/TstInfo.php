@@ -20,7 +20,8 @@ final readonly class TstInfo
         public string $messageImprint,
         public string $serialNumber,
         public \DateTimeImmutable $genTime,
-        public ?BigInteger $nonce,
+        /** The nonce in decimal, as the serial number is. */
+        public ?string $nonce,
         public ?int $accuracySeconds,
         public string $der,
     ) {}
@@ -38,7 +39,7 @@ final readonly class TstInfo
             $decoded->string('messageImprint', 'hashedMessage'),
             $serial instanceof BigInteger ? $serial->toString() : '0',
             $decoded->node()->child(4)->time(),
-            $nonce instanceof BigInteger ? $nonce : null,
+            $nonce instanceof BigInteger ? $nonce->toString() : null,
             $accuracy instanceof BigInteger ? (int) $accuracy->toString() : null,
             $der,
         );

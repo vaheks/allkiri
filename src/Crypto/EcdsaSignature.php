@@ -14,6 +14,8 @@ use phpseclib3\Math\BigInteger;
  * XML-DSig, Web eID, Mobile-ID and Smart-ID carry ECDSA values as the raw
  * concatenation r‖s, each zero-padded to the curve's field size. X.509, CMS
  * and OCSP carry them as a DER SEQUENCE of two INTEGERs.
+ *
+ * @internal
  */
 final class EcdsaSignature
 {

@@ -11,6 +11,8 @@ final readonly class SivaReport
 {
     /**
      * @param list<SivaSignature> $signatures
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $policy,

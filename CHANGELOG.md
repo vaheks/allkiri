@@ -8,11 +8,42 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `tests/fixtures/public-api.txt` records the whole supported API, and a test
+  fails on any difference from it, so a change to what the version number
+  covers is a line in a review rather than something to notice.
+- `ValidationReport`'s JSON carries `"version": 1`.
+- `tests/fixtures/stored` holds the JSON 0.8.0-alpha.1 wrote for every stored
+  session, the prepared signature, an identity and a report, and a test
+  restores each with today's code, so the promise that a minor release reads
+  what an earlier one wrote is checked rather than assumed.
+- `OcspException` and `TimestampException` name the reasons their clients
+  give: `REASON_TRANSPORT`, `REASON_HTTP_STATUS`, `REASON_MALFORMED_RESPONSE`,
+  and `REASON_NO_RESPONDER_URL` or `REASON_REJECTED`. The values are the ones
+  already sent.
 - The README says what the phone shows with Mobile-ID and Smart-ID, and how to
   build that sentence per request so it names the document or the person.
 
 ### Changed
 
+- CI runs PHP 8.5 beside 8.2 to 8.4, and a deprecation that the library's own
+  code raises fails the tests. `CurlHttpClient` no longer calls `curl_close()`,
+  which PHP 8.5 deprecates and which has done nothing since 8.0.
+- The Composer archive no longer carries `.env.example`, which configures the
+  demo and the test suites rather than the library.
+- The constructors of what the library builds and returns are `@internal`:
+  `ValidationReport`, `SignatureReport`, `SignatureInfo`, `SigningResult`,
+  `DataToBeSigned`, `SmartIdSession`, `SmartIdSessionStatus`, `DeviceLink`,
+  `MobileIdSessionStatus`, `OcspVerificationResult`, `SingleResponse`,
+  `TimestampVerificationResult`, `SivaReport` and `SivaSignature`. Their
+  properties stay covered, so a minor release may add one.
+- No supported member takes or returns a phpseclib type any more, so 1.x is not
+  tied to phpseclib 3. `PublicKeyVerifier` and `EcdsaSignature` are
+  `@internal`, as are `Certificate::publicKey()`, `PrivateKey::publicKey()`,
+  `SignatureAlgorithm::forKey()`, `KeyType::of()` and
+  `AlgorithmConstraints::violation()`. `TstInfo::$nonce` is a decimal string,
+  as its serial number already was, rather than a phpseclib `BigInteger`.
+  `SmartIdAuthenticator`'s optional `$verifier` moved after
+  `$brokeredRelyingPartyName`.
 - The demo application calls its first step "Authenticate" rather than "Sign
   in", so it no longer reads like the second, "Sign a file".
 - The demo's phone texts are two settings, `ALLKIRI_AUTH_TEXT` and
@@ -32,6 +63,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `Interactions::fromEncoded()` refuses an unknown interaction type with
+  `InvalidArgumentException` rather than letting the enum's `ValueError`
+  through. `SmartIdSigner::chooseCertificate()`'s documentation names the
+  methods that really follow it, and `SmartIdClient::startNotificationSignature()`,
+  which returns a bare array, is `@internal`: `SmartIdSigner` is the supported
+  way.
 - `Psr18HttpClient` and `docs/frameworks.md` say to give it a client that does
   not follow redirects, and how with Symfony's, which follows twenty by default.
   A redirect it follows is invisible to allkiri, so an HTTPS-only service URL

@@ -110,7 +110,7 @@ final class Asn1
      */
     public static function explicit(int $tag, string $der): string
     {
-        return \chr(0xA0 | $tag) . PhpseclibAsn1::encodeLength(\strlen($der)) . $der;
+        return \chr((0xA0 | self::shortTag($tag)) & 0xFF) . PhpseclibAsn1::encodeLength(\strlen($der)) . $der;
     }
 
     /**
@@ -123,7 +123,20 @@ final class Asn1
         }
         $constructed = (\ord($der[0]) & 0x20) !== 0;
 
-        return \chr(0x80 | ($constructed ? 0x20 : 0) | $tag) . substr($der, 1);
+        return \chr((0x80 | ($constructed ? 0x20 : 0) | self::shortTag($tag)) & 0xFF) . substr($der, 1);
+    }
+
+    /**
+     * A context-specific tag number that fits the identifier octet itself:
+     * 0 to 30. Every tag this library writes is a small one.
+     */
+    private static function shortTag(int $tag): int
+    {
+        if ($tag < 0 || $tag > 30) {
+            throw new Asn1Exception(\sprintf('Tag [%d] needs the long form, which is not written here', $tag));
+        }
+
+        return $tag;
     }
 
     /**

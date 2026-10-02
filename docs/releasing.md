@@ -93,6 +93,15 @@ An alpha waits for no gates, only for the same care:
    what is still alpha, like the tags before it. Then push the tag.
 4. If the version left the README's install range, the install line follows.
 
+### The release candidates
+
+`1.0.0-rc.1` is the API 1.0 will have. From it on nothing in
+`tests/fixtures/public-api.txt` changes except to fix what is wrong, and a
+stored format does not change at all. What an application writes against a
+candidate keeps working on 1.0.0. A candidate is released like an alpha, and
+installs with `composer require vaheks/allkiri:^1.0@RC`. Further candidates
+follow as fixes need them, until the gates above are met and 1.0.0 is tagged.
+
 ## When something is found
 
 The repository is public, so filing an issue is publishing. Anything that could
@@ -130,6 +139,13 @@ last year may not this year. That is the system working.
 
 ## What the version number covers
 
+`tests/fixtures/public-api.txt` writes the covered API down, class by class
+and member by member, and `PublicApiSnapshotTest` fails on any difference from
+it. A change to it is therefore a line in a review: removing or changing one is
+a major release, adding one a minor release. Write it again with
+`ALLKIRI_UPDATE_API=1 vendor/bin/phpunit tests/Unit/PublicApiSnapshotTest.php`
+and commit it with the change.
+
 **Everything in `Allkiri\` that is not marked `@internal`:** every class,
 interface, enum, constant, method and property a caller can reach. Removing
 one, changing its signature or changing what it does needs a major release;
@@ -158,7 +174,8 @@ so a later minor release reads what an earlier one wrote:
   `SmartIdSigningSession`. Each carries a `version`. A new shape takes a new
   version, and `fromJson()` keeps reading the older ones until the next major
   release, as `SmartIdSession` reads version 1;
-- the JSON of a `ValidationReport`;
+- the JSON of a `ValidationReport`, which carries a `version` and leaves out
+  an empty list or an unknown value rather than writing `[]` or `null`;
 - the JSON of an `AuthenticatedIdentity`, which carries a `version` of its own.
 
 A key may be added to the report or the identity in a minor release; removing
@@ -175,6 +192,18 @@ existing one means is major.
   and timestamp requests, the trusted-list parser and verifier, the Smart-ID
   payload and status parser, and the members of covered classes that take or
   return them. `tests/Unit/PublicApiTest.php` lists the classes;
+- any member that takes or returns a phpseclib type, such as
+  `Certificate::publicKey()`. Each is marked `@internal`, and
+  `PublicApiTest` fails if a supported one appears. allkiri 1.x runs on
+  phpseclib 3 for as long as `web-eid/web-eid-authtoken-validation-php`
+  requires it, and keeping phpseclib out of the covered API is what leaves it
+  free to move to phpseclib 4 in a minor release after that;
+- the constructors of what the library builds and hands back: the reports,
+  the signing result, the parsed session statuses, the sessions and the
+  prepared signature, the OCSP and timestamp results and the SiVa ones. Their
+  properties are covered and may gain more in a minor release, which is why
+  their constructors' parameters are not. A stored session or prepared
+  signature comes back through `fromJson()`, which is covered;
 - an optional constructor parameter that takes an internal class. Those exist
   so that tests can swap a collaborator, and come after every covered
   parameter;

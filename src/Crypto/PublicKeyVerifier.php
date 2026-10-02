@@ -11,6 +11,8 @@ use phpseclib3\Crypt\RSA;
 /**
  * The single place that configures phpseclib for signature verification, so
  * padding, MGF, salt length and ECDSA encoding are decided once.
+ *
+ * @internal
  */
 final class PublicKeyVerifier
 {

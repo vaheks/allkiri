@@ -6,6 +6,7 @@
          colors="true"
          failOnRisky="true"
          failOnWarning="true"
+         failOnDeprecation="true"
          displayDetailsOnTestsThatTriggerDeprecations="true"
          displayDetailsOnTestsThatTriggerWarnings="true">
     <testsuites>
@@ -25,7 +26,12 @@
             <directory>tests/LiveSmoke</directory>
         </testsuite>
     </testsuites>
-    <source>
+    <!--
+        A deprecation that src raises, or that a dependency raises because of
+        what src asked of it, fails a run. One a dependency raises within itself,
+        at the oldest version a constraint allows, is that dependency's to fix.
+    -->
+    <source ignoreIndirectDeprecations="true">
         <include>
             <directory>src</directory>
         </include>

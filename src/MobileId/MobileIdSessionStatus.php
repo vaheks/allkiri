@@ -22,6 +22,8 @@ final readonly class MobileIdSessionStatus
     /**
      * @param string|null $signatureValue raw signature bytes, already base64-decoded
      * @param Certificate|null $certificate present for authentication sessions only
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public string $state,

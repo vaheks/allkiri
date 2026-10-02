@@ -184,6 +184,9 @@ final class Certificate
 
     // --- key ----------------------------------------------------------------
 
+    /**
+     * @internal it takes or returns a phpseclib type, which the version number does not cover
+     */
     public function publicKey(): PublicKey
     {
         if ($this->publicKey === null) {

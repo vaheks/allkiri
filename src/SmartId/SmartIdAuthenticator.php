@@ -46,8 +46,9 @@ final class SmartIdAuthenticator
         private readonly OcspClient $ocspClient,
         private readonly NonceGenerator $nonceGenerator = new RandomNonceGenerator(),
         private readonly ClockInterface $clock = new SystemClock(),
-        private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier(),
         private readonly ?string $brokeredRelyingPartyName = null,
+        // Internal collaborators come after every supported parameter.
+        private readonly PublicKeyVerifier $verifier = new PublicKeyVerifier(),
     ) {}
 
     // --- starting -----------------------------------------------------------

@@ -225,7 +225,7 @@ final class NestingGuardTest extends TestCase
                 5 => ["\x01", $random->getBytes($random->getInt(1, 2))],
                 6 => ["\x03", "\x00" . $random->getBytes($random->getInt(1, 2))],
                 7 => ["\x17", '260914120000Z'],
-                8 => [\chr($random->getInt(0, 255) & ~0x20), $random->getBytes($random->getInt(1, 3))],
+                8 => [\chr($random->getInt(0, 255) & 0xDF), $random->getBytes($random->getInt(1, 3))],
                 default => ["\x9F\x81\x05", $random->getBytes(1)],
             };
 
@@ -239,7 +239,7 @@ final class NestingGuardTest extends TestCase
             4 => "\x61",
             5 => "\x24",
             6 => "\x23",
-            default => \chr($random->getInt(0, 255) | 0x20),
+            default => \chr(($random->getInt(0, 255) | 0x20) & 0xFF),
         };
         $children = '';
         for ($count = $random->getInt(0, 3); $count > 0; --$count) {
@@ -261,8 +261,8 @@ final class NestingGuardTest extends TestCase
 
         return match ($random->getInt(0, 5)) {
             0, 1 => PhpseclibAsn1::encodeLength($length),
-            2 => \chr(0x80 | $octets) . str_repeat("\0", $octets - 4) . pack('N', $length),
-            3 => \chr(0x80 | $octets) . $random->getBytes($octets - 4) . pack('N', $length),
+            2 => \chr((0x80 | $octets) & 0xFF) . str_repeat("\0", $octets - 4) . pack('N', $length),
+            3 => \chr((0x80 | $octets) & 0xFF) . $random->getBytes($octets - 4) . pack('N', $length),
             4 => PhpseclibAsn1::encodeLength(max(0, $length + $random->getInt(-2, 2))),
             default => "\x81" . \chr($length & 0xFF),
         };
@@ -273,7 +273,7 @@ final class NestingGuardTest extends TestCase
         switch ($random->getInt(0, 5)) {
             case 0:
                 $at = $random->getInt(0, \strlen($der) - 1);
-                $der[$at] = \chr($random->getInt(0, 255));
+                $der[$at] = \chr($random->getInt(0, 255) & 0xFF);
 
                 return $der;
             case 1:

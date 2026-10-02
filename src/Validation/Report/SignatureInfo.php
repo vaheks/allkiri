@@ -12,6 +12,8 @@ final readonly class SignatureInfo implements \JsonSerializable
 {
     /**
      * @param list<string> $signerRoles
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         public ?\DateTimeImmutable $claimedSigningTime = null,

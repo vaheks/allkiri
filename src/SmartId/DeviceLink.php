@@ -39,6 +39,8 @@ final readonly class DeviceLink
      * @param string      $sessionType one of the SESSION_ constants
      * @param string      $payload   the rpChallenge or digest the session was started with, base64; empty for a certificate choice
      * @param string|null $brokeredRelyingPartyName set only when acting for another relying party
+     *
+     * @internal the library builds these, so the parameters may change in a minor release
      */
     public function __construct(
         private string $scheme,
