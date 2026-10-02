@@ -55,7 +55,7 @@ Produce the containers with the integration suite or a short script, then:
 | 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | 2026-09-18 | Valid — the card signature of item 14 |
 | 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
 | 5 | DigiDoc4 shows the signer's name and the signing time as expected | 2026-09-18 | As expected |
-| 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | | In production: the beta cannot sign |
+| 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | 2026-10-02 | In production: signed in the demo's live deployment (1.0.0-rc.2), a second signature added in DigiDoc4 4.11.1.5434, both valid in the demo |
 | 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | 2026-10-02 | In production: DigiDoc4 4.11.1.5434, a real Mobile-ID (ECDSA). Valid in allkiri from 1.0.0-rc.2; rc.1 refused it, see below |
 | 8 | The same with a Smart-ID demo account | 2026-10-02 | In production: DigiDoc4 4.11.1.5434, a real Smart-ID (RSA). Valid in allkiri from 1.0.0-rc.2; rc.1 refused it, see below |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | 2026-10-02 | Valid in the beta 4.3.0.4685: digidoc4j's `valid-asice-esteid2018.asice`, signed by JÕEORG, JAAK-KRISTJAN, with a test Mobile-ID signature allkiri added. Both shown as valid, and both TOTAL-PASSED in allkiri |
@@ -157,7 +157,12 @@ made in production, one with Mobile-ID and one with Smart-ID, opened in
 DigiDoc4 as valid, and allkiri 1.0.0-rc.1, in the demo's live deployment,
 called both TOTAL-FAILED. libdigidocpp signs with C14N 1.1, which allkiri did
 not read (see `docs/decisions.md`). 1.0.0-rc.2 reads it, and with rc.2 deployed
-the same demo validates both. Item 6 is still to do.
+the same demo validates both.
+
+Item 6 the same day, also in production: a container signed in the demo, given
+a second signature in DigiDoc4 and uploaded to the demo again, shows both
+signatures as valid. That leaves no item of the checklist that needs DigiDoc4
+to sign.
 
 ### What the round of 2026-09-18 settles for 1.0
 
