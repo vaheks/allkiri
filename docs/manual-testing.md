@@ -57,7 +57,7 @@ Produce the containers with the integration suite or a short script, then:
 | 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card; no test card is available |
 | 13 | The same on a Thales card issued since November 2025 | | |
 | 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | 2026-09-18 | Valid in DigiDoc4 and in allkiri, with a live card. SiVa not checked |
-| 15 | The same in Chrome, Firefox and Safari | 2026-09-18 | Chrome only |
+| 15 | The same in Chrome, Firefox and Safari | 2026-10-02 | Chrome and Firefox: every means, sign-in and signing, with a live IDEMIA card. Safari: Smart-ID only; the card and Mobile-ID not tried there |
 | 16 | An **XAdES-LTA** container allkiri archived opens in DigiDoc4 and shows the signature as valid | | |
 
 ### The round of 2026-09-18
@@ -106,7 +106,25 @@ DigiDoc4 to create or add a signature rather than only read one; a Thales card
 (13); the browsers other than Chrome (15); and an archived LTA container (16),
 which the demo application can produce with its archive button.
 
-### What this round settles for 1.0
+### The round of 2026-10-02
+
+`1.0.0-rc.1` at the demo application's live deployment, against the production
+services, by the author. Every flow was a sign-in and a signature, and each
+signature was valid.
+
+| Browser | ID card | Mobile-ID | Smart-ID |
+|---|---|---|---|
+| Chrome | yes | yes | yes |
+| Firefox | yes | yes | yes |
+| Safari | not tried | not tried | yes |
+
+The phone texts set with the demo's `ALLKIRI_AUTH_TEXT` and `ALLKIRI_SIGN_TEXT`
+were shown on the phone by both Mobile-ID and Smart-ID.
+
+That answers item 15 for Chrome and Firefox. Safari has done Smart-ID, and has
+not yet had the ID card or Mobile-ID.
+
+### What the round of 2026-09-18 settles for 1.0
 
 On 2026-10-01 it was decided that this round answers release gates 1 and 2 of
 [releasing.md](releasing.md#what-10-waits-for): the ID card on real hardware,
