@@ -417,6 +417,19 @@ final class Certificate
      * Subject and issuer are the same name: a root, or a CA that certified its
      * own new key. RFC 5280 does not count these towards a path length.
      */
+    /**
+     * Whether the key is for signing someone in rather than for signatures:
+     * digitalSignature without nonRepudiation, as SK issues every Mobile-ID,
+     * Smart-ID and ID card authentication certificate. A signing certificate
+     * carries nonRepudiation.
+     */
+    public function isForAuthentication(): bool
+    {
+        $usage = $this->keyUsage();
+
+        return \in_array('digitalSignature', $usage, true) && !\in_array('nonRepudiation', $usage, true);
+    }
+
     public function isSelfIssued(): bool
     {
         return $this->subjectNameDer() === $this->issuerNameDer();

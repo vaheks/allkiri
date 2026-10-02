@@ -94,6 +94,41 @@ final class TestCertificates
         return new KeyPair($key->privateKey, Certificate::fromPem($pem), [$issuer->certificate]);
     }
 
+    /**
+     * The same certificate, with the same key, subject, serial and dates, issued
+     * again by the committed test CA with some extensions replaced. For a
+     * certificate that differs from a committed one in one respect only, such
+     * as an authentication certificate beside a signing one.
+     *
+     * @param array<string, array{mixed, bool}> $extensions phpseclib extension names to their value and criticality
+     */
+    public static function reissued(KeyPair $pair, array $extensions): KeyPair
+    {
+        $issuer = TestIssuer::ca();
+        $signer = new X509();
+        if ($signer->loadX509($issuer->certificate->pem()) === false) {
+            throw new \LogicException('The issuer certificate did not load');
+        }
+        $signer->setPrivateKey(self::signingKey($issuer->key, TestCertificateSignature::Sha256));
+
+        $x509 = new X509();
+        if ($x509->loadX509($pair->certificate->pem()) === false) {
+            throw new \LogicException('The certificate did not load');
+        }
+        foreach ($extensions as $name => [$value, $critical]) {
+            if ($x509->setExtension($name, $value, $critical) === false) {
+                throw new \LogicException(\sprintf('phpseclib refused the extension "%s"', $name));
+            }
+        }
+        $signed = $x509->sign($signer, $x509);
+        $pem = \is_array($signed) ? $x509->saveX509($signed) : false;
+        if (!\is_string($pem)) {
+            throw new \LogicException('The certificate could not be signed');
+        }
+
+        return new KeyPair($pair->privateKey, Certificate::fromPem($pem), $pair->chain);
+    }
+
     private static function signingKey(TestKey $key, TestCertificateSignature $signature): PrivateKey
     {
         $raw = $key->raw;

@@ -20,6 +20,62 @@ All notable changes to this project are documented here. The format follows
   mode, and checked against both services' limits at start-up. Mobile-ID now
   shows a sentence for authenticating and another for signing.
   `ALLKIRI_MID_DISPLAY_TEXT` is gone; the demo refuses to start while it is set.
+- Validating at a past moment no longer takes a signature timestamp made after
+  that moment as proof the signature existed then; it is `TIMESTAMP_INVALID`.
+- A signing time the signer claims later than the signature timestamp is a
+  warning, the new `SIGNING_TIME_AFTER_TIMESTAMP`.
+- A signature timestamp that names no canonicalisation method is read with
+  inclusive canonicalisation, XML-DSig's default, as archive timestamps already
+  were. Every Estonian signature names exclusive.
+- A time an XML document states without a zone is read as UTC, not in the
+  server's `date.timezone`.
+
+### Fixed
+
+- `Psr18HttpClient` and `docs/frameworks.md` say to give it a client that does
+  not follow redirects, and how with Symfony's, which follows twenty by default.
+  A redirect it follows is invisible to allkiri, so an HTTPS-only service URL
+  would be only as HTTPS as wherever it pointed.
+- Mobile-ID and Smart-ID sign-in refuse a certificate that is not for
+  authentication, `digitalSignature` without `nonRepudiation`, as Web eID
+  already did. Every authentication certificate SK's demo services issued on
+  2026-10-01 is shaped so, and the signing ones carry `nonRepudiation`.
+  `Certificate::isForAuthentication()` says which a certificate is.
+- `SmartIdSigner::certificate()`, and so `startNotification()` and
+  `startDeviceLink()`, refuse a certificate of a lower level than was
+  requested, as `completeCertificateChoice()` already did. The service is asked
+  for the level and was trusted to keep to it.
+- A Web eID challenge lasts no longer than the configured lifetime from when it
+  was issued, whatever deadline the stored challenge gives, and one that says it
+  was issued in the future is refused. The challenge comes back from wherever
+  the application kept it.
+- `DataToBeSigned` and `docs/signing.md` no longer suggest it can be kept
+  anywhere because it holds nothing secret: it decides what is signed and at
+  what level, and must stay on the server.
+- Exception messages no longer carry identity codes or document numbers. A
+  Smart-ID or Mobile-ID answer from another account or person names both by
+  type and country only, `PNOEE-[redacted]`, and a malformed phone number or
+  identity code is no longer repeated in the message refusing it. The demo
+  writes those messages to its log and an application may well do the same.
+- Smart-ID's RP API 3.2 answers 404 where it answered 471, with the reason in an
+  RFC 9457 body. A 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND` is
+  `SmartIdApiException::REASON_NO_SUITABLE_ACCOUNT` again, rather than
+  `REASON_ACCOUNT_NOT_FOUND`. The exception carries the body's codes in
+  `problemCodes`, its message gives the body's title, detail and errors rather
+  than its raw JSON, and requests accept `application/problem+json` (#51).
+- A trusted list older, by its sequence number, than one the same address has
+  already served is refused with `TrustedListException::REASON_ROLLED_BACK`.
+  It is genuinely signed, but may still grant a service withdrawn since. The
+  highest number seen is kept in the PSR-16 cache.
+- A service whose current status gives no starting time is not a trust anchor.
+  It used to be dated at 1970, so a withdrawal without a time sorted before
+  every grant in the history and the service read as granted. A past status
+  without a time, or recorded for another kind of service, is ignored.
+- A signed-properties reference carrying the enveloped-signature transform
+  digested the document around the signature instead of the properties, so
+  they could be changed under a signature that still verified. It is now a
+  `SIGNED_PROPERTIES_DIGEST_MISMATCH`. A signer has to have made it so; no XAdES
+  producer does.
 
 ## [0.9.0-alpha.1] - 2026-10-01
 

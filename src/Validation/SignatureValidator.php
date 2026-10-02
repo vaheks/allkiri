@@ -114,7 +114,7 @@ final class SignatureValidator
         $ocsp = null;
         $archiveTime = null;
         try {
-            $timestamp = $this->checkTimestamps($signature, $expiry, $findings);
+            $timestamp = $this->checkTimestamps($signature, $expiry, $validationTime, $findings);
             $bestSignatureTime = $timestamp?->genTime();
             if ($bestSignatureTime === null && $signature->signingTime !== null) {
                 $bestSignatureTime = $signature->signingTime;
@@ -405,7 +405,7 @@ final class SignatureValidator
     /**
      * @param list<Finding> $findings
      */
-    private function checkTimestamps(XadesSignature $signature, TrustedListExpiry $expiry, array &$findings): ?TimestampToken
+    private function checkTimestamps(XadesSignature $signature, TrustedListExpiry $expiry, \DateTimeImmutable $validationTime, array &$findings): ?TimestampToken
     {
         if ($signature->signatureTimestamps === []) {
             // Without one, only the signer's own claim says when the signature was
@@ -430,7 +430,9 @@ final class SignatureValidator
                 continue;
             }
 
-            $method = $entry['canonicalizationMethod'] === '' ? DsigNs::C14N_EXC : $entry['canonicalizationMethod'];
+            // Left unstated, XML-DSig's default: inclusive, as for an archive
+            // timestamp. Every Estonian signature states exclusive.
+            $method = $entry['canonicalizationMethod'] === '' ? DsigNs::C14N_10 : $entry['canonicalizationMethod'];
             if (!Canonicalizer::supports($method)) {
                 $findings[] = Finding::error(FindingCodes::TIMESTAMP_INVALID, \sprintf('The timestamp uses canonicalization method "%s", which is not supported', $method), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
@@ -452,6 +454,19 @@ final class SignatureValidator
                     ? Finding::error(FindingCodes::TIMESTAMP_WEAK_ALGORITHM, 'The signature timestamp cannot be relied on: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::CryptoConstraintsFailureNoPoe)
                     : Finding::error(FindingCodes::TIMESTAMP_INVALID, 'The signature timestamp does not verify: ' . $e->getMessage(), Indication::Indeterminate, SubIndication::NoPoe);
                 continue;
+            }
+
+            // Validating as things stood at a past moment, a timestamp made after
+            // it proves nothing about that moment.
+            $skew = $this->policy->clockSkewSeconds;
+            if ($token->genTime()->getTimestamp() > $validationTime->getTimestamp() + $skew) {
+                $findings[] = Finding::error(FindingCodes::TIMESTAMP_INVALID, \sprintf('The signature timestamp was made at %s, after the validation time %s, so it proves nothing at that time', $token->genTime()->format(DATE_ATOM), $validationTime->format(DATE_ATOM)), Indication::Indeterminate, SubIndication::NoPoe);
+                continue;
+            }
+            // The timestamp proves the signature existed by then, so a signer
+            // claiming to have signed later has a clock, or a claim, that is wrong.
+            if ($signature->signingTime !== null && $signature->signingTime->getTimestamp() > $token->genTime()->getTimestamp() + $skew) {
+                $findings[] = Finding::warning(FindingCodes::SIGNING_TIME_AFTER_TIMESTAMP, \sprintf('The signer claims to have signed at %s, after the signature timestamp proves the signature existed, at %s', $signature->signingTime->format(DATE_ATOM), $token->genTime()->format(DATE_ATOM)));
             }
 
             try {

@@ -71,6 +71,9 @@ final class FindingCodes
     public const TIMESTAMP_NOT_TRUSTED = 'TIMESTAMP_NOT_TRUSTED';
     public const NO_POE_CLAIMED_TIME_USED = 'NO_POE_CLAIMED_TIME_USED';
 
+    /** A warning: the signer's claimed signing time is later than the signature timestamp. */
+    public const SIGNING_TIME_AFTER_TIMESTAMP = 'SIGNING_TIME_AFTER_TIMESTAMP';
+
     /** The timestamp, or its authority's certificate, is signed with SHA-1 or a key below the minimum. */
     public const TIMESTAMP_WEAK_ALGORITHM = 'TIMESTAMP_WEAK_ALGORITHM';
 

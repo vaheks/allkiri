@@ -37,7 +37,7 @@ final class MobileIdValueObjectsTest extends TestCase
      */
     public static function badIdentities(): iterable
     {
-        yield 'no plus' => ['37200000766', '60001019906'];
+        yield 'no plus' => ['37255501234', '60001019906'];
         yield 'spaces' => ['+372 5555 5555', '60001019906'];
         yield 'letters' => ['+3720000076a', '60001019906'];
         yield 'empty phone' => ['', '60001019906'];
@@ -49,9 +49,17 @@ final class MobileIdValueObjectsTest extends TestCase
     #[DataProvider('badIdentities')]
     public function testIdentityRefusesMalformedInput(string $phone, string $code): void
     {
-        $this->expectException(InvalidArgumentException::class);
-
-        new MobileIdIdentity($phone, $code);
+        try {
+            new MobileIdIdentity($phone, $code);
+            self::fail('a malformed identity was accepted');
+        } catch (InvalidArgumentException $exception) {
+            // A mistyped number is still someone's, and this message reaches logs.
+            foreach ([$phone, $code] as $value) {
+                if ($value !== '') {
+                    self::assertStringNotContainsString($value, $exception->getMessage());
+                }
+            }
+        }
     }
 
     // --- verification code --------------------------------------------------

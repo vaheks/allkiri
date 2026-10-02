@@ -7,6 +7,8 @@ namespace Allkiri\Tests\Unit\Trust;
 use Allkiri\Crypto\Certificate;
 use Allkiri\Tests\Support\Cache\ArrayCache;
 use Allkiri\Tests\Support\Http\MockHttpClient;
+use Allkiri\Tests\Support\Pki\TestPki;
+use Allkiri\Tests\Support\Trust\TestTrustedLists;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ListOfListsTrustStore;
 use Allkiri\Trust\ServiceStatus;
@@ -248,12 +250,98 @@ final class TrustedListTest extends TestCase
         $source = new TrustedListSource(self::TL_URL, [self::signer()]);
 
         $loader->load($source);
-        self::assertSame(1, $cache->writes, 'a fetched list is stored');
+        self::assertSame(2, $cache->writes, 'a fetched list is stored, and its sequence number');
 
         $loader->load($source);
         $loader->load($source);
         self::assertSame(1, $http->requestCount());
-        self::assertSame(1, $cache->writes, 'a list read from the cache is not stored again');
+        self::assertSame(2, $cache->writes, 'a list read from the cache is not stored again');
+    }
+
+    /**
+     * An older list is genuinely signed, so its signature says nothing against
+     * it, but it may grant a service withdrawn since. Served again from the
+     * same address, after a newer one, it is refused.
+     */
+    public function testAListOlderThanOneAlreadyServedIsRefused(): void
+    {
+        $url = 'https://tl.allkiri.test/lotl.xml';
+        $signer = TestPki::signerRsaPerson();
+        $list = static fn(int $sequence): string => TestTrustedLists::listOfLists($signer, [$signer->certificate], [], $url, [], $sequence);
+        $cache = new ArrayCache();
+        $source = new TrustedListSource($url, [$signer->certificate], cacheTtlSeconds: 60);
+
+        self::assertSame(5, (new TrustedListLoader((new MockHttpClient())->respond($url, 200, 'application/xml', $list(5)), $cache))->load($source)->sequenceNumber);
+        // The list's own entry expires; the sequence number is remembered.
+        $cache->delete($source->cacheKey());
+        self::assertSame(6, (new TrustedListLoader((new MockHttpClient())->respond($url, 200, 'application/xml', $list(6)), $cache))->load($source)->sequenceNumber, 'a newer one is fine');
+        $cache->delete($source->cacheKey());
+
+        try {
+            (new TrustedListLoader((new MockHttpClient())->respond($url, 200, 'application/xml', $list(5)), $cache))->load($source);
+            self::fail('an older list was taken after a newer one');
+        } catch (TrustedListException $e) {
+            self::assertSame(TrustedListException::REASON_ROLLED_BACK, $e->reason);
+            self::assertStringContainsString('is number 5, but number 6 has already been served', $e->getMessage());
+        }
+    }
+
+    /**
+     * A status says since when, and a past one counts only for the kind of
+     * service it was. A current withdrawal without a time used to be dated at
+     * the epoch, before every grant in the history, so the service read as
+     * granted; a past status as a timestamping unit counted for a CA.
+     */
+    public function testAServiceStatusIsReadOnlyWithItsTimeAndItsType(): void
+    {
+        $withHistory = static function (bool $currentHasTime, string $pastType, bool $pastHasTime): string {
+            $document = new \DOMDocument();
+            $document->loadXML(TestTrustedLists::nationalList(TestPki::signerRsaPerson(), 'EE', TestPki::ca()->certificate));
+            $xpath = new \DOMXPath($document);
+            $xpath->registerNamespace('tsl', TrustedListParser::NS_TSL);
+            $one = static function (string $query, ?\DOMNode $context = null) use ($xpath): \DOMElement {
+                $found = $xpath->query($query, $context);
+                $element = $found === false ? null : $found->item(0);
+                self::assertInstanceOf(\DOMElement::class, $element, $query);
+
+                return $element;
+            };
+            $info = $one('//tsl:ServiceInformation');
+            $one('tsl:ServiceStatus', $info)->textContent = ServiceStatus::Withdrawn->value;
+            $current = $one('tsl:StatusStartingTime', $info);
+            if ($currentHasTime) {
+                $current->textContent = '2025-01-01T00:00:00Z';
+            } else {
+                $info->removeChild($current);
+            }
+            $service = $info->parentNode;
+            self::assertNotNull($service);
+            $instance = $service->appendChild($document->createElementNS(TrustedListParser::NS_TSL, 'ServiceHistory'))
+                ->appendChild($document->createElementNS(TrustedListParser::NS_TSL, 'ServiceHistoryInstance'));
+            $instance->appendChild($document->createElementNS(TrustedListParser::NS_TSL, 'ServiceTypeIdentifier', $pastType));
+            $instance->appendChild($document->createElementNS(TrustedListParser::NS_TSL, 'ServiceStatus', ServiceStatus::Granted->value));
+            if ($pastHasTime) {
+                $instance->appendChild($document->createElementNS(TrustedListParser::NS_TSL, 'StatusStartingTime', '2020-01-01T00:00:00Z'));
+            }
+
+            return (string) $document->saveXML();
+        };
+        $parse = static fn(string $xml): array => (new TrustedListParser())->parse($xml)->anchors;
+        $in = static fn(string $at): \DateTimeImmutable => new \DateTimeImmutable($at);
+
+        // As it should be: granted from 2020, withdrawn in 2025.
+        $anchors = $parse($withHistory(true, ServiceType::CaQc->value, true));
+        self::assertCount(1, $anchors);
+        self::assertTrue($anchors[0]->isTrustworthyAt($in('2023-01-01T00:00:00Z')));
+        self::assertFalse($anchors[0]->isTrustworthyAt($in('2026-01-01T00:00:00Z')));
+
+        self::assertSame([], $parse($withHistory(false, ServiceType::CaQc->value, true)), 'a current status without a time is no anchor');
+
+        $asTimestamping = $parse($withHistory(true, ServiceType::TsaQtst->value, true));
+        self::assertFalse($asTimestamping[0]->isTrustworthyAt($in('2023-01-01T00:00:00Z')), 'a grant as another kind of service does not count');
+
+        $undated = $parse($withHistory(true, ServiceType::CaQc->value, false));
+        self::assertFalse($undated[0]->isTrustworthyAt($in('2023-01-01T00:00:00Z')), 'a past status without a time does not count');
     }
 
     public function testLoaderReportsTransportFailures(): void

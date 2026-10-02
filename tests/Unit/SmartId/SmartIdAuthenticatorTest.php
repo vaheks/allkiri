@@ -774,7 +774,8 @@ final class SmartIdAuthenticatorTest extends TestCase
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(new DocumentNumber('PNOEE-40504040001-OTHR-Q'), self::interactions());
 
-        $this->expectExceptionMessage('Smart-ID answered from account ' . MockSmartIdService::DOCUMENT_NUMBER . ' but the session was started for PNOEE-40504040001-OTHR-Q');
+        // The type and country stay, so the two can be told apart; the person goes.
+        $this->expectExceptionMessage('Smart-ID answered from account PNOEE-[redacted] but the session was started for a different one, PNOEE-[redacted]');
 
         $authenticator->poll($session);
     }
@@ -784,7 +785,23 @@ final class SmartIdAuthenticatorTest extends TestCase
         $authenticator = $this->authenticator();
         $session = $authenticator->startNotification(SemanticsIdentifier::estonian('60001019906'), self::interactions());
 
-        $this->expectExceptionMessage('Smart-ID answered for PNOEE-' . self::IDENTITY_CODE . ' but the session was started for PNOEE-60001019906');
+        $this->expectExceptionMessage('Smart-ID answered for PNOEE-[redacted] but the session was started for a different person, PNOEE-[redacted]');
+
+        $authenticator->poll($session);
+    }
+
+    /**
+     * SK issues the authentication certificate with digitalSignature and the
+     * signing one with nonRepudiation. A sign-in answered with the signing key
+     * is the service answering with the wrong one.
+     */
+    public function testASignInAnsweredWithASigningCertificateIsRefused(): void
+    {
+        $this->service->authenticator = TestPki::signerRsaPerson();
+        $authenticator = $this->authenticator();
+        $session = $authenticator->startNotification(new DocumentNumber(MockSmartIdService::DOCUMENT_NUMBER), self::interactions());
+
+        $this->expectExceptionMessage('Smart-ID answered with a certificate that is not for authentication');
 
         $authenticator->poll($session);
     }
@@ -796,7 +813,7 @@ final class SmartIdAuthenticatorTest extends TestCase
         $authenticator = $this->authenticator();
         $session = $authenticator->startAnonymous(self::interactions());
 
-        $this->expectExceptionMessage('The Smart-ID certificate belongs to PNOEE-' . self::IDENTITY_CODE . ' but the account that answered belongs to PNOEE-60001019906');
+        $this->expectExceptionMessage('The Smart-ID certificate belongs to PNOEE-[redacted] but the account that answered belongs to a different person, PNOEE-[redacted]');
 
         $authenticator->poll($session);
     }

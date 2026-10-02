@@ -59,6 +59,9 @@ use Allkiri\Validation\SignatureValidator;
 use Allkiri\Validation\ValidationOptions;
 use Allkiri\Validation\ValidationPolicy;
 use Allkiri\Xades\SignatureBuilder;
+use Allkiri\Xades\SignatureDocument;
+use Allkiri\Xml\Dsig\Canonicalizer;
+use Allkiri\Xml\Dsig\DsigNs;
 use phpseclib3\File\ASN1 as PhpseclibAsn1;
 use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -1012,6 +1015,67 @@ final class ValidationTest extends TestCase
         self::assertTrue($report->signatures[0]->has(FindingCodes::WEAK_DIGEST_ALGORITHM));
     }
 
+    /**
+     * Validating as things stood at a past moment, a timestamp made after that
+     * moment proves nothing about it, so the signature has no proof of
+     * existence then.
+     */
+    public function testATimestampMadeAfterThePastValidationTimeProvesNothingThen(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $before = $fixture->clock->now()->modify('-1 hour');
+
+        $signature = self::validator($fixture)->validate((new AsicWriter())->write($result->container), 'a.asice', new ValidationOptions(validationTime: $before))->signatures[0];
+
+        self::assertNotSame(Indication::TotalPassed, $signature->indication);
+        self::assertContains(FindingCodes::TIMESTAMP_INVALID, $signature->codes());
+        self::assertStringContainsString('after the validation time', implode("
+", array_map(static fn($f): string => $f->message, $signature->errors())));
+        self::assertNull($signature->info->timestampCreationTime);
+    }
+
+    /**
+     * A timestamp proves the signature existed by its time, so a signing time
+     * claimed later than that is wrong; the signature is still sound.
+     */
+    public function testASigningTimeAfterTheTimestampIsAWarning(): void
+    {
+        $fixture = new SigningFixture();
+        $fixture->tsa->genTimeOffsetSeconds = -600;
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+
+        $signature = self::validator($fixture)->validate((new AsicWriter())->write($result->container))->signatures[0];
+
+        self::assertTrue($signature->isValid());
+        self::assertSame([FindingCodes::SIGNING_TIME_AFTER_TIMESTAMP], array_map(static fn($f): string => $f->code, $signature->warnings()));
+    }
+
+    /**
+     * XML-DSig's default canonicalisation, when a timestamp does not name one,
+     * is inclusive, which is what archive timestamps already assumed. The
+     * signature timestamp assumed exclusive, so a token over the inclusive form
+     * of the signature value was reported as not covering it.
+     */
+    public function testATimestampThatNamesNoCanonicalizationIsReadAsInclusive(): void
+    {
+        $fixture = new SigningFixture();
+        $result = $fixture->signingService->signWith(AsicContainer::create(DataFile::fromString('a.txt', 'x')), LocalKeySigner::fromKeyPair(TestPki::signerEc256()));
+        $xml = self::signatureXml($result);
+        $document = SignatureDocument::parse($xml);
+        $signatureValue = $document->signatures()[0]->getElementsByTagNameNS(DsigNs::DS, 'SignatureValue')->item(0);
+        self::assertNotNull($signatureValue);
+        $request = TimestampRequest::build(HashAlgorithm::SHA256, HashAlgorithm::SHA256->digest((new Canonicalizer())->canonicalize($signatureValue, DsigNs::C14N_10)));
+        $token = TimestampResponse::fromDer($fixture->tsa->handle(HttpRequest::post(MockTsa::URL, 'application/timestamp-query', $request->der))->body)->token();
+        self::assertNotNull($token);
+        $unstated = (string) preg_replace('#(<xades:SignatureTimeStamp[^>]*>)\s*<ds:CanonicalizationMethod[^>]*/>#', '${1}', self::swapEncapsulated($xml, 'EncapsulatedTimeStamp', $token->der()), 1, $count);
+        self::assertSame(1, $count);
+
+        $signature = self::validator($fixture)->validate(self::containerOfA($unstated))->signatures[0];
+
+        self::assertSame(Indication::TotalPassed, $signature->indication, implode('; ', array_map(static fn($f): string => $f->code . ': ' . $f->message, $signature->errors())));
+    }
+
     public function testALateOcspResponseWarnsAndAVeryLateOneFails(): void
     {
         foreach ([[16 * 60, false], [25 * 3600, true]] as [$offset, $shouldFail]) {
@@ -1031,7 +1095,9 @@ final class ValidationTest extends TestCase
             } else {
                 self::assertTrue($signature->isValid());
                 self::assertTrue($signature->has(FindingCodes::OCSP_TIMESTAMP_DELTA_WARNING));
-                self::assertCount(1, $signature->warnings());
+                // The timestamp is also 16 minutes before the claimed signing time.
+                self::assertTrue($signature->has(FindingCodes::SIGNING_TIME_AFTER_TIMESTAMP));
+                self::assertCount(2, $signature->warnings());
             }
         }
     }

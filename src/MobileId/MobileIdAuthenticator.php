@@ -16,6 +16,7 @@ use Allkiri\Crypto\NonceGenerator;
 use Allkiri\Crypto\PublicKeyVerifier;
 use Allkiri\Crypto\RandomNonceGenerator;
 use Allkiri\Crypto\SignatureAlgorithm;
+use Allkiri\Http\HttpRequest;
 use Allkiri\Trust\ChainBuilder;
 use Allkiri\Trust\ServiceType;
 use Allkiri\Trust\TrustException;
@@ -137,6 +138,12 @@ final class MobileIdAuthenticator
             throw new MobileIdException('The Mobile-ID signature does not match the challenge; this session proves nothing');
         }
 
+        // The service answers a sign-in with the authentication certificate. One
+        // for signatures would mean it had answered with the wrong key.
+        if (!$certificate->isForAuthentication()) {
+            throw new MobileIdException('Mobile-ID answered with a certificate that is not for authentication: its key usage must be digitalSignature without nonRepudiation');
+        }
+
         $now = $this->clock->now();
         if (!$certificate->isValidAt($now)) {
             throw new MobileIdException('The Mobile-ID certificate is not valid at this moment');
@@ -156,9 +163,8 @@ final class MobileIdAuthenticator
         // be the person the session was started for.
         if ($identity->identifierType !== IdentifierType::PersonalNumber || $identity->identityCode !== $session->identity->nationalIdentityNumber) {
             throw new MobileIdException(\sprintf(
-                'Mobile-ID answered for %s but the session was started for %s',
-                $identity->semanticsIdentifier(),
-                $session->identity->nationalIdentityNumber,
+                'Mobile-ID answered for %s, not for the person the session was started for',
+                HttpRequest::withoutIdentities($identity->semanticsIdentifier()),
             ));
         }
 

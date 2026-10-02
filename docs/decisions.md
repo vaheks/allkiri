@@ -984,3 +984,29 @@ PHPStan does not check any of this: it reports a use of something internal only
 under bleedingEdge, and never between two namespaces with the same root, which
 takes in this repository's tests and demo. `PublicApiTest` checks the marks
 instead.
+
+## 2026-10-01 — Smart-ID's errors since RP API 3.2
+
+SK's changelog for RP API 3.2.0 says 471 and 472 are no longer used: they are
+404, with the details in an RFC 9457 body. What that body holds was not written
+down anywhere but the API's OpenAPI document, `_/static/RP-API_V3.yml` behind
+the documentation's "OpenAPI specification" page, so it was read there and
+checked against `sid.demo.sk.ee`:
+
+- `type` is always `about:blank`, so it distinguishes nothing. The difference
+  is in `errors[].code`; the one code the specification shows is
+  `NO_SUITABLE_ACCOUNT_FOUND`, the old 471. Nothing replaces 472.
+- `instance` is `/task-id/<random>`, SK's own reference. It does not carry the
+  identity code, which is only in the request path, and that path is redacted
+  before it reaches a message.
+- The demo service sends these as `Content-Type: application/json`, not
+  `application/problem+json`, so the body is recognised by its shape.
+
+An unknown document number on the demo service answered:
+
+```json
+{"detail":"Not Found","instance":"/task-id/HDvTbDg6x7UGEx5wif6C","status":404,"title":"Not Found","type":"about:blank"}
+```
+
+`SmartIdApiException` keeps reading 471 and 472, for a service that still sends
+them.

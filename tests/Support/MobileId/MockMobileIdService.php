@@ -14,6 +14,7 @@ use Allkiri\Http\HttpResponse;
 use Allkiri\MobileId\MobileIdConfiguration;
 use Allkiri\MobileId\MobileIdResult;
 use Allkiri\Tests\Support\Http\MockHttpClient;
+use Allkiri\Tests\Support\Pki\TestCertificates;
 use Allkiri\Tests\Support\Pki\TestPki;
 
 /**
@@ -56,10 +57,20 @@ final class MockMobileIdService
 
     private int $nextSession = 1;
 
+    /**
+     * What a sign-in answers with: the signer's certificate issued again for
+     * authentication alone, digitalSignature without nonRepudiation, as SK
+     * issues them. Same key, so what it signs still verifies. Set it to the
+     * signing pair to have the service answer a sign-in with that.
+     */
+    public KeyPair $authenticator;
+
     public function __construct(
         private readonly KeyPair $signer,
         private readonly string $url = self::URL,
-    ) {}
+    ) {
+        $this->authenticator = TestCertificates::reissued($signer, ['id-ce-keyUsage' => [['digitalSignature'], true]]);
+    }
 
     public static function register(MockHttpClient $http, ?KeyPair $signer = null, string $url = self::URL): self
     {
@@ -77,6 +88,14 @@ final class MockMobileIdService
     public function certificate(): Certificate
     {
         return $this->signer->certificate;
+    }
+
+    /**
+     * The certificate a sign-in answers with.
+     */
+    public function authenticationCertificate(): Certificate
+    {
+        return $this->authenticator->certificate;
     }
 
     /**
@@ -172,7 +191,7 @@ final class MockMobileIdService
             ];
         }
         if ($session['type'] === 'authentication') {
-            $response['cert'] = $this->signer->certificate->base64();
+            $response['cert'] = $this->authenticator->certificate->base64();
         }
 
         return self::json(200, $response);

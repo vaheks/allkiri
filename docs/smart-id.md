@@ -294,6 +294,8 @@ that from the stored session and verifies over it, so an answer is refused
 unless it belongs to *this* session on *this* service. It also refuses unless:
 
 - the PSS parameters are the ones the declared signature method describes;
+- the certificate is for authentication: `digitalSignature` without
+  `nonRepudiation`, as SK issues them. One for signatures is refused;
 - the certificate is at least the level the session asked for, and carries the
   certificate policies of the level the service reported;
 - the certificate is valid now and chains to a trust anchor;
@@ -393,7 +395,11 @@ Two statuses are worth naming, because they look like failures and are not:
 - **403** also means an `ADVANCED` request with a relying-party identifier that
   has no access to Smart-ID Basic accounts.
 - **404** when starting a session means the person has no account of that kind;
-  when polling, it means the session has been forgotten.
+  when polling, it means the session has been forgotten. Since RP API 3.2 it
+  also replaces 471: a person who has Smart-ID accounts, but none of the
+  requested kind, is a 404 whose body says `NO_SUITABLE_ACCOUNT_FOUND`, and the
+  exception's reason is `REASON_NO_SUITABLE_ACCOUNT` either way. Every such code
+  the body gives is in the exception's `problemCodes`.
 
 ## Testing
 

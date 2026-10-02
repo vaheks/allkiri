@@ -209,6 +209,14 @@ client may already have read into memory before returning it, so set a limit
 on the client too if a hostile server is part of your threat model. The
 built-in cURL client bounds the download itself.
 
+Turn off following redirects on that client. Symfony's `Psr18Client` follows up
+to twenty by default, and the adapter never sees them: a service URL that has to
+be HTTPS, because it receives your relying-party credentials or a person's
+identity code, would then be only as HTTPS as wherever a redirect pointed. The
+built-in client never follows one. With Symfony, create the client with
+`HttpClient::create(['max_redirects' => 0])`; Guzzle's `sendRequest()` does
+not follow them.
+
 Symfony sessions do not lock by default, so the polling concern above does not
 arise.
 

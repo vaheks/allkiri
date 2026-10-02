@@ -293,7 +293,24 @@ final class MobileIdAuthenticatorTest extends TestCase
         $session = $authenticator->start(new MobileIdIdentity('+37200000766', '60001019906'));
         $this->service->expectToSign($session->challenge);
 
-        $this->expectExceptionMessageMatches('/but the session was started for 60001019906/');
+        $this->expectExceptionMessage('Mobile-ID answered for PNOEE-[redacted], not for the person the session was started for');
+
+        $authenticator->poll($session);
+    }
+
+    /**
+     * SK issues the authentication certificate with digitalSignature and the
+     * signing one with nonRepudiation. A sign-in answered with the signing key
+     * is the service answering with the wrong one.
+     */
+    public function testASignInAnsweredWithASigningCertificateIsRefused(): void
+    {
+        $this->service->authenticator = TestPki::signerEc256();
+        $authenticator = $this->authenticator();
+        $session = $authenticator->start(self::identity());
+        $this->service->expectToSign($session->challenge);
+
+        $this->expectExceptionMessage('Mobile-ID answered with a certificate that is not for authentication');
 
         $authenticator->poll($session);
     }
@@ -313,7 +330,8 @@ final class MobileIdAuthenticatorTest extends TestCase
         $session = $authenticator->start(self::identity());
         $this->service->expectToSign($session->challenge);
 
-        $this->expectExceptionMessage('Mobile-ID answered for PASEE-' . self::IDENTITY_CODE . ' but the session was started for ' . self::IDENTITY_CODE);
+        // A passport, not the personal code asked for: the type says so without the number.
+        $this->expectExceptionMessage('Mobile-ID answered for PASEE-[redacted], not for the person the session was started for');
 
         $authenticator->poll($session);
     }
@@ -370,6 +388,7 @@ final class MobileIdAuthenticatorTest extends TestCase
         ], signature: \Allkiri\Tests\Support\Pki\TestCertificateSignature::Sha1);
         $this->http = new MockHttpClient();
         $this->service = MockMobileIdService::register($this->http, $sha1);
+        $this->service->authenticator = $sha1;
         $this->client = new MobileIdClient($this->service->configuration(), $this->http);
         $authenticator = $this->authenticator();
         $session = $authenticator->start(self::identity());

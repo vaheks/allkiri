@@ -19,6 +19,7 @@ use Allkiri\SmartId\SmartIdConfiguration;
 use Allkiri\SmartId\SmartIdEndResult;
 use Allkiri\SmartId\VerificationCode;
 use Allkiri\Tests\Support\Http\MockHttpClient;
+use Allkiri\Tests\Support\Pki\TestCertificates;
 use Allkiri\Tests\Support\Pki\TestPki;
 
 /**
@@ -86,10 +87,20 @@ final class MockSmartIdService
 
     private int $nextSession = 1;
 
+    /**
+     * What a sign-in answers with: the signer's certificate issued again for
+     * authentication alone, digitalSignature without nonRepudiation, as SK
+     * issues them. Same key, so what it signs still verifies. Set it to the
+     * signing pair to have the service answer a sign-in with that.
+     */
+    public KeyPair $authenticator;
+
     public function __construct(
         private readonly KeyPair $signer,
         private readonly string $url = self::URL,
-    ) {}
+    ) {
+        $this->authenticator = TestCertificates::reissued($signer, ['id-ce-keyUsage' => [['digitalSignature'], true]]);
+    }
 
     public static function register(MockHttpClient $http, ?KeyPair $signer = null, string $url = self::URL): self
     {
@@ -112,6 +123,14 @@ final class MockSmartIdService
     public function certificate(): Certificate
     {
         return $this->signer->certificate;
+    }
+
+    /**
+     * The certificate a sign-in answers with.
+     */
+    public function authenticationCertificate(): Certificate
+    {
+        return $this->authenticator->certificate;
     }
 
     /**
@@ -331,7 +350,7 @@ final class MockSmartIdService
             'result' => ['endResult' => 'OK', 'documentNumber' => $this->documentNumberOverride ?? self::DOCUMENT_NUMBER],
             'signatureProtocol' => AcspV2Payload::PROTOCOL,
             'signature' => $signature,
-            'cert' => ['value' => $this->signer->certificate->base64(), 'certificateLevel' => $this->certificateLevel->value],
+            'cert' => ['value' => $this->authenticator->certificate->base64(), 'certificateLevel' => $this->certificateLevel->value],
             'interactionTypeUsed' => $used->value,
         ];
     }

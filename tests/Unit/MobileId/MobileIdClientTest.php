@@ -176,7 +176,7 @@ final class MobileIdClientTest extends TestCase
         $status = $client->status(MobileIdSession::TYPE_AUTHENTICATION, $sessionId);
 
         self::assertNotNull($status->certificate);
-        self::assertTrue($status->certificate->equals($service->certificate()));
+        self::assertTrue($status->certificate->equals($service->authenticationCertificate()));
     }
 
     public function testPassesThePollTimeoutToTheService(): void

@@ -124,6 +124,13 @@ the whole list, so a signed list nested inside a forged one is refused.
 A list is written to the cache when it is fetched, not again when it is read
 from there, so the cache lifetime decides how soon a fresh copy is fetched.
 
+The cache also remembers the highest sequence number each address has served,
+and a fetched list older than that is refused with `TRUSTED_LIST_ROLLED_BACK`.
+An old list is genuinely signed, so its signature cannot tell it apart, but it
+may still grant a service withdrawn since; anyone between you and a list
+served over plain HTTP could hand it back. Without a cache there is nothing to
+remember, so this is one more reason to give it one.
+
 ## When a list cannot be loaded
 
 `$allkiri->trustStore()->anchors()` throws `TrustedListException` when a list
@@ -159,7 +166,10 @@ Past the next update plus the grace period, the anchors are left out, and the
 part of the signature that needed one is `INDETERMINATE` with
 `TRUSTED_LIST_EXPIRED`, under the sub-indication a missing anchor gives:
 `NO_CERTIFICATE_CHAIN_FOUND` for the CA, `NO_POE` for a timestamp authority,
-`TRY_LATER` for a responder. `0` refuses them as soon as the date passes. An
+`TRY_LATER` for a responder. `0` refuses them as soon as the date passes. The
+default is no grace period at all, only the warning: lists are often late by a
+day or two, and refusing every signature in the country over a publication
+delay is a decision for the application, not for a library default. An
 anchor for the same certificate from elsewhere, such as one added with
 `withExtraTrustAnchors()`, still serves; anchors added by hand never expire.
 

@@ -21,10 +21,12 @@ final readonly class MobileIdIdentity
         public string $nationalIdentityNumber,
     ) {
         if (preg_match('/^\+[1-9]\d{6,14}\z/', $phoneNumber) !== 1) {
-            throw new InvalidArgumentException(\sprintf('"%s" is not a phone number in international form, for example "+37200000766"', $phoneNumber));
+            // The value is not repeated: a mistyped phone number is still a
+            // person's, and this message ends up in logs.
+            throw new InvalidArgumentException('The phone number is not in international form, for example "+37200000766"');
         }
         if (preg_match('/^\d{11}\z/', $nationalIdentityNumber) !== 1) {
-            throw new InvalidArgumentException(\sprintf('"%s" is not an eleven-digit national identity number', $nationalIdentityNumber));
+            throw new InvalidArgumentException('The national identity number is not eleven digits');
         }
     }
 

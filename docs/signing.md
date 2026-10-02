@@ -46,7 +46,11 @@ $result = $allkiri->signingService()->finalize($container, $dataToBeSigned, $sig
 ```
 
 `DataToBeSigned` is a plain value object that serialises to JSON, so a session,
-a database column or a queue message all work. It holds nothing secret.
+a database column or a queue message all work. It holds nothing secret, but
+it decides what gets signed and at what level, and `finalize()` believes it:
+someone who could edit it could ask for level B, which needs no trusted
+certificate, and supply a certificate and signature of their own. Keep it on
+the server, never in a cookie or a hidden form field.
 
 What `finalize()` does before spending anything:
 

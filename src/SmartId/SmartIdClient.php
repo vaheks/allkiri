@@ -196,7 +196,7 @@ final class SmartIdClient
             $timeoutMs ?? $this->configuration->pollTimeoutMs,
         );
 
-        $body = $this->decode($this->send(HttpRequest::get($url, ['Accept' => 'application/json'])), $url, true);
+        $body = $this->decode($this->send(HttpRequest::get($url, ['Accept' => 'application/json, application/problem+json'])), $url, true);
 
         return SmartIdSessionStatusParser::parse($body);
     }
@@ -302,7 +302,7 @@ final class SmartIdClient
 
         $this->logger?->debug('Smart-ID POST {url}', ['url' => HttpRequest::withoutIdentities($url)]);
 
-        return $this->decode($this->send(HttpRequest::post($url, 'application/json', $payload, ['Accept' => 'application/json'])), $url);
+        return $this->decode($this->send(HttpRequest::post($url, 'application/json', $payload, ['Accept' => 'application/json, application/problem+json'])), $url);
     }
 
     private function send(HttpRequest $request): HttpResponse
