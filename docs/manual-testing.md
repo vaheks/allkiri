@@ -43,7 +43,7 @@ Produce the containers with the integration suite or a short script, then:
 
 | # | Check | Last done | Result |
 |---|---|---|---|
-| 1 | An LT container allkiri signed with an RSA key opens in DigiDoc4 without warnings | 2026-10-02 | Valid in the beta — test Mobile-ID `39901019992`, RSA with SHA-256, shown as BES/time-stamp |
+| 1 | An LT container allkiri signed with an RSA key opens in DigiDoc4 without warnings | 2026-10-02 | Valid in the beta 4.3.0.4685 — test Mobile-ID `39901019992`, RSA with SHA-256, shown as BES/time-stamp |
 | 2 | The same with an ECDSA P-256 key | 2026-09-18 | Valid — test Mobile-ID `60001019906`, whose ECC certificate is the one used |
 | 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | 2026-09-18 | Valid — the card signature of item 14 |
 | 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
@@ -53,12 +53,12 @@ Produce the containers with the integration suite or a short script, then:
 | 8 | The same with a Smart-ID demo account | | |
 | 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
 | 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — in the beta with test Mobile-ID, and in 4.11.1.5434 with live |
-| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid — in the beta with demo Smart-ID, and in 4.11.1.5434 with live, on 2026-09-18 with SHA-256; in the beta with SHA-512 on 2026-10-02. See below |
+| 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid — in the beta with demo Smart-ID, and in 4.11.1.5434 with live, on 2026-09-18 with SHA-256; in the beta 4.3.0.4685 with SHA-512 on 2026-10-02. See below |
 | 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card; no test card is available |
 | 13 | The same on a Thales card issued since November 2025 | | |
 | 14 | Signing a container with a test ID card; the result validates in allkiri and in SiVa | 2026-09-18 | Valid in DigiDoc4 and in allkiri, with a live card. SiVa not checked |
 | 15 | The same in Chrome, Firefox and Safari | 2026-10-02 | Chrome and Firefox: every means, sign-in and signing, with a live IDEMIA card. Safari: Smart-ID only; the card and Mobile-ID not tried there |
-| 16 | An **XAdES-LTA** container allkiri archived opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid in the beta, shown as BES/time-stamp-archive with its archive timestamp — test Mobile-ID `60001019906` |
+| 16 | An **XAdES-LTA** container allkiri archived opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid in the beta 4.3.0.4685, shown as BES/time-stamp-archive with its archive timestamp — test Mobile-ID `60001019906` |
 
 ### The round of 2026-09-18
 
@@ -125,7 +125,8 @@ That answers item 15 for Chrome and Firefox. Safari has done Smart-ID, and has
 not yet had the ID card or Mobile-ID.
 
 The same day, three containers the integration suite made on 2026-10-01 were
-opened in the **DigiDoc4 beta**, and each signature showed as valid:
+opened in the **DigiDoc4 beta, version 4.3.0.4685**, and each signature showed
+as valid:
 
 | Container | Item | DigiDoc4 showed |
 |---|---|---|
