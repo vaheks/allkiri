@@ -40,6 +40,17 @@ ECDSA values verify with phpseclib's `IEEE` signature format (raw r‖s).
 Only a 2013 libdigidocpp sample used `xml-c14n11`, which `DOMNode::C14N`
 cannot produce; such legacy signatures are reported as unsupported.
 
+**Corrected on 2026-10-02.** C14N 1.1 is not legacy: DigiDoc4 4.11, through
+libdigidocpp, signs with it in the SignedInfo, the SignedProperties reference
+and the signature timestamp, so every signature DigiDoc4 made was reported
+TOTAL-FAILED. It is now read as inclusive C14N 1.0, which gives the same bytes
+wherever no element above the canonicalised one carries `xml:id` or
+`xml:base`: the only thing the two versions treat differently (C14N 1.1,
+section 2.4). Where one does, the signature is still refused as unsupported.
+Two of the author's own DigiDoc4 4.11 containers, one ECDSA and one RSA,
+validate TOTAL-PASSED against production trust, and libdigidocpp's own test
+containers verify byte for byte; see `tests/fixtures/containers/README.md`.
+
 ### What digidoc4j actually emits (layout to mirror)
 
 - XML declaration `standalone="no"`; `ds` namespace declared on

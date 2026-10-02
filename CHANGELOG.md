@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Signatures made by DigiDoc4 validate. libdigidocpp, the library inside
+  DigiDoc4, signs with C14N 1.1, which allkiri did not read, so every signature
+  DigiDoc4 4.11 makes was reported TOTAL-FAILED with `UNSUPPORTED_CANONICALIZATION`
+  and `SIGNED_PROPERTIES_DIGEST_MISMATCH`. C14N 1.1 is now read as inclusive
+  C14N 1.0, which gives the same bytes wherever no element above carries
+  `xml:id` or `xml:base`, and is still refused where one does. Two DigiDoc4
+  4.11 containers validate TOTAL-PASSED against production trust, and two of
+  libdigidocpp's own test containers are now fixtures.
+
 ## [1.0.0-rc.1] - 2026-10-02
 
 The first release candidate. The API is the one 1.0 will have: from here,
