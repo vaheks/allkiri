@@ -3,14 +3,18 @@
 ## What 1.0 waits for
 
 Everything in the library is written and tested against the free Estonian test
-services. Four things remain, and none of them can be done by software alone.
+services. Four gates stand before 1.0, none of which software can pass by itself.
+On 2026-10-01 it was decided that the production round of 2026-09-18, recorded
+in [manual-testing.md](manual-testing.md#the-round-of-2026-09-18), answers the
+first two: a real card and a real Smart-ID app against the production services
+prove more than test material would, and no test ID card is available here.
 
-| # | Gate | What it needs |
-|---|---|---|
-| 1 | The ID card on real hardware | an IDEMIA test card, a Thales test card, a reader and a person. Items 12 to 15 of [manual-testing.md](manual-testing.md), through `examples/demo-app` over HTTPS, which [its README](../examples/demo-app/README.md#running-it) shows how to set up |
-| 2 | A Smart-ID device link scanned | a phone with the Smart-ID demo app and a demo account, scanning the code that "Smart-ID without an identity code" draws in `examples/demo-app`. SK's mock scan already completes that sign-in (see [smart-id.md](smart-id.md#testing)); the gate is a real app reading the code off a screen |
-| 3 | The DigiDoc4 checklist | DigiDoc4 beta, pointed at the test trusted list. All sixteen items of [manual-testing.md](manual-testing.md) |
-| 4 | A production smoke test | contracts with SK for Mobile-ID, Smart-ID and the timestamp service, and a machine whose public address SK has registered for them; revocation needs no contract ([going-live.md](going-live.md)). `composer test:live`, then open what it writes in DigiDoc4's default mode |
+| # | Gate | What it needs | Status |
+|---|---|---|---|
+| 1 | The ID card on real hardware | a card, a reader and a person, through `examples/demo-app` over HTTPS, which [its README](../examples/demo-app/README.md#running-it) shows how to set up. Items 12 to 15 of [manual-testing.md](manual-testing.md) | **Met** on 2026-09-18 with a live IDEMIA card in production, in Chrome. Still to do: Firefox and Safari (item 15). **A Thales card is untested** and is named as a known gap in the 1.0 release notes rather than waited for |
+| 2 | A Smart-ID device link scanned | the Smart-ID app scanning the code that "Smart-ID without an identity code" draws in `examples/demo-app`. SK's mock scan already completes that sign-in (see [smart-id.md](smart-id.md#testing)); the gate is a real app reading the code off a screen | **Met** on 2026-09-18 in production: the QR code scanned with the Smart-ID app, and the app opened on the same phone |
+| 3 | The DigiDoc4 checklist | DigiDoc4 beta, pointed at the test trusted list, and the items of [manual-testing.md](manual-testing.md) | Nine of sixteen done. Still to do: 1, 6 to 9, 14's SiVa check, 15 and 16; the containers for 1, 11's SHA-512 form and 16 can be produced with the commands there |
+| 4 | A production smoke test | contracts with SK for Mobile-ID, Smart-ID and the timestamp service, and a machine whose public address SK has registered for them; revocation needs no contract ([going-live.md](going-live.md)). `composer test:live`, then open what it writes in DigiDoc4's default mode | Not run. Run it **after 2 November 2026**, when SK restricts the TLS cipher suites in production, so that one run proves both (#50) |
 
 Gate 4 is the only one that costs money, and it is the one that matters most:
 production uses different endpoints, different relying-party credentials, a
@@ -34,8 +38,8 @@ Nothing scheduled can reach it. It lives in its own test suite, which neither
 `composer test` nor `composer test:integration` loads, and it refuses to run
 unless `ALLKIRI_LIVE_SMOKE=1` and `ALLKIRI_MODE=live` are both set.
 
-Until all four are recorded as done, the README says alpha and the version stays
-below 1.0.
+Until all four are recorded as done, the version stays below 1.0: an alpha, or
+from `1.0.0-rc.1` a release candidate.
 
 ## Releasing, once the gates are met
 

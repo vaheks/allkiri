@@ -106,6 +106,27 @@ DigiDoc4 to create or add a signature rather than only read one; a Thales card
 (13); the browsers other than Chrome (15); and an archived LTA container (16),
 which the demo application can produce with its archive button.
 
+### What this round settles for 1.0
+
+On 2026-10-01 it was decided that this round answers release gates 1 and 2 of
+[releasing.md](releasing.md#what-10-waits-for): the ID card on real hardware,
+and a real Smart-ID app reading the code off a screen, both in production. A
+**Thales card stays untested**, and 1.0 will say so in its release notes rather
+than wait for one. Item 15's other browsers are still to do.
+
+The containers for the items that only need reading can be produced in one go.
+Each command below writes into `ALLKIRI_ARTEFACTS`, and each container it writes
+has already been accepted by SiVa:
+
+| File | Item |
+|---|---|
+| `mobile-id-39901019992.asice` | 1: RSA, from the test Mobile-ID `+37200001566` |
+| `smart-id-SHA512-50001029996.asice` | 11, with SHA-512: RSA-PSS from demo Smart-ID |
+| `archived-60001019906.asice` | 16: an archived, LTA, signature |
+
+Items 6 to 9 need DigiDoc4 to make or add a signature, which only a person at
+it can do.
+
 Items 7 and 8 also produce fixtures worth keeping: drop them into
 `tests/fixtures/containers` and note in that directory's README how they were
 made.
