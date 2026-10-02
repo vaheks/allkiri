@@ -18,6 +18,13 @@ which reads the test trusted list:
 - macOS: <https://installer.id.ee/media/id2019/macOS/>
 - Linux: <https://installer.id.ee/media/id2019/Ubuntu/>
 
+**The beta reads, and no longer signs.** The newest beta there is 4.3.0.4685 on
+Windows and 4.2.14 on macOS and Linux, and the certificate it signs through SK's
+services with expired on 14 September 2024: any attempt to sign says so. Opening
+and checking a container still works. The items that need DigiDoc4 to make a
+signature, 6 to 8, are done in production instead, with the released DigiDoc4
+and a real eID, as decided on 2026-10-02.
+
 The command-line tool shipped with it can be pointed at the test list
 directly, which is the quickest check:
 
@@ -48,10 +55,10 @@ Produce the containers with the integration suite or a short script, then:
 | 3 | The same with an ECDSA P-384 key, the algorithm Estonian ID-cards use | 2026-09-18 | Valid — the card signature of item 14 |
 | 4 | The same with RSA-PSS, the algorithm Smart-ID requires | 2026-09-18 | Valid — the Smart-ID signature of item 11 |
 | 5 | DigiDoc4 shows the signer's name and the signing time as expected | 2026-09-18 | As expected |
-| 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | | |
-| 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | |
-| 8 | The same with a Smart-ID demo account | | |
-| 9 | A container allkiri appended a signature to still shows the original signature as valid | | |
+| 6 | A second signature added **in DigiDoc4** to an allkiri container; both then validate in allkiri | | In production: the beta cannot sign |
+| 7 | A container DigiDoc4 created, signed with test Mobile-ID, validates in allkiri | | In production, with a real Mobile-ID: the beta cannot sign |
+| 8 | The same with a Smart-ID demo account | | In production, with a real Smart-ID: the beta cannot sign |
+| 9 | A container allkiri appended a signature to still shows the original signature as valid | 2026-10-02 | Valid in the beta 4.3.0.4685: digidoc4j's `valid-asice-esteid2018.asice`, signed by JÕEORG, JAAK-KRISTJAN, with a test Mobile-ID signature allkiri added. Both shown as valid, and both TOTAL-PASSED in allkiri |
 | 10 | A container allkiri signed with **test Mobile-ID** opens in DigiDoc4 and shows the signature as valid | 2026-09-18 | Valid — in the beta with test Mobile-ID, and in 4.11.1.5434 with live |
 | 11 | A container allkiri signed with **demo Smart-ID** (RSA-PSS) opens in DigiDoc4 and shows the signature as valid | 2026-10-02 | Valid — in the beta with demo Smart-ID, and in 4.11.1.5434 with live, on 2026-09-18 with SHA-256; in the beta 4.3.0.4685 with SHA-512 on 2026-10-02. See below |
 | 12 | Signing in with a **test ID card** through Web eID, on an IDEMIA card | 2026-09-18 | Signed in — with a live IDEMIA card; no test card is available |
@@ -138,6 +145,12 @@ libdigidocpp names the profiles its own way: BES/time-stamp is XAdES-LT, and
 BES/time-stamp-archive is XAdES-LTA. The archive timestamp's coverage, the
 construction most likely to differ between implementations, is read the same
 by DigiDoc4 as by SiVa.
+
+Item 9 was done the same way. allkiri added a signature with the test Mobile-ID
+`60001019906` to `tests/fixtures/containers/valid-asice-esteid2018.asice`, which
+digidoc4j signed in 2024, and the beta showed both signatures as valid. Adding a
+signature rewrites none of the entries already in a container, which is what
+this item checks from the other side.
 
 ### What the round of 2026-09-18 settles for 1.0
 
