@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `SmartIdPoller` and `MobileIdPoller` no longer abandon a session after a
+  single status request that could not reach the service, such as a connect
+  or DNS timeout. A person who had already approved on their phone lost the
+  signing to it. Such a request is now asked again, up to three failures in a
+  row, within the session timeout. The third failure in a row is thrown as
+  before, with `REASON_TRANSPORT`. So is a session timeout that runs out right
+  after a failed request, which used to look like the person not answering.
+  Errors the service answers with, such as HTTP 401 or 5xx, are still thrown
+  at once.
+
 ## [1.0.0-rc.2] - 2026-10-02
 
 The second release candidate, for one fix the manual checklist found:

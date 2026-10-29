@@ -25,8 +25,11 @@ final class MobileIdPoller
     /**
      * Poll until the session finishes or the configured session timeout passes.
      *
+     * A status request that could not reach the service is asked again, up to
+     * three failures in a row, within the session timeout.
+     *
      * @throws MobileIdSessionException when the person did not complete the session, or the timeout passed first
-     * @throws MobileIdApiException
+     * @throws MobileIdApiException     when the service could not be reached three times in a row, or answered with an error
      */
     public function wait(MobileIdSession $session): MobileIdSessionStatus
     {
@@ -40,6 +43,7 @@ final class MobileIdPoller
 
                 return $status->isComplete() ? $status : null;
             },
+            static fn(\Throwable $e): bool => $e instanceof MobileIdApiException && $e->reason === MobileIdApiException::REASON_TRANSPORT,
         ) ?? throw new MobileIdSessionException(MobileIdResult::Timeout);
 
         if (!$status->isOk()) {

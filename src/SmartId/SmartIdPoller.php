@@ -28,6 +28,11 @@ final class SmartIdPoller
      * Returns the status whatever it says, including a refusal, and a TIMEOUT
      * status when the timeout passes first; callers decide whether to throw.
      * {@see waitForSuccess()} throws instead.
+     *
+     * A status request that could not reach the service is asked again, up to
+     * three failures in a row, within the session timeout.
+     *
+     * @throws SmartIdApiException when the service could not be reached three times in a row, or answered with an error
      */
     public function wait(SmartIdSession $session): SmartIdSessionStatus
     {
@@ -42,6 +47,7 @@ final class SmartIdPoller
 
                 return $status->isComplete() ? $status : null;
             },
+            static fn(\Throwable $e): bool => $e instanceof SmartIdApiException && $e->reason === SmartIdApiException::REASON_TRANSPORT,
         ) ?? new SmartIdSessionStatus(SmartIdSessionStatus::STATE_COMPLETE, result: SmartIdEndResult::Timeout);
     }
 
