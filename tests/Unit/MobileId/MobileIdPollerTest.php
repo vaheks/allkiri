@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Allkiri\Tests\Unit\MobileId;
 
 use Allkiri\Crypto\HashAlgorithm;
+use Allkiri\Http\HttpRequest;
+use Allkiri\Http\HttpResponse;
+use Allkiri\Http\TransportException;
+use Allkiri\MobileId\MobileIdApiException;
 use Allkiri\MobileId\MobileIdClient;
 use Allkiri\MobileId\MobileIdConfiguration;
 use Allkiri\MobileId\MobileIdIdentity;
@@ -23,6 +27,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class MobileIdPollerTest extends TestCase
 {
+    private const STATUS_URL = MockMobileIdService::URL . '/signature/session/';
+
     private MockHttpClient $http;
 
     private MockMobileIdService $service;
@@ -58,6 +64,22 @@ final class MobileIdPollerTest extends TestCase
     private static function identity(): MobileIdIdentity
     {
         return new MobileIdIdentity('+37200000766', '38001085718');
+    }
+
+    /**
+     * Put the status requests through a script before the mock service sees
+     * them: 'down' cannot reach it, 'refused' is answered HTTP 401, and 'up'
+     * passes the request on, as every request after the script does.
+     */
+    private function scriptStatusRequests(string ...$script): void
+    {
+        $this->http->on(self::STATUS_URL, function (HttpRequest $request) use (&$script): HttpResponse {
+            return match (array_shift($script) ?? 'up') {
+                'down' => throw new TransportException('Failed to connect to mid.allkiri.test port 443 after 10002 ms: Timeout was reached (curl error 28)'),
+                'refused' => new HttpResponse(401, ['Content-Type' => 'application/json'], '{}'),
+                default => $this->service->handle($request),
+            };
+        });
     }
 
     public function testItKeepsAskingUntilThePersonIsDone(): void
@@ -176,5 +198,85 @@ final class MobileIdPollerTest extends TestCase
         }
 
         self::assertSame(1, $this->http->requestCount(MockMobileIdService::URL . '/signature/session/'));
+    }
+
+    // --- the service out of reach -------------------------------------------
+
+    public function testAStatusRequestThatCouldNotReachTheServiceIsAskedAgain(): void
+    {
+        $this->scriptStatusRequests('down', 'down');
+        $client = $this->client();
+        $session = $this->session($client);
+
+        $status = (new MobileIdPoller($client, new NullSleeper()))->wait($session);
+
+        self::assertTrue($status->isOk());
+        self::assertSame(3, $this->http->requestCount(self::STATUS_URL));
+    }
+
+    public function testThreeFailuresInARowAreThrown(): void
+    {
+        $this->scriptStatusRequests('down', 'down', 'down');
+        $client = $this->client();
+        $session = $this->session($client);
+
+        try {
+            (new MobileIdPoller($client, new NullSleeper()))->wait($session);
+            self::fail('A service out of reach three times in a row was waited for');
+        } catch (MobileIdApiException $exception) {
+            self::assertSame(MobileIdApiException::REASON_TRANSPORT, $exception->reason);
+        }
+
+        self::assertSame(3, $this->http->requestCount(self::STATUS_URL));
+    }
+
+    public function testOnlyFailuresInARowAreCounted(): void
+    {
+        $this->service->runningPolls = 1;
+        $this->scriptStatusRequests('down', 'down', 'up', 'down', 'down');
+        $client = $this->client();
+        $session = $this->session($client);
+
+        $status = (new MobileIdPoller($client, new NullSleeper()))->wait($session);
+
+        self::assertTrue($status->isOk());
+        self::assertSame(6, $this->http->requestCount(self::STATUS_URL));
+    }
+
+    /**
+     * A network outage that outlasts the session is not the person not
+     * answering, so it must not come back as TIMEOUT.
+     */
+    public function testABudgetSpentOutOfReachIsThrownNotTakenForATimeout(): void
+    {
+        $this->service->runningPolls = PHP_INT_MAX;
+        $this->scriptStatusRequests('up', 'down');
+        $client = $this->client(pollTimeoutMs: 10_000, sessionTimeoutSeconds: 20);
+        $session = $this->session($client);
+
+        try {
+            (new MobileIdPoller($client, new NullSleeper()))->wait($session);
+            self::fail('A session that could not be asked about was taken for a timeout');
+        } catch (MobileIdApiException $exception) {
+            self::assertSame(MobileIdApiException::REASON_TRANSPORT, $exception->reason);
+        }
+
+        self::assertSame(2, $this->http->requestCount(self::STATUS_URL));
+    }
+
+    public function testAnErrorTheServiceAnsweredWithIsThrownAtOnce(): void
+    {
+        $this->scriptStatusRequests('refused');
+        $client = $this->client();
+        $session = $this->session($client);
+
+        try {
+            (new MobileIdPoller($client, new NullSleeper()))->wait($session);
+            self::fail('An HTTP 401 was asked again');
+        } catch (MobileIdApiException $exception) {
+            self::assertSame(MobileIdApiException::REASON_UNAUTHORISED, $exception->reason);
+        }
+
+        self::assertSame(1, $this->http->requestCount(self::STATUS_URL));
     }
 }

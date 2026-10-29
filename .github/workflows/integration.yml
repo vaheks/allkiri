@@ -57,5 +57,20 @@ jobs:
 
       # Print why a test was skipped or left incomplete, so a SiVa check
       # skipped because of a bot-protection challenge shows in the log.
+      #
+      # A failed run is tried once more after a pause, and only a second
+      # failure fails the job. The demo services and the trusted-list hosts
+      # are shared and now and then do not answer (a connect or DNS timeout,
+      # an error page), which says nothing about allkiri; a real change
+      # upstream fails both runs. The first run's log stays in this job.
       - name: Integration tests
+        id: first
+        continue-on-error: true
         run: composer test:integration -- --display-skipped --display-incomplete
+
+      - name: Integration tests, second try
+        if: steps.first.outcome == 'failure'
+        run: |
+          echo "::warning::The first integration run failed; running the suite again in five minutes. See the step above for what failed."
+          sleep 300
+          composer test:integration -- --display-skipped --display-incomplete
