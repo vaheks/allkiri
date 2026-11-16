@@ -199,7 +199,7 @@ is for a key you hold as a file ([signing.md](signing.md)).
   openssl s_client -connect rp-api.smart-id.com:443 -tls1_3 -ciphersuites TLS_AES_256_GCM_SHA384 </dev/null
   ```
 
-- **PHP 8.2 or newer** with `curl`, `dom`, `mbstring`, `openssl` and `zlib`,
+- **PHP 8.3 or newer** with `curl`, `dom`, `mbstring`, `openssl` and `zlib`,
   and a CA bundle curl can find.
 
 ## Before the first real person
