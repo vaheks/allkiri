@@ -218,7 +218,7 @@ responder stand in for the real ones. See [docs/testing.md](docs/testing.md).
 
 ## Requirements
 
-PHP 8.2 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zlib`.
+PHP 8.3 or newer with `curl`, `dom`, `mbstring`, `openssl` and `zlib`.
 `intl` is optional: a Web eID site whose domain name is not ASCII needs it, or
 its origin configured in Punycode.
 

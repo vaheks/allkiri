@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- allkiri requires PHP 8.3 or newer. PHP 8.2 reaches end of life on
+  2026-12-31 and gets no security fixes from php.net after that. CI runs
+  PHP 8.3, 8.4 and 8.5, and the lowest-dependencies and nightly integration
+  jobs run on 8.3.
+- `phpseclib/phpseclib` requires `^3.0.58`. Older releases do not limit the
+  PBKDF iteration count of an encrypted key, so a crafted key can tie up the
+  CPU (GHSA-w3p9-g4p2-h3rr). In allkiri this is reachable only through
+  `PrivateKey::fromPem()` with a password, which reads the integrator's own
+  key.
+
 ### Fixed
 
 - `SmartIdPoller` and `MobileIdPoller` no longer abandon a session after a

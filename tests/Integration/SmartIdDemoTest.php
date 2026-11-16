@@ -270,7 +270,7 @@ final class SmartIdDemoTest extends IntegrationTestCase
         $authenticator = $allkiri->smartIdAuthenticator($configuration);
 
         $session = $authenticator->startAnonymous(self::interactions());
-        $this->scan(self::qrLink($session, $configuration), 'QR');
+        $this->scan(self::qrLink($session, $configuration));
         $status = (new SmartIdPoller($allkiri->smartIdClient($configuration)))->wait($session);
 
         self::assertTrue($status->isOk(), (string) $status->result?->value);
@@ -293,7 +293,7 @@ final class SmartIdDemoTest extends IntegrationTestCase
         $link = self::qrLink($session, $configuration);
         $tampered = (string) preg_replace_callback('/authCode=(.)/', static fn(array $m): string => 'authCode=' . ($m[1] === 'A' ? 'B' : 'A'), $link);
         self::assertNotSame($link, $tampered);
-        $this->scan($tampered, 'QR');
+        $this->scan($tampered);
 
         $status = (new SmartIdPoller($allkiri->smartIdClient($configuration)))->wait($session);
         self::assertSame(SmartIdEndResult::ProtocolFailure, $status->result, 'a link with a wrong code must not be answered');
@@ -308,7 +308,7 @@ final class SmartIdDemoTest extends IntegrationTestCase
         $container = AsicContainer::create(DataFile::fromString('allkiri.txt', 'Smart-ID QR signing check ' . date(DATE_ATOM)));
 
         $signing = $signer->startDeviceLink($container, new DocumentNumber(self::MOCK_DOCUMENT), self::interactions());
-        $this->scan(self::qrLink($signing->session, $configuration), 'QR');
+        $this->scan(self::qrLink($signing->session, $configuration));
         $result = $signer->sign($container, $signing, new SmartIdPoller($allkiri->smartIdClient($configuration)));
 
         self::assertSame(SignatureLevel::LT, $result->level);
@@ -338,7 +338,7 @@ final class SmartIdDemoTest extends IntegrationTestCase
         $session = $authenticator->startAnonymous(self::interactions(), initialCallbackUrl: $callbackUrl);
         self::assertNotNull($session->sessionSecret);
         $link = $session->deviceLink($configuration->scheme, $configuration->relyingPartyNameBase64(), DeviceLink::TYPE_WEB2APP)->url($session->sessionSecret);
-        $this->scan($link, 'Web2App', ['browserCookie' => 'allkiri-integration-test=1', 'initialCallbackUrl' => $callbackUrl]);
+        $this->scan($link, ['browserCookie' => 'allkiri-integration-test=1']);
 
         $status = (new SmartIdPoller($allkiri->smartIdClient($configuration)))->wait($session);
         self::assertTrue($status->isOk(), (string) $status->result?->value);
@@ -375,9 +375,9 @@ final class SmartIdDemoTest extends IntegrationTestCase
      *
      * @param array<string, string> $more
      */
-    private function scan(string $link, string $flowType, array $more = []): void
+    private function scan(string $link, array $more = []): void
     {
-        $body = json_encode(['documentNumber' => self::MOCK_DOCUMENT, 'deviceLink' => $link, 'flowType' => $flowType] + $more, JSON_THROW_ON_ERROR);
+        $body = json_encode(['documentNumber' => self::MOCK_DOCUMENT, 'deviceLink' => $link] + $more, JSON_THROW_ON_ERROR);
         $response = self::http()->send(HttpRequest::post(self::MOCK_SCAN_URL, 'application/json', $body));
 
         self::assertSame(200, $response->status, 'the mock scan refused the link: ' . $response->body);

@@ -29,14 +29,14 @@
         "docs": "https://github.com/vaheks/allkiri/tree/main/docs"
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "composer-runtime-api": "^2.0",
         "ext-curl": "*",
         "ext-dom": "*",
         "ext-mbstring": "*",
         "ext-openssl": "*",
         "ext-zlib": "*",
-        "phpseclib/phpseclib": "^3.0.57",
+        "phpseclib/phpseclib": "^3.0.58",
         "psr/clock": "^1.0",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
